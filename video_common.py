@@ -3,6 +3,7 @@
 """video_common.py module description."""
 
 import dataclasses
+import graycode
 
 
 DEFAULT_WIDTH = 1280
@@ -17,49 +18,6 @@ NUM_BITS = 16
 MIN_TAG_SIZE = 16
 
 
-def binary_to_int(binary_array):
-    rval = 0
-    for val in binary_array:
-        rval = (rval << 1) | int(val)
-    return rval
-
-
-def num_to_gray(num, bits):
-    bnum = bin(num)[2:]
-    bnum = bnum.zfill(bits)
-    done = False
-    position = bits - 2
-    gnum = [0] * bits
-    while not done and position > 0:
-        val = int(bnum[position])
-        if val == 1:
-            val = int(bnum[position + 1])
-            gnum[position + 1] = 1 - val
-        else:
-            gnum[position + 1] = bnum[position + 1]
-        position -= 1
-    return binary_to_int(gnum)
-
-
-def gray_to_num(num, bits):
-    gnum = bin(num)[2:]
-    gnum = gnum.zfill(bits)
-    done = False
-    position = bits - 1
-    bnum = [0] * bits
-    while not done and position > 0:
-        val = 0
-        for posval in gnum[0:position]:
-            val = (val + int(posval)) % 2
-        if val == 1:
-            val = int(bnum[position])
-            bnum[position] = 1 - int(gnum[position])
-        else:
-            bnum[position] = gnum[position]
-        position -= 1
-    return binary_to_int(bnum)
-
-
 def bit_stream_to_number(bit_stream):
     num = 0
     for bit in bit_stream:
@@ -67,18 +25,18 @@ def bit_stream_to_number(bit_stream):
     return num
 
 
-def gray_bitstream_to_num(bit_stream, bits):
+def gray_bitstream_to_num(bit_stream):
     if bit_stream.count("X") == 0:
         gray_num = bit_stream_to_number(bit_stream)
-        return gray_to_num(gray_num, bits)
+        return graycode.gray_code_to_tc(gray_num)
     elif bit_stream.count("X") == 1:
         # support slightly degenerated cases
         b0 = [0 if b == "X" else b for b in bit_stream]
         g0 = bit_stream_to_number(b0)
-        n0 = gray_to_num(g0, bits)
+        n0 = graycode.gray_code_to_tc(g0)
         b1 = [1 if b == "X" else b for b in bit_stream]
         g1 = bit_stream_to_number(b1)
-        n1 = gray_to_num(g1, bits)
+        n1 = graycode.gray_code_to_tc(g1)
         if abs(n0 - n1) != 1:
             # error does not produce consecutive numbers
             return None

@@ -161,7 +161,7 @@ def parse_gray_code(img, image_info, luma_threshold, debug):
             bit = 0
         bit_stream.append(bit)
     # convert it to a gray number
-    num_read = video_common.gray_bitstream_to_num(bit_stream, image_info.gb_num_bits)
+    num_read = video_common.gray_bitstream_to_num(bit_stream)
     return num_read
 
 

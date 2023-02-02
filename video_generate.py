@@ -5,6 +5,7 @@
 
 import argparse
 import cv2
+import graycode
 import sys
 import numpy as np
 
@@ -111,7 +112,7 @@ def video_generate(width, height, fps, num_frames, outfile, metiq_id, rem, debug
         for frame_num in range(0, num_frames, 1):
             img = np.zeros((height, width, 3), np.uint8)
             time = (frame_num // fps) + (frame_num % fps) / fps
-            gray_num = video_common.num_to_gray(frame_num, image_info.gb_num_bits)
+            gray_num = graycode.tc_to_gray_code(frame_num)
             text1 = f"id: {metiq_id} frame: {frame_num} time: {time:.03f} gray_num: {gray_num:0{image_info.gb_num_bits}b}"
             text2 = f"fps: {fps:.2f} resolution: {img.shape[1]}x{img.shape[0]} {rem}"
             img = generate_image(image_info, gray_num, text1, text2, font, debug)
