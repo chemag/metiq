@@ -431,8 +431,9 @@ def main(argv):
     # do something
     if options.func == "generate":
         # get outfile
-        if options.outfile is None or options.outfile == "-":
+        if options.outfile == "-":
             options.outfile = "/dev/fd/1"
+        assert options.outfile is not None, "error: need a valid output file"
         # do something
         media_file_generate(
             options.width,
@@ -451,8 +452,9 @@ def main(argv):
 
     elif options.func == "analyze":
         # get infile
-        if options.infile is None or options.infile == "-":
+        if options.infile == "-":
             options.infile = "/dev/fd/0"
+        assert options.infile is not None, "error: need a valid in file"
         # get outfile
         if options.outfile is None or options.outfile == "-":
             options.outfile = "/dev/fd/1"
