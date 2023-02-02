@@ -4,6 +4,7 @@
 
 import dataclasses
 import graycode
+import typing
 
 
 DEFAULT_WIDTH = 1280
@@ -52,11 +53,11 @@ class ImageInfo:
     width: int
     tag_size: int
     tag_border_size: int
-    tag_x: "dict(int -> int)"
-    tag_y: "dict(int -> int)"
+    tag_x: typing.Dict[int, int]
+    tag_y: typing.Dict[int, int]
     gb_num_bits: int
-    gb_x: "dict(int -> int)"
-    gb_y: "dict(int -> int)"
+    gb_x: typing.Dict[int, int]
+    gb_y: typing.Dict[int, int]
     gb_boxsize: int
 
     def __init__(self, width, height, num_bits, border_size=0):
