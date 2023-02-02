@@ -6,18 +6,17 @@
 import argparse
 import cv2
 import graycode
+import math
 import sys
 import numpy as np
 
-import video_common
 import aruco_common
+import video_common
+import vft
 from _version import __version__
 
 
-# for 8-bits/component, the ffmpeg pix fmt is 'rgb24'
-
-# use fiduciarial markers from this dictionary
-ARUCO_DICT_ID = cv2.aruco.DICT_4X4_50
+VFT_ID = "7x5"
 
 COLOR_BLACK = (0, 0, 0)
 COLOR_BACKGROUND = (128, 128, 128)
@@ -34,7 +33,7 @@ default_values = {
 }
 
 
-def generate_image(image_info, gray_num, text1, text2, font, debug):
+def image_generate(image_info, frame_num, text1, text2, font, vft_id, debug):
     # 0. start with an empty image
     img = np.zeros((image_info.height, image_info.width, 3), np.uint8)
     # 1. paint the original image
@@ -55,56 +54,23 @@ def generate_image(image_info, gray_num, text1, text2, font, debug):
         y0 = image_info.height - 32
         cv2.putText(img, text2, (x0, y0), font, 1, COLOR_BLACK, 16, cv2.LINE_AA)
         cv2.putText(img, text2, (x0, y0), font, 1, COLOR_WHITE, 2, cv2.LINE_AA)
-    # 3. add fiduciary markers
-    for aruco_id in range(3):
-        img_tag = aruco_common.generate_aruco_tag(
-            image_info.tag_size, aruco_id, image_info.tag_border_size
-        )
-        # copy it into the main image
-        xpos1 = image_info.tag_x[aruco_id]
-        xpos2 = xpos1 + image_info.tag_size
-        ypos1 = image_info.tag_y[aruco_id]
-        ypos2 = ypos1 + image_info.tag_size
-        img[ypos1:ypos2, xpos1:xpos2] = img_tag
-    # 4. add gray code
-    generate_gray_code(img, image_info, gray_num, debug)
+    # 3. add VFT code
+    x0, x1 = image_info.vft_x
+    y0, y1 = image_info.vft_y
+    vft_width = x1 - x0
+    vft_height = y1 - y0
+    img_vft = vft.generate_graycode(
+        vft_width, vft_height, vft_id, image_info.vft_border_size, frame_num, debug
+    )
+    # copy it into the main image
+    img[y0:y1, x0:x1] = img_vft
     return img
 
 
-def generate_gray_code(img, image_info, gray_num, debug):
-    # 1. add box surrounding the gray code
-    x0, xn, yt, yc, yb = image_info.get_gray_block_location()
-    pts = np.array([[x0, yt], [x0, yb - 1], [xn - 1, yb - 1], [xn - 1, yt]])
-    cv2.fillPoly(img, pts=[pts], color=COLOR_WHITE)
-    # cv2.rectangle(img, (0, y - 1), (image_info.width, int(y + ph + 1)), COLOR_WHITE, 2)
-    # 2. add the gray code
-    img = draw_gray_code(img, image_info, gray_num)
-
-
-# draw boxes in black&white that represent a Gray code.
-# Always draw mirrored boxes around the horizontal axis.
-def draw_gray_code(img, image_info, gray_num):
-    # print the bit string
-    for i in range(image_info.gb_num_bits):
-        box_id = image_info.gb_num_bits - i - 1
-        x0 = image_info.gb_x[box_id]
-        x1 = x0 + image_info.gb_boxsize
-        yc = image_info.gb_y[box_id]
-        yt = yc - image_info.gb_boxsize
-        yb = yc + image_info.gb_boxsize
-        if gray_num % 2 == 1:
-            # rectangle in top part
-            pts = np.array([[x0, yc], [x0, yb - 1], [x1 - 1, yb - 1], [x1 - 1, yc]])
-        else:
-            # rectangle in bottom part
-            pts = np.array([[x0, yt], [x0, yc - 1], [x1 - 1, yc - 1], [x1 - 1, yt]])
-        cv2.fillPoly(img, pts=[pts], color=COLOR_BLACK)
-        gray_num >>= 1
-    return img
-
-
-def video_generate(width, height, fps, num_frames, outfile, metiq_id, rem, debug):
-    image_info = video_common.ImageInfo(width, height, video_common.NUM_BITS)
+def video_generate(
+    width, height, fps, num_frames, outfile, metiq_id, vft_id, rem, debug
+):
+    image_info = video_common.ImageInfo(width, height)
 
     with open(outfile, "wb") as rawstream:
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -113,9 +79,12 @@ def video_generate(width, height, fps, num_frames, outfile, metiq_id, rem, debug
             img = np.zeros((height, width, 3), np.uint8)
             time = (frame_num // fps) + (frame_num % fps) / fps
             gray_num = graycode.tc_to_gray_code(frame_num)
-            text1 = f"id: {metiq_id} frame: {frame_num} time: {time:.03f} gray_num: {gray_num:0{image_info.gb_num_bits}b}"
+            num_bits = math.ceil(math.log2(num_frames))
+            text1 = f"id: {metiq_id} frame: {frame_num} time: {time:.03f} gray_num: {gray_num:0{num_bits}b}"
             text2 = f"fps: {fps:.2f} resolution: {img.shape[1]}x{img.shape[0]} {rem}"
-            img = generate_image(image_info, gray_num, text1, text2, font, debug)
+            img = image_generate(
+                image_info, frame_num, text1, text2, font, vft_id, debug
+            )
             rawstream.write(img)
 
 
@@ -241,6 +210,7 @@ def main(argv):
         options.num_frames,
         options.outfile,
         "default",
+        VFT_ID,
         "",
         options.debug,
     )

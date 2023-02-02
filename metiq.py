@@ -27,6 +27,7 @@ FUNC_CHOICES = {
     "analyze": "analyze distorted video",
 }
 
+VFT_ID = "7x5"
 DEFAULT_NUM_FRAMES = 1800
 
 default_values = {
@@ -70,7 +71,7 @@ def media_file_generate(
     video_filename = tempfile.NamedTemporaryFile().name + ".rgb24"
     rem = f"period: {beep_period_sec} freq_hz: {beep_freq} samples: {beep_duration_samples}"
     video_generate.video_generate(
-        width, height, fps, num_frames, video_filename, "default", rem, debug
+        width, height, fps, num_frames, video_filename, "default", VFT_ID, rem, debug
     )
     duration_sec = num_frames / fps
     # generate the (raw) audio input
@@ -205,7 +206,54 @@ def media_file_analyze(
     avsync_sec_list = estimate_avsync(
         video_results, fps, audio_results, beep_period_sec
     )
+    # 3. dump results to file
+    dump_results(video_results, audio_results, outfile, debug)
     return video_delta, avsync_sec_list
+
+
+def dump_results(video_results, audio_results, outfile, debug):
+    # video_results: frame_num, frame_num_effective, timestamp, frame_num_read
+    # audio_results: sample_num, timestamp, correlation
+    # write the output as a csv file
+    with open(outfile, "w") as fd:
+        fd.write(
+            "timestamp,video_frame_num,video_frame_num_effective,video_frame_num_read,audio_sample_num,audio_correlation\n"
+        )
+        vindex = 0
+        aindex = 0
+        while vindex < len(video_results) and aindex < len(audio_results):
+            # get the timestamps
+            vts = video_results[vindex][2] if vindex < len(video_results) else None
+            ats = audio_results[aindex][1] if aindex < len(audio_results) else None
+            if vts == ats:
+                # dump both video and audio entry
+                (
+                    video_frame_num,
+                    video_frame_num_effective,
+                    timestamp,
+                    video_frame_num_read,
+                ) = video_results[vindex]
+                audio_sample_num, timestamp, audio_correlation = audio_results[aindex]
+                vindex += 1
+                aindex += 1
+            elif ats is None or vts <= ats:
+                # dump a video entry
+                (
+                    video_frame_num,
+                    video_frame_num_effective,
+                    timestamp,
+                    video_frame_num_read,
+                ) = video_results[vindex]
+                audio_sample_num = audio_correlation = ""
+                vindex += 1
+            else:
+                # dump an audio entry
+                audio_sample_num, timestamp, audio_correlation = audio_results[aindex]
+                video_frame_num = video_frame_num_effective = video_frame_num_read = ""
+                aindex += 1
+            fd.write(
+                f"{timestamp},{video_frame_num},{video_frame_num_effective},{video_frame_num_read},{audio_sample_num},{audio_correlation}\n"
+            )
 
 
 def get_options(argv):

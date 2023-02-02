@@ -10,13 +10,11 @@ import sys
 import numpy as np
 import scipy
 
-import video_common
 import aruco_common
+import video_common
+import vft
 from _version import __version__
 
-
-# use fiduciarial markers from this dictionary
-ARUCO_DICT_ID = cv2.aruco.DICT_4X4_50
 
 COLOR_BLACK = (0, 0, 0)
 COLOR_BACKGROUND = (128, 128, 128)
@@ -95,76 +93,6 @@ def get_video_capture(input_file, width, height, pixel_format):
     return video_capture
 
 
-def detect_markers(img, debug):
-    corners, ids = aruco_common.detect_aruco_tags(img)
-    if len(ids) != 3:
-        if debug > 2:
-            print(f"error: image has {len(ids)} marker(s) (should have 3)")
-        return None
-    ids.shape = 3
-    if set(ids) != {0, 1, 2}:
-        print(f"error: invalid set of markers: {set(ids)}")
-        return None
-    marker_locations = []
-    for marker_id in range(3):
-        index = list(ids).index(marker_id)
-        assert corners[index].shape == (
-            1,
-            4,
-            2,
-        ), f"error: invalid corners[{index}]: {corners[index]}"
-        xt = 0.0
-        yt = 0.0
-        for corner in corners[index][0]:
-            (x, y) = corner
-            xt += x
-            yt += y
-        xt /= 4
-        yt /= 4
-        marker_locations.append((xt, yt))
-    return marker_locations
-
-
-def affine_transformation(img, marker_locations, marker_expected_locations, debug):
-    # process the image
-    s0, s1, s2 = marker_locations
-    d0, d1, d2 = marker_expected_locations
-    src_trio = np.array([s0, s1, s2]).astype(np.float32)
-    dst_trio = np.array([d0, d1, d2]).astype(np.float32)
-    transform_matrix = cv2.getAffineTransform(src_trio, dst_trio)
-    if debug > 2:
-        print(f"transform_matrix: {transform_matrix}")
-    outimg = cv2.warpAffine(img, transform_matrix, (img.shape[1], img.shape[0]))
-    return outimg
-
-
-def parse_gray_code(img, image_info, luma_threshold, debug):
-    # extract the luma
-    img_luma = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # read the bit string
-    bit_stream = []
-    for box_id in range(image_info.gb_num_bits):
-        x0 = image_info.gb_x[box_id]
-        x1 = x0 + image_info.gb_boxsize
-        yc = image_info.gb_y[box_id]
-        yt = yc - image_info.gb_boxsize
-        yb = yc + image_info.gb_boxsize
-        img_luma_top = img_luma[yt:yc, x0:x1]
-        luma_top = np.mean(img_luma_top)
-        img_luma_bot = img_luma[yc:yb, x0:x1]
-        luma_bot = np.mean(img_luma_bot)
-        if abs(luma_top - luma_bot) < luma_threshold:
-            bit = "X"
-        elif luma_top > luma_bot:
-            bit = 1
-        else:
-            bit = 0
-        bit_stream.append(bit)
-    # convert it to a gray number
-    num_read = video_common.gray_bitstream_to_num(bit_stream)
-    return num_read
-
-
 def get_video_delta(video_results):
     # video_results = [[frame_num, frame_num_effective, timestamp, frame_num_read]*]
     # note that <timestamps> = k * <frame_num>
@@ -219,18 +147,16 @@ def estimate_video_smoothness(video_results, fps):
 # stream. Each tuple consists of 4x elements:
 # * (a) `frame_num`: the frame number (correlative values)
 # * (b) `frame_num_effective`: the effective frame number
-#   (`frame_num` whenc considering the reference fps),
+#   (`frame_num` when considering the reference fps),
 # * (c) `timestamp`: the timestamp (calculated from `frame_num`
 #   and the `in_fps` value), and
 # * (d) `frame_num_read`: the frame number read in the frame (None
 #   if it cannot read it).
 def video_analyze(infile, width, height, fps, pixel_format, luma_threshold, debug):
-    image_info = video_common.ImageInfo(width, height, video_common.NUM_BITS)
     video_capture = get_video_capture(infile, width, height, pixel_format)
     if not video_capture.isOpened():
         print(f"error: {infile = } is not open")
         sys.exit(-1)
-
     # analyze the video image-by-image
     in_fps = video_capture.get(cv2.CAP_PROP_FPS)
     frame_num = -1
@@ -246,27 +172,11 @@ def video_analyze(infile, width, height, fps, pixel_format, luma_threshold, debu
         frame_num_effective = frame_num * fps / in_fps
         timestamp = frame_num / in_fps
         timestamp_alt = video_capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-        # analyze image
-        marker_locations = detect_markers(img, debug)
-        if marker_locations is None:
-            # could not read the 3x markers properly: stop here
-            video_results.append((frame_num, frame_num_effective, timestamp, None))
-            continue
-        marker_expected_locations = [
-            image_info.get_marker_center(marker_id) for marker_id in range(3)
-        ]
-        # apply affine transformation to source image
-        img_affine = affine_transformation(
-            img, marker_locations, marker_expected_locations, debug
-        )
-        # read the gray code
-        frame_num_read = parse_gray_code(img_affine, image_info, luma_threshold, debug)
         if debug > 2:
             print(f"{timestamp = } {timestamp_alt = }")
-        video_results.append(
-            (frame_num, frame_num_effective, timestamp, frame_num_read)
-        )
-
+        # analyze image
+        value_read = image_analyze(img, luma_threshold, debug)
+        video_results.append((frame_num, frame_num_effective, timestamp, value_read))
     # clean up
     try:
         video_capture.release()
@@ -277,12 +187,19 @@ def video_analyze(infile, width, height, fps, pixel_format, luma_threshold, debu
     return video_results
 
 
-def dump_results(video_results, outfile, debug):
+def image_analyze(img, luma_threshold, debug):
+    num_read, vft_id = vft.analyze_graycode(img, luma_threshold, debug)
+    return num_read
+
+
+def dump_video_results(video_results, outfile, debug):
     # write the output as a csv file
     with open(outfile, "w") as fd:
-        fd.write("frame_num,timestamp,frame_num_read\n")
-        for frame_num, timestamp, frame_num_read in video_results:
-            fd.write(f"{frame_num},{timestamp},{frame_num_read}\n")
+        fd.write("frame_num,timestamp,frame_num_effective,frame_num_read\n")
+        for frame_num, frame_num_effective, timestamp, frame_num_read in video_results:
+            fd.write(
+                f"{frame_num},{frame_num_effective},{timestamp},{frame_num_read}\n"
+            )
 
 
 def get_options(argv):
@@ -423,7 +340,7 @@ def main(argv):
         options.luma_threshold,
         options.debug,
     )
-    dump_results(video_results, options.outfile, options.debug)
+    dump_video_results(video_results, options.outfile, options.debug)
     # provide a score
     video_delta = get_video_delta(video_results)
     print(f"score for {options.infile = } {video_delta = }")
