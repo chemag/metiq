@@ -170,28 +170,20 @@ def get_video_delta(video_results):
     # note that <timestamps> = k * <frame_num>
     num_frames = len(video_results)
     # remove the None values in order to calculate the delta between frames
-    delta_list = list(
-        delta
-        for delta in map(
-            lambda t: t[3] - t[1] if t[3] is not None else None, video_results
-        )
-        if delta is not None
-    )
+    delta_list = [(t[3] - t[1]) for t in video_results if t[3] is not None]
     # calculate the mode of the delta between frames
     delta_mode = scipy.stats.mode(delta_list, keepdims=True).mode[0]
-    # simplify the results
+    # simplify the results: substract the mode, and keep the None
     # * t[3] - (t[1] + delta_mode)  # if t[3] is not None
     # * None  # otherwise
-    delta_results = list(
-        map(
-            lambda t: (t[3] - (t[1] + delta_mode) if t[3] is not None else None),
-            video_results,
-        )
-    )
+    delta_results = [
+        (t[3] - (t[1] + delta_mode) if t[3] is not None else None)
+        for t in video_results
+    ]
     ok_frames = delta_results.count(0.0)
     unknown_frames = delta_results.count(None)
     nok_frames = num_frames - ok_frames - unknown_frames
-    stddev = np.std(list(delta for delta in delta_results if delta is not None))
+    stddev = np.std([delta for delta in delta_results if delta is not None])
     return {
         "mode": delta_mode,
         "stddev": stddev,
