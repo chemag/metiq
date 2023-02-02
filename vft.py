@@ -41,6 +41,8 @@ COLOR_BLACK = (0, 0, 0)
 COLOR_BACKGROUND = (128, 128, 128)
 COLOR_WHITE = (255, 255, 255)
 
+MIN_TAG_BORDER_SIZE = 2
+
 
 FUNC_CHOICES = {
     "help": "show help options",
@@ -184,6 +186,9 @@ class VFTLayout:
         self.block_width = self.x[1] - self.x[0]
         self.block_height = self.y[1] - self.y[0]
         self.tag_size = min(self.block_width, self.block_height)
+        assert (
+            tag_border_size >= MIN_TAG_BORDER_SIZE
+        ), f"error: tag border size must be at least {MIN_TAG_BORDER_SIZE} ({tag_border_size = })"
         self.tag_border_size = tag_border_size
 
     def get_colrow(self, block_id):
