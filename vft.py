@@ -26,7 +26,7 @@ __version__ = "0.1"
 VFT_IDS = ("9x8", "9x6", "7x5", "5x4")
 DEFAULT_VFT_ID = "7x5"
 DEFAULT_TAG_BORDER_SIZE = 2
-DEFAULT_LUMA_THRESHOLD = 20
+DEFAULT_LUMA_THRESHOLD = 100
 
 VFT_LAYOUT = {
     # "vft_id": [numcols, numrows, (aruco_tag_0, aruco_tag_1, aruco_tag_2)],
