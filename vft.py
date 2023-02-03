@@ -358,6 +358,11 @@ def analyze_read_bits(img, vft_layout, luma_threshold, debug):
         block_luma_avg = np.mean(img_luma_block)
         block_luma_avgs.append(block_luma_avg)
     # 3. convert per-block luma averages to bits
+    # TODO(chema): what we really want here is an adaptive luma
+    # threshold system: If we are getting luma avg values close
+    # 0 and 255, we can infer the image quality is pretty good,
+    # and therefore use a large threshold. Otherwise, we should
+    # resort to a smaller threshold.
     bit_stream = []
     for luma1, luma2 in zip(block_luma_avgs[0::2], block_luma_avgs[1::2]):
         if abs(luma2 - luma1) < luma_threshold:
