@@ -93,19 +93,29 @@ def get_video_capture(input_file, width, height, pixel_format):
     return video_capture
 
 
+def round_to_nearest_half(value):
+    return round(2 * value) / 2
+
+
 def get_video_delta(video_results):
     # video_results = [[frame_num, frame_num_effective, timestamp, frame_num_read]*]
     # note that <timestamps> = k * <frame_num>
     num_frames = len(video_results)
     # remove the None values in order to calculate the delta between frames
-    delta_list = [(t[3] - t[1]) for t in video_results if t[3] is not None]
+    delta_list = [
+        round_to_nearest_half(t[3] - t[1]) for t in video_results if t[3] is not None
+    ]
     # calculate the mode of the delta between frames
     delta_mode = scipy.stats.mode(delta_list, keepdims=True).mode[0]
     # simplify the results: substract the mode, and keep the None
     # * t[3] - (t[1] + delta_mode)  # if t[3] is not None
     # * None  # otherwise
     delta_results = [
-        (t[3] - (t[1] + delta_mode) if t[3] is not None else None)
+        (
+            (round_to_nearest_half(t[3] - t[1]) - delta_mode)
+            if t[3] is not None
+            else None
+        )
         for t in video_results
     ]
     ok_frames = delta_results.count(0.0)
