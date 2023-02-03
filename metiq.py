@@ -13,6 +13,7 @@ import tempfile
 import audio_common
 import audio_generate
 import audio_analyze
+import vft
 import video_common
 import video_generate
 import video_analyze
@@ -27,17 +28,19 @@ FUNC_CHOICES = {
     "analyze": "analyze distorted video",
 }
 
-VFT_ID = "7x5"
 DEFAULT_NUM_FRAMES = 1800
 
 default_values = {
     "debug": 0,
+    # vft parameters
+    "vft_id": vft.DEFAULT_VFT_ID,
+    "vft_tag_border_size": vft.DEFAULT_TAG_BORDER_SIZE,
+    "luma_threshold": vft.DEFAULT_LUMA_THRESHOLD,
     # video parameters
     "num_frames": DEFAULT_NUM_FRAMES,
     "fps": video_common.DEFAULT_FPS,
     "width": video_common.DEFAULT_WIDTH,
     "height": video_common.DEFAULT_HEIGHT,
-    "luma_threshold": video_common.DEFAULT_LUMA_THRESHOLD,
     "pixel_format": video_common.DEFAULT_PIXEL_FORMAT,
     # audio parameters
     "pre_samples": audio_common.DEFAULT_PRE_SAMPLES,
@@ -58,6 +61,7 @@ def media_file_generate(
     height,
     fps,
     num_frames,
+    vft_id,
     pre_samples,
     samplerate,
     beep_freq,
@@ -71,7 +75,7 @@ def media_file_generate(
     video_filename = tempfile.NamedTemporaryFile().name + ".rgb24"
     rem = f"period: {beep_period_sec} freq_hz: {beep_freq} samples: {beep_duration_samples}"
     video_generate.video_generate(
-        width, height, fps, num_frames, video_filename, "default", VFT_ID, rem, debug
+        width, height, fps, num_frames, video_filename, "default", vft_id, rem, debug
     )
     duration_sec = num_frames / fps
     # generate the (raw) audio input
@@ -370,6 +374,25 @@ def get_options(argv):
     )
 
     parser.add_argument(
+        "--vft-id",
+        type=str,
+        nargs="?",
+        default=default_values["vft_id"],
+        choices=vft.VFT_IDS,
+        help="%s" % (" | ".join("{}".format(k) for k in vft.VFT_IDS)),
+    )
+    parser.add_argument(
+        "--vft-tag-border-size",
+        action="store",
+        type=int,
+        dest="vft_tag_border_size",
+        default=default_values["vft_tag_border_size"],
+        metavar="BORDER_SIZE",
+        help=(
+            "vft tag border size (default: %i)" % default_values["vft_tag_border_size"]
+        ),
+    )
+    parser.add_argument(
         "--pre-samples",
         action="store",
         type=int,
@@ -488,6 +511,7 @@ def main(argv):
             options.height,
             options.fps,
             options.num_frames,
+            options.vft_id,
             options.pre_samples,
             options.samplerate,
             options.beep_freq,

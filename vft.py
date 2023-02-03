@@ -24,6 +24,9 @@ __version__ = "0.1"
 
 
 VFT_IDS = ("9x8", "9x6", "7x5", "5x4")
+DEFAULT_VFT_ID = "7x5"
+DEFAULT_TAG_BORDER_SIZE = 2
+DEFAULT_LUMA_THRESHOLD = 20
 
 VFT_LAYOUT = {
     # "vft_id": [numcols, numrows, (aruco_tag_0, aruco_tag_1, aruco_tag_2)],
@@ -42,6 +45,7 @@ COLOR_BACKGROUND = (128, 128, 128)
 COLOR_WHITE = (255, 255, 255)
 
 MIN_TAG_BORDER_SIZE = 2
+MIN_SIZE = 64
 
 
 FUNC_CHOICES = {
@@ -54,9 +58,9 @@ default_values = {
     "debug": 0,
     "width": 1280,
     "height": 720,
-    "tag_border_size": 2,
-    "luma_threshold": 20,
-    "vft_id": "7x5",
+    "vft_id": DEFAULT_VFT_ID,
+    "tag_border_size": DEFAULT_TAG_BORDER_SIZE,
+    "luma_threshold": DEFAULT_LUMA_THRESHOLD,
     "value": 0,
     "func": "help",
     "infile": None,
@@ -142,7 +146,9 @@ def analyze(img, luma_threshold, debug):
         return None, None
     # 2. set the layout
     height, width, _ = img.shape
-    vft_layout = VFTLayout(width, height, vft_id, tag_border_size=0)
+    vft_layout = VFTLayout(
+        width, height, vft_id, tag_border_size=DEFAULT_TAG_BORDER_SIZE
+    )
     # 3. apply affine transformation to source image
     tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
     img_affine = affine_transformation(
@@ -402,6 +408,8 @@ def bit_stream_to_number(bit_stream):
 
 
 def gray_bitstream_to_num(bit_stream):
+    if bit_stream is None:
+        return None
     if bit_stream.count("X") == 0:
         gray_num = bit_stream_to_number(bit_stream)
         return graycode.gray_code_to_tc(gray_num)

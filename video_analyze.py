@@ -25,7 +25,7 @@ default_values = {
     "debug": 0,
     "width": video_common.DEFAULT_WIDTH,
     "height": video_common.DEFAULT_HEIGHT,
-    "luma_threshold": video_common.DEFAULT_LUMA_THRESHOLD,
+    "luma_threshold": vft.DEFAULT_LUMA_THRESHOLD,
     "pixel_format": video_common.DEFAULT_PIXEL_FORMAT,
     "infile": None,
     "outfile": None,
