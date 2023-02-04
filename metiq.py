@@ -225,7 +225,7 @@ def dump_results(video_results, audio_results, outfile, debug):
         )
         vindex = 0
         aindex = 0
-        while vindex < len(video_results) and aindex < len(audio_results):
+        while vindex < len(video_results) or aindex < len(audio_results):
             # get the timestamps
             vts = video_results[vindex][2] if vindex < len(video_results) else None
             ats = audio_results[aindex][1] if aindex < len(audio_results) else None
