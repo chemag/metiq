@@ -551,11 +551,14 @@ def main(argv):
             print(f"{avsync_sec_list = }")
         # print statistics
         print(f"{video_delta = }")
-        avsync_sec_average = np.average(avsync_sec_list)
-        avsync_sec_stddev = np.std(avsync_sec_list)
-        print(
-            f"avsync_sec average: {avsync_sec_average} stddev: {avsync_sec_stddev} size: {len(avsync_sec_list)}"
-        )
+        if avsync_sec_list:
+            avsync_sec_average = np.average(avsync_sec_list)
+            avsync_sec_stddev = np.std(avsync_sec_list)
+            print(
+                f"avsync_sec average: {avsync_sec_average} stddev: {avsync_sec_stddev} size: {len(avsync_sec_list)}"
+            )
+        else:
+            print(f"avsync_sec no data available")
 
 
 if __name__ == "__main__":

@@ -75,7 +75,9 @@ def audio_analyze(infile, **kwargs):
     # Note that by default this downmixes both channels.
     command = f"ffmpeg -y -i {infile} -vn -ac 1 {wav_filename}"
     ret, stdout, stderr = common.run(command, debug=debug)
-    assert ret == 0, f"error: {stderr}"
+    if ret != 0:
+        print(f"warn: no audio stream in {infile}")
+        return []
     # analyze audio file
     audio_results = audio_analyze_wav(wav_filename, **kwargs)
     # sort the index list
