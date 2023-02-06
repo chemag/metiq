@@ -10,7 +10,6 @@ import math
 import sys
 import numpy as np
 
-import aruco_common
 import video_common
 import vft
 from _version import __version__

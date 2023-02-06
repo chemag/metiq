@@ -277,7 +277,7 @@ def detect_tags(img, debug):
     corners, ids = aruco_common.detect_aruco_tags(img)
     if ids is None:
         if debug > 2:
-            print(f"error: cannot detect any tags in image")
+            print("error: cannot detect any tags in image")
         return None, None, None
     if len(ids) != 3:
         if debug > 2:
@@ -331,7 +331,7 @@ def affine_transformation(img, tag_center_locations, tag_expected_locations, deb
     dst_trio = np.array([d0, d1, d2]).astype(np.float32)
     transform_matrix = cv2.getAffineTransform(src_trio, dst_trio)
     if debug > 2:
-        print(f"transform_matrix: {transform_matrix}")
+        print(f"  transform_matrix: [{transform_matrix[0]} {transform_matrix[1]}]")
     outimg = cv2.warpAffine(img, transform_matrix, (img.shape[1], img.shape[0]))
     return outimg
 

@@ -120,11 +120,11 @@ def estimate_avsync(video_results, fps, audio_results, beep_period_sec):
         if video_index >= len(video_results):
             break
         # find the video matches whose timestamps surround the audio one
-        prev_video_ts, prev_video_frame_num = video_results[video_index][2:]
+        prev_video_ts, _, prev_video_frame_num = video_results[video_index][1:4]
         video_index += 1
         get_next_audio_ts = False
         while not get_next_audio_ts and video_index < len(video_results):
-            video_ts, video_frame_num = video_results[video_index][2:]
+            video_ts, _, video_frame_num = video_results[video_index][1:4]
             if video_frame_num is None:
                 video_index += 1
                 continue
@@ -184,8 +184,8 @@ def media_file_analyze(
     outfile,
     debug,
 ):
-    # analyze the video stream
-    video_results = video_analyze.video_analyze(
+    # 1. analyze the video stream
+    video_results, video_delta_info = video_analyze.video_analyze(
         infile,
         width,
         height,
@@ -194,8 +194,6 @@ def media_file_analyze(
         luma_threshold,
         debug,
     )
-    # 1. analyze the video smoothness
-    video_delta = video_analyze.get_video_delta(video_results)
     # 2. analyze the audio stream
     audio_results = audio_analyze.audio_analyze(
         infile,
@@ -211,31 +209,32 @@ def media_file_analyze(
         video_results, fps, audio_results, beep_period_sec
     )
     # 3. dump results to file
-    dump_results(video_results, audio_results, outfile, debug)
-    return video_delta, avsync_sec_list
+    dump_results(video_results, video_delta_info, audio_results, outfile, debug)
+    return video_delta_info, avsync_sec_list
 
 
-def dump_results(video_results, audio_results, outfile, debug):
-    # video_results: frame_num, frame_num_effective, timestamp, frame_num_read
+def dump_results(video_results, video_delta_info, audio_results, outfile, debug):
+    # video_results: frame_num, timestamp, frame_num_expected, timestamp, frame_num_read
     # audio_results: sample_num, timestamp, correlation
     # write the output as a csv file
     with open(outfile, "w") as fd:
         fd.write(
-            "timestamp,video_frame_num,video_frame_num_effective,video_frame_num_read,audio_sample_num,audio_correlation\n"
+            f"timestamp,video_frame_num,video_frame_num_expected,video_frame_num_read,video_delta_frames_{video_delta_info['mode']},audio_sample_num,audio_correlation\n"
         )
         vindex = 0
         aindex = 0
         while vindex < len(video_results) or aindex < len(audio_results):
             # get the timestamps
-            vts = video_results[vindex][2] if vindex < len(video_results) else None
+            vts = video_results[vindex][1] if vindex < len(video_results) else None
             ats = audio_results[aindex][1] if aindex < len(audio_results) else None
             if vts == ats:
                 # dump both video and audio entry
                 (
                     video_frame_num,
-                    video_frame_num_effective,
                     timestamp,
+                    video_frame_num_expected,
                     video_frame_num_read,
+                    video_delta_frames,
                 ) = video_results[vindex]
                 audio_sample_num, timestamp, audio_correlation = audio_results[aindex]
                 vindex += 1
@@ -244,19 +243,22 @@ def dump_results(video_results, audio_results, outfile, debug):
                 # dump a video entry
                 (
                     video_frame_num,
-                    video_frame_num_effective,
                     timestamp,
+                    video_frame_num_expected,
                     video_frame_num_read,
+                    video_delta_frames,
                 ) = video_results[vindex]
                 audio_sample_num = audio_correlation = ""
                 vindex += 1
             else:
                 # dump an audio entry
                 audio_sample_num, timestamp, audio_correlation = audio_results[aindex]
-                video_frame_num = video_frame_num_effective = video_frame_num_read = ""
+                video_frame_num = (
+                    video_frame_num_expected
+                ) = video_frame_num_read = video_delta_frames = ""
                 aindex += 1
             fd.write(
-                f"{timestamp},{video_frame_num},{video_frame_num_effective},{video_frame_num_read},{audio_sample_num},{audio_correlation}\n"
+                f"{timestamp},{video_frame_num},{video_frame_num_expected},{video_frame_num_read},{video_delta_frames},{audio_sample_num},{audio_correlation}\n"
             )
 
 
@@ -530,7 +532,7 @@ def main(argv):
         # get outfile
         if options.outfile is None or options.outfile == "-":
             options.outfile = "/dev/fd/1"
-        video_delta, avsync_sec_list = media_file_analyze(
+        video_delta_info, avsync_sec_list = media_file_analyze(
             options.width,
             options.height,
             options.fps,
@@ -550,7 +552,7 @@ def main(argv):
         if options.debug > 0:
             print(f"{avsync_sec_list = }")
         # print statistics
-        print(f"{video_delta = }")
+        print(f"{video_delta_info = }")
         if avsync_sec_list:
             avsync_sec_average = np.average(avsync_sec_list)
             avsync_sec_stddev = np.std(avsync_sec_list)
@@ -558,7 +560,7 @@ def main(argv):
                 f"avsync_sec average: {avsync_sec_average} stddev: {avsync_sec_stddev} size: {len(avsync_sec_list)}"
             )
         else:
-            print(f"avsync_sec no data available")
+            print("avsync_sec no data available")
 
 
 if __name__ == "__main__":

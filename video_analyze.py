@@ -10,7 +10,6 @@ import sys
 import numpy as np
 import scipy
 
-import aruco_common
 import video_common
 import vft
 from _version import __version__
@@ -97,42 +96,8 @@ def round_to_nearest_half(value):
     return round(2 * value) / 2
 
 
-def get_video_delta(video_results):
-    # video_results = [[frame_num, frame_num_effective, timestamp, frame_num_read]*]
-    # note that <timestamps> = k * <frame_num>
-    num_frames = len(video_results)
-    # remove the None values in order to calculate the delta between frames
-    delta_list = [
-        round_to_nearest_half(t[3] - t[1]) for t in video_results if t[3] is not None
-    ]
-    # calculate the mode of the delta between frames
-    delta_mode = scipy.stats.mode(delta_list, keepdims=True).mode[0]
-    # simplify the results: substract the mode, and keep the None
-    # * t[3] - (t[1] + delta_mode)  # if t[3] is not None
-    # * None  # otherwise
-    delta_results = [
-        (
-            (round_to_nearest_half(t[3] - t[1]) - delta_mode)
-            if t[3] is not None
-            else None
-        )
-        for t in video_results
-    ]
-    ok_frames = delta_results.count(0.0)
-    unknown_frames = delta_results.count(None)
-    nok_frames = num_frames - ok_frames - unknown_frames
-    stddev = np.std([delta for delta in delta_results if delta is not None])
-    return {
-        "mode": delta_mode,
-        "stddev": stddev,
-        "ok_ratio": ok_frames / num_frames,
-        "nok_ratio": nok_frames / num_frames,
-        "unknown_ratio": unknown_frames / num_frames,
-    }
-
-
 def estimate_video_smoothness(video_results, fps):
-    # video_results = [[frame_num, frame_num_effective, timestamp, frame_num_read]*]
+    # video_results = [[frame_num, timestamp, frame_num_expected, frame_num_read]*]
     # note that <timestamps> = k * <frame_num>
     # * in the ideal case, the distance between <frame_num_read>
     #   in 2x consecutive frames (  in the ideal case, the distance between <frame_num_read>
@@ -154,20 +119,23 @@ def estimate_video_smoothness(video_results, fps):
 
 
 # Returns a list with one tuple per frame in the distorted video
-# stream. Each tuple consists of 4x elements:
-# * (a) `frame_num`: the frame number (correlative values)
-# * (b) `frame_num_effective`: the effective frame number
-#   (`frame_num` when considering the reference fps),
-# * (c) `timestamp`: the timestamp (calculated from `frame_num`
-#   and the `in_fps` value), and
+# stream. Each tuple consists of the following elements:
+# * (a) `frame_num`: the frame number (correlative values) in
+#   the distorted file,
+# * (b) `timestamp`: the timestamp, calculated from `frame_num`
+#   and the distorted fps value,
+# * (c) `frame_num_expected`: the expected frame number based on
+#   `timestamp` and the reference fps (`timestamp * reference_fps`),
 # * (d) `frame_num_read`: the frame number read in the frame (None
 #   if it cannot read it).
-def video_analyze(infile, width, height, fps, pixel_format, luma_threshold, debug):
+# * (e) `delta_frame`: `frame_num_read - delta_mode` (None if
+#   `frame_num_read` is not readable).
+def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, debug):
     video_capture = get_video_capture(infile, width, height, pixel_format)
     if not video_capture.isOpened():
         print(f"error: {infile = } is not open")
         sys.exit(-1)
-    # analyze the video image-by-image
+    # 1. analyze the video image-by-image
     in_fps = video_capture.get(cv2.CAP_PROP_FPS)
     frame_num = -1
     video_results = []
@@ -176,25 +144,63 @@ def video_analyze(infile, width, height, fps, pixel_format, luma_threshold, debu
         status, img = video_capture.read()
         if not status:
             break
-        if debug > 1:
-            print(f"video_analyze: parsing {frame_num = }")
         frame_num += 1
-        frame_num_effective = frame_num * fps / in_fps
         timestamp = frame_num / in_fps
-        timestamp_alt = video_capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-        if debug > 2:
-            print(f"{timestamp = } {timestamp_alt = }")
+        # cv2.CAP_PROP_POS_MSEC returns shifted timestamps
+        # timestamp_alt = video_capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+        # the frame_num we expect to see for this timestamp
+        frame_num_expected = timestamp * ref_fps
+        if debug > 1:
+            print(
+                f"video_analyze: parsing {frame_num = } {timestamp = } {ref_fps = } {in_fps = }"
+            )
         # analyze image
         value_read = image_analyze(img, luma_threshold, debug)
-        video_results.append((frame_num, frame_num_effective, timestamp, value_read))
-    # clean up
+        video_results.append((frame_num, timestamp, frame_num_expected, value_read))
+    # 2. clean up
     try:
         video_capture.release()
     except Exception as exc:
         print(f"error: {exc = }")
         pass
-
-    return video_results
+    # 3. calculate the delta mode
+    # video_results = [[frame_num, timestamp, frame_num_expected, frame_num_read]*]
+    # note that <timestamps> = k * <frame_num>
+    num_frames = len(video_results)
+    # remove the None values in order to calculate the delta between frames
+    delta_list = [
+        round_to_nearest_half(t[3] - t[2]) for t in video_results if t[3] is not None
+    ]
+    # calculate the mode of the delta between frames
+    delta_mode = scipy.stats.mode(delta_list, keepdims=True).mode[0]
+    # 4. calculate the delta column
+    # simplify the results: substract the mode, and keep the None
+    # * t[3] - (t[2] + delta_mode)  # if t[3] is not None
+    # * None  # otherwise
+    delta_results = [
+        (
+            (round_to_nearest_half(t[3] - t[2]) - delta_mode)
+            if t[3] is not None
+            else None
+        )
+        for t in video_results
+    ]
+    ok_frames = delta_results.count(0.0)
+    unknown_frames = delta_results.count(None)
+    nok_frames = num_frames - ok_frames - unknown_frames
+    stddev = np.std([delta for delta in delta_results if delta is not None])
+    delta_info = {
+        "mode": delta_mode,
+        "stddev": stddev,
+        "ok_ratio": ok_frames / num_frames,
+        "nok_ratio": nok_frames / num_frames,
+        "unknown_ratio": unknown_frames / num_frames,
+    }
+    # 5. zip both lists together
+    video_results = [
+        (*vals, delta) for vals, delta in zip(video_results, delta_results)
+    ]
+    return video_results, delta_info
 
 
 def image_analyze(img, luma_threshold, debug):
@@ -205,11 +211,9 @@ def image_analyze(img, luma_threshold, debug):
 def dump_video_results(video_results, outfile, debug):
     # write the output as a csv file
     with open(outfile, "w") as fd:
-        fd.write("frame_num,timestamp,frame_num_effective,frame_num_read\n")
-        for frame_num, frame_num_effective, timestamp, frame_num_read in video_results:
-            fd.write(
-                f"{frame_num},{frame_num_effective},{timestamp},{frame_num_read}\n"
-            )
+        fd.write("frame_num,timestamp,frame_num_expected,frame_num_read\n")
+        for frame_num, timestamp, frame_num_expected, frame_num_read in video_results:
+            fd.write(f"{frame_num},{timestamp},{frame_num_expected},{frame_num_read}\n")
 
 
 def get_options(argv):
@@ -342,7 +346,7 @@ def main(argv):
     if options.debug > 0:
         print(options)
     # do something
-    video_results = video_analyze(
+    video_results, delta_info = video_analyze(
         options.infile,
         options.width,
         options.height,
@@ -351,9 +355,8 @@ def main(argv):
         options.debug,
     )
     dump_video_results(video_results, options.outfile, options.debug)
-    # provide a score
-    video_delta = get_video_delta(video_results)
-    print(f"score for {options.infile = } {video_delta = }")
+    # print the delta info
+    print(f"score for {options.infile = } {delta_info = }")
 
 
 if __name__ == "__main__":
