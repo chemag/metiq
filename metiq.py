@@ -557,7 +557,6 @@ def main(argv):
         if options.debug > 0:
             print(f"{avsync_sec_list = }")
         # print statistics
-        print(f"{video_delta_info = }")
         if avsync_sec_list:
             avsync_sec_average = np.average(avsync_sec_list)
             avsync_sec_stddev = np.std(avsync_sec_list)
@@ -566,6 +565,7 @@ def main(argv):
             )
         else:
             print("avsync_sec no data available")
+        print(f"{video_delta_info = }")
 
 
 if __name__ == "__main__":
