@@ -145,9 +145,10 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
         if not status:
             break
         frame_num += 1
-        timestamp = frame_num / in_fps
-        # cv2.CAP_PROP_POS_MSEC returns shifted timestamps
-        # timestamp_alt = video_capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+        # this (wrongly) assumes frames are perfectly separated
+        timestamp_alt = frame_num / in_fps
+        # cv2.CAP_PROP_POS_MSEC returns the right timestamp
+        timestamp = video_capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
         # the frame_num we expect to see for this timestamp
         frame_num_expected = timestamp * ref_fps
         if debug > 1:
@@ -157,6 +158,7 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
         # analyze image
         value_read = image_analyze(img, luma_threshold, debug)
         video_results.append((frame_num, timestamp, frame_num_expected, value_read))
+
     # 2. clean up
     try:
         video_capture.release()
