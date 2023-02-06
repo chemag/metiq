@@ -5,7 +5,10 @@ all: \
     analyze.5x4 \
     analyze.7x5 \
     analyze.9x6 \
-    analyze.9x8
+    analyze.9x8 \
+    results/metiq.mp4.csv \
+    results/metiq.20fps.mp4.csv \
+    results/metiq.60fps.mp4.csv
 
 
 VERSION=$(shell ./_version.py)
@@ -21,9 +24,23 @@ README.html: README.md
 README.pdf: README.md
 	pandoc README.md -o README.pdf
 
-test:
-	./metiq.py generate -o /tmp/foo.mp4
-	./metiq.py analyze -i /tmp/foo.mp4 -o /tmp/foo.csv
+results/metiq.mp4.csv: results/metiq.mp4
+	./metiq.py analyze -i $^ -o $@
+
+results/metiq.mp4:
+	./metiq.py generate -o $@
+
+results/metiq.20fps.mp4: results/metiq.mp4
+	ffmpeg -i $^ -filter:v minterpolate=fps=20 $@
+
+results/metiq.60fps.mp4: results/metiq.mp4
+	ffmpeg -i $^ -filter:v minterpolate=fps=60 $@
+
+results/metiq.20fps.mp4.csv: results/metiq.20fps.mp4
+	./metiq.py analyze -i $^ -o $@
+
+results/metiq.60fps.mp4.csv: results/metiq.60fps.mp4
+	./metiq.py analyze -i $^ -o $@
 
 
 analyze.5x4: doc/vft.5x4.${VALUE}.png
