@@ -8,6 +8,12 @@ all: \
     analyze.9x8
 
 
+README.html: README.md
+	pandoc README.md -o README.html
+
+README.pdf: README.md
+	pandoc README.md -o README.pdf
+
 test:
 	./metiq.py generate -o /tmp/foo.mp4
 	./metiq.py analyze -i /tmp/foo.mp4 -o /tmp/foo.csv
