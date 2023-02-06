@@ -120,7 +120,12 @@ def estimate_avsync(video_results, fps, audio_results, beep_period_sec):
         if video_index >= len(video_results):
             break
         # find the video matches whose timestamps surround the audio one
-        prev_video_ts, _, prev_video_frame_num = video_results[video_index][1:4]
+        while True:
+            # find a video entry that has a valid reading
+            prev_video_ts, _, prev_video_frame_num = video_results[video_index][1:4]
+            if prev_video_frame_num is not None:
+                break
+            video_index += 1
         video_index += 1
         get_next_audio_ts = False
         while not get_next_audio_ts and video_index < len(video_results):
