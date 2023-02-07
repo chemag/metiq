@@ -8,6 +8,13 @@ all: \
     analyze.9x8
 
 
+VERSION=$(shell ./_version.py)
+
+metiq.${VERSION}.tar.gz:
+	tar cvf metiq.${VERSION}.tar Makefile README.md aruco_common.py audio_analyze.py audio_common.py audio_generate.py common.py metiq.py _version.py vft.py video_analyze.py video_common.py video_generate.py
+	gzip -f metiq.${VERSION}.tar
+
+
 README.html: README.md
 	pandoc README.md -o README.html
 
