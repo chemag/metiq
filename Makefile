@@ -2,6 +2,16 @@
 VALUE=22
 
 all: \
+    results/linux.mp4.csv \
+    results/mbp.mp4.csv \
+    results/pixel5.mp4.csv \
+    results/pixel6a.mp4.csv \
+    results/pixel6a.bt.mp4.csv \
+    results/pixel6a.bt.1m.mp4.csv \
+    results/pixel6a.bt.wall.mp4.csv \
+    results/tate.mp4.csv \
+    results/sn.evt1.mp4.csv \
+    results/stella.mp4.csv \
     analyze.5x4 \
     analyze.7x5 \
     analyze.9x6 \
@@ -16,6 +26,10 @@ VERSION=$(shell ./_version.py)
 metiq.${VERSION}.tar.gz:
 	tar cvf metiq.${VERSION}.tar Makefile README.md aruco_common.py audio_analyze.py audio_common.py audio_generate.py common.py metiq.py _version.py vft.py video_analyze.py video_common.py video_generate.py
 	gzip -f metiq.${VERSION}.tar
+
+
+doc.zip: README.md
+	zip -r $@ README.md doc/
 
 
 README.html: README.md
@@ -41,6 +55,36 @@ results/metiq.20fps.mp4.csv: results/metiq.20fps.mp4
 
 results/metiq.60fps.mp4.csv: results/metiq.60fps.mp4
 	./metiq.py analyze -i $^ -o $@
+
+results/linux.mp4.csv: results/linux.mp4
+	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+
+results/mbp.mp4.csv: results/mbp.mp4
+	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+
+results/pixel5.mp4.csv: results/pixel5.mp4
+	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+
+results/pixel6a.mp4.csv: results/pixel6a.mp4
+	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+
+results/pixel6a.bt.mp4.csv: results/pixel6a.bt.mp4
+	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+
+results/pixel6a.bt.1m.mp4.csv: results/pixel6a.bt.1m.mp4
+	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+
+results/pixel6a.bt.wall.mp4.csv: results/pixel6a.bt.wall.mp4
+	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+
+results/tate.mp4.csv: results/tate.mp4
+	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+
+results/sn.evt1.mp4.csv: results/sn.evt1.mp4
+	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+
+results/stella.mp4.csv: results/stella.mp4
+	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
 
 
 analyze.5x4: doc/vft.5x4.${VALUE}.png
