@@ -188,13 +188,15 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
         for t in video_results
     ]
     ok_frames = delta_results.count(0.0)
+    sok_frames = ok_frames + delta_results.count(0.5) + delta_results.count(-0.5)
     unknown_frames = delta_results.count(None)
-    nok_frames = num_frames - ok_frames - unknown_frames
+    nok_frames = num_frames - sok_frames - unknown_frames
     stddev = np.std([delta for delta in delta_results if delta is not None])
     delta_info = {
         "mode": delta_mode,
         "stddev": stddev,
         "ok_ratio": ok_frames / num_frames,
+        "sok_ratio": sok_frames / num_frames,
         "nok_ratio": nok_frames / num_frames,
         "unknown_ratio": unknown_frames / num_frames,
     }
