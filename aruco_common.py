@@ -24,7 +24,12 @@ def generate_aruco_tag(tag_size, aruco_id, border_size=0, aruco_dict_id=ARUCO_DI
         # API changed for 4.7.x
         # https://stackoverflow.com/a/74975523
         aruco_dict = cv2.aruco.getPredefinedDictionary(aruco_dict_id)
-    img_tag = cv2.aruco.drawMarker(aruco_dict, aruco_id, tag_height, img_tag, 1)
+    try:
+        img_tag = cv2.aruco.drawMarker(aruco_dict, aruco_id, tag_height, img_tag, 1)
+    except AttributeError:
+        img_tag = cv2.aruco.generateImageMarker(
+            aruco_dict, aruco_id, tag_height, img_tag, 1
+        )
     # print(f"tag {aruco_id} size: {tag_height} / {tag_size}")
     # add border if needed
     if border_size > 0:
