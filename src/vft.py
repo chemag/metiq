@@ -142,7 +142,7 @@ def analyze(img, luma_threshold, debug):
     vft_id, tag_center_locations, borders = detect_tags(img, debug)
     if tag_center_locations is None:
         # could not read the 3x tags properly: stop here
-        print("error: image has no valid set of tags")
+        raise Exception("error: frame has no valid set of tags")
         return None, None
     # 2. set the layout
     height, width, _ = img.shape
@@ -419,7 +419,7 @@ def gray_bitstream_to_num(bit_stream):
         gray_num = bit_stream_to_number(bit_stream)
         return graycode.gray_code_to_tc(gray_num)
     elif bit_stream.count("X") > 1:
-        print(f"warn: invalid gray code read ({bit_stream = }")
+        raise Exception(f"warn: invalid gray code read ({bit_stream = }")
         return None
     # slightly degenerated case: a single non-read bit
     b0 = [0 if b == "X" else b for b in bit_stream]
@@ -431,6 +431,7 @@ def gray_bitstream_to_num(bit_stream):
     if abs(n0 - n1) == 1:
         # error produces consecutive numbers
         return (n1 + n0) / 2
+    raise Exception(f"warn: single non-read bit not in gray position ({bit_stream = }")
     return None
 
 

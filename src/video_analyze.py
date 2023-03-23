@@ -156,7 +156,11 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
                 f"video_analyze: parsing {frame_num = } {timestamp = } {ref_fps = } {in_fps = }"
             )
         # analyze image
-        value_read = image_analyze(img, luma_threshold, debug)
+        try:
+            value_read = image_analyze(img, luma_threshold, debug)
+        except Exception as ex:
+            print(f"{frame_num = } {str(ex)}")
+            continue
         video_results.append((frame_num, timestamp, frame_num_expected, value_read))
 
     # 2. clean up
