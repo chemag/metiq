@@ -71,11 +71,25 @@ def media_file_generate(
     outfile,
     debug,
 ):
+    # calculate the frame period
+    beep_period_frames = beep_period_sec * fps
+    vft_layout = vft.VFTLayout(width, height, vft_id)
+    max_frame_num = 2**vft_layout.numbits
+    frame_period = beep_period_frames * (max_frame_num // beep_period_frames)
     # generate the (raw) video input
     video_filename = tempfile.NamedTemporaryFile().name + ".rgb24"
     rem = f"period: {beep_period_sec} freq_hz: {beep_freq} samples: {beep_duration_samples}"
     video_generate.video_generate(
-        width, height, fps, num_frames, video_filename, "default", vft_id, rem, debug
+        width,
+        height,
+        fps,
+        num_frames,
+        frame_period,
+        video_filename,
+        "default",
+        vft_id,
+        rem,
+        debug,
     )
     duration_sec = num_frames / fps
     # generate the (raw) audio input

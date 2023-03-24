@@ -67,22 +67,23 @@ def image_generate(image_info, frame_num, text1, text2, font, vft_id, debug):
 
 
 def video_generate(
-    width, height, fps, num_frames, outfile, metiq_id, vft_id, rem, debug
+    width, height, fps, num_frames, frame_period, outfile, metiq_id, vft_id, rem, debug
 ):
     image_info = video_common.ImageInfo(width, height)
-
+    vft_layout = vft.VFTLayout(width, height, vft_id)
     with open(outfile, "wb") as rawstream:
         font = cv2.FONT_HERSHEY_SIMPLEX
         # original image
         for frame_num in range(0, num_frames, 1):
             img = np.zeros((height, width, 3), np.uint8)
             time = (frame_num // fps) + (frame_num % fps) / fps
-            gray_num = graycode.tc_to_gray_code(frame_num)
+            actual_frame_num = frame_num % frame_period
+            gray_num = graycode.tc_to_gray_code(actual_frame_num)
             num_bits = math.ceil(math.log2(num_frames))
-            text1 = f"id: {metiq_id} frame: {frame_num} time: {time:.03f} gray_num: {gray_num:0{num_bits}b}"
+            text1 = f"id: {metiq_id} frame: {actual_frame_num} time: {time:.03f} gray_num: {gray_num:0{num_bits}b}"
             text2 = f"fps: {fps:.2f} resolution: {img.shape[1]}x{img.shape[0]} {rem}"
             img = image_generate(
-                image_info, frame_num, text1, text2, font, vft_id, debug
+                image_info, actual_frame_num, text1, text2, font, vft_id, debug
             )
             rawstream.write(img)
 
@@ -206,6 +207,7 @@ def main(argv):
         options.width,
         options.height,
         options.fps,
+        options.num_frames,
         options.num_frames,
         options.outfile,
         "default",
