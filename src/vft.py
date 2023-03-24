@@ -146,9 +146,7 @@ def analyze(img, luma_threshold, debug):
         return None, None
     # 2. set the layout
     height, width, _ = img.shape
-    vft_layout = VFTLayout(
-        width, height, vft_id, tag_border_size=DEFAULT_TAG_BORDER_SIZE
-    )
+    vft_layout = VFTLayout(width, height, vft_id)
     # 3. apply affine transformation to source image
     tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
     img_affine = affine_transformation(
@@ -176,7 +174,7 @@ class VFTLayout:
     tag_size: int
     tag_border_size: int
 
-    def __init__(self, width, height, vft_id, tag_border_size):
+    def __init__(self, width, height, vft_id, tag_border_size=DEFAULT_TAG_BORDER_SIZE):
         self.vft_id = vft_id
         self.numcols, self.numrows, self.tag_ids = VFT_LAYOUT[vft_id]
         # fiduciary markers (tags) located in the top-left, top-right,
