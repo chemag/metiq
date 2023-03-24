@@ -114,10 +114,9 @@ def generate(width, height, vft_id, tag_border_size, value, debug):
     value_bit_position = 0
     first_block = True
     if value > 2**vft_layout.numbits:
-        print(
+        raise Exception(
             f"ERROR: {value = } does not fit in {vft_layout.numbits = } (per {vft_id = })"
         )
-        return None
     for row, col in itertools.product(
         range(vft_layout.numrows), range(vft_layout.numcols)
     ):
