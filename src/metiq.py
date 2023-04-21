@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""tool.py module description."""
+"""metiq.py module description."""
 
 
 import argparse
