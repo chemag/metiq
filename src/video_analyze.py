@@ -159,7 +159,8 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
         try:
             value_read = image_analyze(img, luma_threshold, debug)
         except Exception as ex:
-            print(f"{frame_num = } {str(ex)}")
+            if debug > 0:
+                print(f"{frame_num = } {str(ex)}")
             continue
         video_results.append((frame_num, timestamp, frame_num_expected, value_read))
 

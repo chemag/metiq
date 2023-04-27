@@ -284,7 +284,8 @@ def detect_tags(img, debug):
     ids.shape = 3
     vft_id = get_vft_id(list(ids))
     if vft_id is None:
-        print(f"error: image has invalid tag ids: {set(ids)}")
+        if debug > 0:
+            print(f"error: image has invalid tag ids: {set(ids)}")
         return None, None, None
     # 3. get the locations
     tag_center_locations = []
