@@ -258,7 +258,7 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
                 audio_sample_num, timestamp, audio_correlation = audio_results[aindex]
                 vindex += 1
                 aindex += 1
-            elif ats is None or vts <= ats:
+            elif ats is None or (vts is not None and vts <= ats):
                 # dump a video entry
                 (
                     video_frame_num,
