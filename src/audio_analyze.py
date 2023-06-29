@@ -96,11 +96,20 @@ def audio_analyze_wav(infile, **kwargs):
     haystack_samplerate, inaud = scipy.io.wavfile.read(infile)
     # force the input to the experiment samplerate
     if haystack_samplerate != samplerate:
+        ratio = haystack_samplerate / samplerate
         if debug > 0:
             print(
                 f"converting {infile} audio from {haystack_samplerate} to {samplerate}"
             )
-        inaud = scipy.signal.decimate(inaud, int(haystack_samplerate / samplerate))
+        if ratio > 1:
+            print("downsample")
+            # There is a bug (https://github.com/scipy/scipy/issues/15620)
+            # resulting in all zeroes unless inout is cast to float
+            inaud = scipy.signal.resample_poly(inaud.astype(np.float32), 1, int(ratio),padtype='mean')
+        else:
+            print("upsample")
+            ratio = int(1/ratio)
+            inaud = scipy.signal.resample_poly(inaud.astype(np.float32), ratio, 1, padtype='mean')
     # generate a 1-period needle
     needle = audio_common.generate_beep(beep_period_sec, **kwargs)
     # calculate the correlation signal
