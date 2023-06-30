@@ -110,7 +110,7 @@ def audio_analyze_wav(infile, **kwargs):
     index_list, correlation = get_correlation_indices(inaud, needle_target)
     # add a samplerate-based timestamp
     audio_results = [
-        (index, index / samplerate, correlation[index]) for index in index_list
+        (index, index / samplerate, int(np.corrcoef(inaud[index: index + len(needle)], needle)[1, 0] * 100)) for index in index_list
     ]
     if debug > 0:
         print(f"audio_results: {audio_results}")
