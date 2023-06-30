@@ -126,7 +126,7 @@ def estimate_audio_frame_num(
     return audio_frame_num
 
 
-def estimate_avsync(video_results, fps, audio_results, beep_period_sec):
+def estimate_avsync(video_results, fps, audio_results, beep_period_sec, debug):
     video_index = 0
     # get the video frame_num corresponding to each audio timestamp
     audio_frame_num_list = []
@@ -156,6 +156,13 @@ def estimate_avsync(video_results, fps, audio_results, beep_period_sec):
                     video_ts,
                     audio_ts,
                 )
+                if debug > 0:
+                    print(
+                        f"estimate_avsync: found match"
+                        f" prev_video {{ frame_num: {prev_video_frame_num} ts: {prev_video_ts} }}"
+                        f" this_video {{ frame_num: {video_frame_num} ts: {video_ts} }}"
+                        f" audio {{ ts: {audio_ts} estimated_frame_num: {audio_frame_num} }}"
+                    )
                 audio_frame_num_list.append(audio_frame_num)
                 get_next_audio_ts = True
             elif audio_ts < prev_video_ts:
@@ -223,9 +230,11 @@ def media_file_analyze(
         beep_period_sec=beep_period_sec,
         scale=scale,
     )
+    if debug > 1:
+        print(f"{audio_results = }")
     # 2. estimate a/v sync
     avsync_sec_list = estimate_avsync(
-        video_results, fps, audio_results, beep_period_sec
+        video_results, fps, audio_results, beep_period_sec, debug
     )
     # 3. dump results to file
     dump_results(video_results, video_delta_info, audio_results, outfile, debug)
@@ -517,7 +526,7 @@ def main(argv):
         sys.exit(0)
 
     # print results
-    if options.debug > 0:
+    if options.debug > 2:
         print(options)
 
     # do something

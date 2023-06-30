@@ -151,7 +151,7 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
         timestamp = video_capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
         # the frame_num we expect to see for this timestamp
         frame_num_expected = timestamp * ref_fps
-        if debug > 1:
+        if debug > 2:
             print(
                 f"video_analyze: parsing {frame_num = } {timestamp = } {ref_fps = } {in_fps = }"
             )
@@ -162,6 +162,8 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
             if debug > 0:
                 print(f"{frame_num = } {str(ex)}")
             continue
+        if debug > 2:
+            print(f"video_analyze: read image value: {value_read}")
         video_results.append((frame_num, timestamp, frame_num_expected, value_read))
 
     # 2. clean up

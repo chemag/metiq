@@ -328,7 +328,7 @@ def affine_transformation(img, tag_center_locations, tag_expected_locations, deb
     src_trio = np.array([s0, s1, s2]).astype(np.float32)
     dst_trio = np.array([d0, d1, d2]).astype(np.float32)
     transform_matrix = cv2.getAffineTransform(src_trio, dst_trio)
-    if debug > 2:
+    if debug > 3:
         print(f"  transform_matrix: [{transform_matrix[0]} {transform_matrix[1]}]")
     outimg = cv2.warpAffine(img, transform_matrix, (img.shape[1], img.shape[0]))
     return outimg
