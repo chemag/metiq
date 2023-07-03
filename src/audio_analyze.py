@@ -105,7 +105,8 @@ def audio_analyze_wav(infile, **kwargs):
         # resulting in all zeroes unless inout is cast to float
         inaud = scipy.signal.resample_poly(inaud.astype(np.float32), int(samplerate/100), int(haystack_samplerate/100), padtype='mean')
     # generate a single needle (without the silence)
-    needle_target = audio_common.generate_beep(beep_period_sec, **kwargs)[0:kwargs.get("beep_duration_samples", audio_common.DEFAULT_BEEP_DURATION_SAMPLES)]
+    beep_duration_samples = kwargs.get("beep_duration_samples", audio_common.DEFAULT_BEEP_DURATION_SAMPLES)
+    needle_target = audio_common.generate_beep(beep_period_sec, **kwargs)[0:beep_duration_samples]
     # calculate the correlation signal
     index_list, correlation = get_correlation_indices(inaud, needle_target)
     # add a samplerate-based timestamp
