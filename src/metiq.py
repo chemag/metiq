@@ -6,6 +6,7 @@
 import argparse
 import math
 import numpy as np
+import pandas as pd
 import os
 import sys
 import tempfile
@@ -126,7 +127,7 @@ def estimate_audio_frame_num(
     return audio_frame_num
 
 
-def estimate_avsync(video_results, fps, audio_results, beep_period_sec, debug):
+def estimate_avsync(video_results, fps, audio_results, beep_period_sec, debug=0):
     video_index = 0
     # get the video frame_num corresponding to each audio timestamp
     audio_frame_num_list = []
@@ -188,8 +189,12 @@ def estimate_avsync(video_results, fps, audio_results, beep_period_sec, debug):
             video_frame_num = candidate_2
         # Following ITU-R BT.1359-1 rec here: "positive value indicates that
         # sound is advanced with respect to vision"
+        # It can also be though of as a delay time on video i.e.
+        # a negative delay means that the audio is leading.
         avsync_sec = (video_frame_num - audio_frame_num) / fps
-        avsync_sec_list.append(avsync_sec)
+        avsync_sec_list.append(
+            [video_frame_num, round(audio_frame_num / fps, 3), avsync_sec]
+        )
     return avsync_sec_list
 
 
@@ -238,7 +243,59 @@ def media_file_analyze(
     )
     # 3. dump results to file
     dump_results(video_results, video_delta_info, audio_results, outfile, debug)
+    # 4. calculate audio latency, video latency and the difference between the two
+    latencies = calculate_latency(avsync_sec_list, debug)
+    latencies.to_csv(f"{os.path.splitext(outfile)[0]}.latencies.csv")
     return video_delta_info, avsync_sec_list
+
+
+def calculate_latency(sync, debug):
+    # calculate audio latency, video latency and the ac sync
+    # The a/v sync should always be of interest the other two only
+    # if there is a transission happening.
+
+    data = []
+    sync_points = enumerate(sync)
+    item = next(sync_points, None)
+
+    while item != None:
+        signal = item[1]
+        item = next(sync_points, None)
+        if item == None:
+            break
+
+        echo = item[1]
+        if signal[0] != echo[0]:
+            if debug:
+                print("Warning: Echo signal is missing")
+            signal = echo
+            continue
+
+        # First signal time difference will indicate the time delta for video
+        # Echo time signal will indicate the a/v sync
+        # The time delta between the two will indicate the audio latency
+        data.append(
+            [
+                signal[0],
+                int(round(signal[2] * 1000, 0)),
+                int(round((echo[1] - signal[1]) * 1000, 0)),
+                int(round(echo[2] * 1000, 0)),
+            ]
+        )
+        item = next(sync_points, None)
+        signal = None
+        echo = None
+
+    if len(data) == 0:
+        # Simple video case
+        for signal in sync:
+            data.append([signal[0], 0, 0, int(round(signal[2] * 1000, 0))])
+
+    pdata = pd.DataFrame(
+        data,
+        columns=["video_frame", "video_latenyc_ms", "audio_latenyc_ms", "av_sync_ms"],
+    )
+    return pdata
 
 
 def dump_results(video_results, video_delta_info, audio_results, outfile, debug):
