@@ -103,15 +103,34 @@ def audio_analyze_wav(infile, **kwargs):
             )
         # There is a bug (https://github.com/scipy/scipy/issues/15620)
         # resulting in all zeroes unless inout is cast to float
-        inaud = scipy.signal.resample_poly(inaud.astype(np.float32), int(samplerate/100), int(haystack_samplerate/100), padtype='mean')
+        inaud = scipy.signal.resample_poly(
+            inaud.astype(np.float32),
+            int(samplerate / 100),
+            int(haystack_samplerate / 100),
+            padtype="mean",
+        )
     # generate a single needle (without the silence)
-    beep_duration_samples = kwargs.get("beep_duration_samples", audio_common.DEFAULT_BEEP_DURATION_SAMPLES)
-    needle_target = audio_common.generate_beep(beep_period_sec, **kwargs)[0:beep_duration_samples]
+    beep_duration_samples = kwargs.get(
+        "beep_duration_samples", audio_common.DEFAULT_BEEP_DURATION_SAMPLES
+    )
+    needle_target = audio_common.generate_chirp(beep_period_sec, **kwargs)[
+        0:beep_duration_samples
+    ]
     # calculate the correlation signal
     index_list, correlation = get_correlation_indices(inaud, needle_target)
     # add a samplerate-based timestamp
     audio_results = [
-        (index, index / samplerate, int(np.corrcoef(inaud[index: index + len(needle_target)], needle_target)[1, 0] * 100)) for index in index_list
+        (
+            index,
+            index / samplerate,
+            int(
+                np.corrcoef(inaud[index : index + len(needle_target)], needle_target)[
+                    1, 0
+                ]
+                * 100
+            ),
+        )
+        for index in index_list
     ]
     if debug > 0:
         print(f"audio_results: {audio_results}")
