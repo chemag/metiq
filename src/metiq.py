@@ -237,8 +237,8 @@ def media_file_analyze(
         beep_duration_samples=beep_duration_samples,
         beep_period_sec=beep_period_sec,
         scale=scale,
-        min_separation_msec= kwargs.get("min_separation_msec", 50),
-        correlation_factor= kwargs.get("correlation_factor", 10),
+        min_separation_msec=kwargs.get("min_separation_msec", 50),
+        correlation_factor=kwargs.get("correlation_factor", 10),
         debug=debug,
     )
     if debug > 1:
