@@ -299,7 +299,7 @@ def calculate_latency(sync, debug):
 
     pdata = pd.DataFrame(
         data,
-        columns=["video_frame", "video_latency_ms", "audio_latenyc_ms", "av_sync_ms"],
+        columns=["video_frame", "video_latency_ms", "audio_latency_ms", "av_sync_ms"],
     )
     return pdata
 
