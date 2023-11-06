@@ -50,6 +50,8 @@ default_values = {
     "beep_duration_samples": audio_common.DEFAULT_BEEP_DURATION_SAMPLES,
     "beep_period_sec": audio_common.DEFAULT_BEEP_PERIOD_SEC,
     "scale": audio_common.DEFAULT_SCALE,
+    "min_separation_msec": audio_analyze.DEFAULT_MIN_SEPARATION_MSEC,
+    "correlation_factor": audio_analyze.DEFAULT_CORRELATION_FACTOR,
     # common parameters
     "func": "help",
     "infile": None,
@@ -214,6 +216,7 @@ def media_file_analyze(
     infile,
     outfile,
     debug,
+    **kwargs,
 ):
     # 1. analyze the video stream
     video_results, video_delta_info = video_analyze.video_analyze(
@@ -234,6 +237,9 @@ def media_file_analyze(
         beep_duration_samples=beep_duration_samples,
         beep_period_sec=beep_period_sec,
         scale=scale,
+        min_separation_msec= kwargs.get("min_separation_msec", 50),
+        correlation_factor= kwargs.get("correlation_factor", 10),
+        debug=debug,
     )
     if debug > 1:
         print(f"{audio_results = }")
@@ -293,7 +299,7 @@ def calculate_latency(sync, debug):
 
     pdata = pd.DataFrame(
         data,
-        columns=["video_frame", "video_latenyc_ms", "audio_latenyc_ms", "av_sync_ms"],
+        columns=["video_frame", "video_latency_ms", "audio_latenyc_ms", "av_sync_ms"],
     )
     return pdata
 
@@ -536,6 +542,16 @@ def get_options(argv):
         metavar="scale",
         help=("use scale [0-1] (default: %i)" % default_values["scale"]),
     )
+    parser.add_argument(
+        "--min_separation_msec",
+        default=default_values["min_separation_msec"],
+        help="Sets a minimal distance between two adjacent signals and sets the shortest detectable time difference in milli seconds. Default is set to halfs the needle length.",
+    )
+    parser.add_argument(
+        "--correlation_factor",
+        default=default_values["correlation_factor"],
+        help="Sets the threshold for triggering hits. Default is a factor 10 between the highest correlation and the lower threshold for triggering hits.",
+    )
 
     parser.add_argument(
         "func",
@@ -633,6 +649,8 @@ def main(argv):
             options.infile,
             options.outfile,
             options.debug,
+            min_separation_msec=options.min_separation_msec,
+            correlation_factor=options.correlation_factor,
         )
         if options.debug > 0:
             print(f"{avsync_sec_list = }")

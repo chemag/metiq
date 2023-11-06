@@ -14,6 +14,9 @@ import common
 import audio_common
 from _version import __version__
 
+DEFAULT_MIN_SEPARATION_MSEC = -1
+DEFAULT_CORRELATION_FACTOR = 10
+DEFAULT_MAX_VALUES = 10000
 
 default_values = {
     "debug": 0,
@@ -26,15 +29,17 @@ def get_correlation_indices(haystack, needle, **kwargs):
     # get optional input parameters
     max_values = kwargs.get("max_values", audio_common.DEFAULT_MAX_VALUES)
     debug = kwargs.get("debug", audio_common.DEFAULT_DEBUG)
+    min_separation = kwargs.get("min_separation_samples", -1)
     # calculate the correlation in FP numbers to avoid saturation
     correlation = np.correlate(haystack.astype(np.float32), needle.astype(np.float32))
     # return the <max_values> with the highest correlation values,
     # making sure that all values are separated at least by
     # <min_separation>
-    min_separation = len(needle) // 2
+    if min_separation <= 0:
+        min_separation = len(needle) // 2
     initial_index_list = np.flip(correlation.argsort()[-max_values:])
     index_list = []
-    CORRELATION_FACTOR = 2
+    CORRELATION_FACTOR = kwargs.get("correlation_factor", DEFAULT_CORRELATION_FACTOR)
     max_correlation = correlation[initial_index_list[0]]
     min_correlation = max_correlation / CORRELATION_FACTOR
     for index in initial_index_list:
@@ -86,12 +91,16 @@ def audio_analyze(infile, **kwargs):
 
 
 def audio_analyze_wav(infile, **kwargs):
+    print("audioanalyze")
     # get optional input parameters
     debug = kwargs.get("debug", audio_common.DEFAULT_DEBUG)
     beep_period_sec = kwargs.get(
         "beep_period_sec", audio_common.DEFAULT_BEEP_PERIOD_SEC
     )
     samplerate = kwargs.get("samplerate", audio_common.DEFAULT_SAMPLERATE)
+    min_separation_msec = kwargs.get("min_separation_msec", DEFAULT_MIN_SEPARATION_MSEC)
+    min_separation_samples = int(int(min_separation_msec) * int(samplerate) / 1000)
+    correlation_factor = kwargs.get("correlation_factor", DEFAULT_CORRELATION_FACTOR)
     # open the input
     haystack_samplerate, inaud = scipy.io.wavfile.read(infile)
     # force the input to the experiment samplerate
@@ -116,8 +125,14 @@ def audio_analyze_wav(infile, **kwargs):
     needle_target = audio_common.generate_chirp(beep_period_sec, **kwargs)[
         0:beep_duration_samples
     ]
-    # calculate the correlation signal
-    index_list, correlation = get_correlation_indices(inaud, needle_target)
+    # calculate the correlation signail
+    index_list, correlation = get_correlation_indices(
+        inaud,
+        needle_target,
+        min_separation_samples = min_separation_samples,
+        correlation_factor=correlation_factor,
+        debug=debug,
+    )
     # add a samplerate-based timestamp
     audio_results = [
         (
@@ -176,6 +191,16 @@ def get_options(argv):
         help="Zero verbosity",
     )
     parser.add_argument(
+        "--min_separation_msec",
+        default=-1,
+        help="Sets a minimal distance between two adjacent signals and sets the shortest detectable time difference in milli seconds. Default is set to halfs the needle length.",
+    )
+    parser.add_argument(
+        "--correlation_factor",
+        default=10,
+        help="Sets the threshold for triggering hits. Default is a factor 10 between the highest correlation and the lower threshold for triggering hits.",
+    )
+    parser.add_argument(
         "infile",
         type=str,
         default=default_values["infile"],
@@ -222,6 +247,8 @@ def main(argv):
     audio_results = audio_analyze(
         options.infile,
         debug=options.debug,
+        min_separation_msec=options.min_separation_msec,
+        min_correlation_factor=options.correlation_factor,
     )
     dump_results(audio_results, options.outfile, options.debug)
 
