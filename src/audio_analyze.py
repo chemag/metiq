@@ -125,7 +125,7 @@ def audio_analyze_wav(infile, **kwargs):
     needle_target = audio_common.generate_chirp(beep_period_sec, **kwargs)[
         0:beep_duration_samples
     ]
-    # calculate the correlation signail
+    # calculate the correlation signal
     index_list, correlation = get_correlation_indices(
         inaud,
         needle_target,

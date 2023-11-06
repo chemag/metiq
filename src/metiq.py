@@ -545,12 +545,12 @@ def get_options(argv):
     parser.add_argument(
         "--min_separation_msec",
         default=default_values["min_separation_msec"],
-        help="Sets a minimal distance between two adjacent signals and sets the shortest detectable time difference in milli seconds. Default is set to halfs the needle length.",
+        help="Sets a minimal distance between two adjacent signals and sets the shortest detectable time difference in ms. Default is set to half the needle length.",
     )
     parser.add_argument(
         "--correlation_factor",
         default=default_values["correlation_factor"],
-        help="Sets the threshold for triggering hits. Default is a factor 10 between the highest correlation and the lower threshold for triggering hits.",
+        help="Sets the threshold for triggering hits. Default is 10s ratio between the highest correlation and the lower threshold for triggering hits.",
     )
 
     parser.add_argument(
