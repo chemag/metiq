@@ -129,7 +129,7 @@ def audio_analyze_wav(infile, **kwargs):
     index_list, correlation = get_correlation_indices(
         inaud,
         needle_target,
-        min_separation_samples = min_separation_samples,
+        min_separation_samples=min_separation_samples,
         correlation_factor=correlation_factor,
         debug=debug,
     )
