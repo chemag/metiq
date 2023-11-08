@@ -12,8 +12,8 @@ DEFAULT_SCALE = 0.7
 # DEFAULT_SCALE = 1
 DEFAULT_DEBUG = 0
 DEFAULT_PRE_SAMPLES = 0
-DEFAULT_BEEP_FREQ = 440
-DEFAULT_BEEP_DURATION_SAMPLES = 4800
+DEFAULT_BEEP_FREQ = 300
+DEFAULT_BEEP_DURATION_SAMPLES = 3200
 DEFAULT_BEEP_PERIOD_SEC = 3
 
 DEFAULT_MAX_VALUES = 10000
@@ -30,7 +30,7 @@ def generate_chirp(duration_sec, **kwargs):
     # generate a <duration_samples> chirp signal from freq * 3x freq
     t = np.linspace(0, duration_samples / samplerate, duration_samples)
     array = signal.chirp(
-        t, f0=freq, f1=freq * 3, t1=duration_samples / samplerate, method="logarithmic"
+        t, f0=freq, f1=freq * 10, t1=duration_samples / samplerate, method="linear"
     )
     array = (array * (2**15) * scale).astype(np.int16)
     ramp = np.arange(0, 1, 0.01)
