@@ -6,6 +6,7 @@
 import argparse
 import sys
 import numpy as np
+import pandas as pd
 import scipy.io.wavfile
 import scipy.signal
 import tempfile
@@ -25,7 +26,114 @@ default_values = {
 }
 
 
+def match_buffers(haystack, needle, gain=0, verbose=False):
+    """Tries to find needle in haystack using correlation measurement.
+    Args:
+        haystack: single channel wave haystack
+        needle: single channel wave haystack defining the fingerprint to be matched
+        gain: additional gain for the haystack before matching
+    Returns:
+        index: position of the match
+        cc: correlation coefficient (0-100)
+    """
+
+    global options
+    size = len(needle)
+
+    if gain != 0:
+        haystack = np.multiply(haystack, gain)
+    corr = np.correlate(haystack, needle)
+    val = max(corr)
+
+    index = np.where(corr == val)[0][0]
+
+    cc_ = np.corrcoef(haystack[index : index + size], needle)[1, 0] * 100
+    if np.isnan(cc_):
+        cc_ = 0
+    cc = int(cc_ + 0.5)
+    if verbose:
+        print(f"{val} @ {index}, cc = {cc}")
+        visualize_corr(haystack, needle, corr)
+    return index, cc
+
+
+def find_needles(haystack, needle, threshold, samplerate, verbose=False):
+    """Searching for needle in haystack in small increments
+    Args:
+        haystack: single channel wave data
+        needle: single channel wave data defining the fingerprint to be matched
+        threshold: a threshold for similarity in the range 0 to 100.
+        samplerate: the samplerate of the data
+
+    Returns:
+        a DataFrame with with the index (a.k.a sample positions), timestamp and correlation value
+
+    Will find places in the audio stream where the original (needle) matches the
+    haystack audio stream. It will return a list of tuples with the index, timestamp and
+    correlation value. It looks in small chunks of audio and returns the best match
+    fullfilling the requirments on absolute threshold and distance to peak in the local
+    span of 100ms. The data window to be considered is the length of the needle + 10%
+    of the samplerate.
+    """
+
+    # Sets how close we can find multiple matches, 100ms
+    window = int(0.1 * samplerate)
+    max_pos = 0
+
+    silence = np.full((len(needle)), 0)
+    haystack = np.append(haystack, silence)
+    read_len = int(len(needle) + window)
+    ref_duration = len(needle) / samplerate
+    counter = 0
+    last = 0
+    split_times = []
+    while last <= len(haystack) - len(needle):
+        index, cc = match_buffers(
+            haystack[last : last + read_len], needle, verbose=verbose
+        )
+
+        index += last
+        pos = index - max_pos
+        if pos < 0:
+            pos = 0
+        time = pos / samplerate
+        if cc > threshold:
+            if (len(split_times) > 0) and (
+                abs(time - split_times[-1][1]) < ref_duration / 2
+            ):
+                if split_times[-1][2] <= cc:
+                    split_times.pop(-1)
+            else:
+                split_times.append([pos, time, cc])
+
+        last += window
+        counter += 1
+
+    data = pd.DataFrame()
+    labels = ["sample", "time", "correlation"]
+    data = pd.DataFrame.from_records(split_times, columns=labels, coerce_float=True)
+
+    return data
+
+
 def get_correlation_indices(haystack, needle, **kwargs):
+    """Find points in haystack with the highest correlation of needle data
+    Args:
+        haystack: single channel wave data
+        needle: single channel wave data defining the fingerprint to be matched
+
+    Returns:
+        list of tuples with the index (a.k.a sample positions), timestamp and correlation value
+
+    get_correlation_indices will return a list of indices where the
+    the correltion high points are within a certain span between max to
+    a min level.
+    It can be used to find a number of peak correlation points with
+    sufficient separation.
+    It looks at the whole file and therefore is unsuitable to find local
+    peaks in partials of a file.
+    """
+
     # get optional input parameters
     max_values = kwargs.get("max_values", audio_common.DEFAULT_MAX_VALUES)
     debug = kwargs.get("debug", audio_common.DEFAULT_DEBUG)
@@ -84,6 +192,7 @@ def audio_analyze(infile, **kwargs):
         print(f"warn: no audio stream in {infile}")
         return []
     # analyze audio file
+    print("Audio analyze")
     audio_results = audio_analyze_wav(wav_filename, **kwargs)
     # sort the index list
     audio_results.sort()
@@ -101,6 +210,8 @@ def audio_analyze_wav(infile, **kwargs):
     min_separation_msec = kwargs.get("min_separation_msec", DEFAULT_MIN_SEPARATION_MSEC)
     min_separation_samples = int(int(min_separation_msec) * int(samplerate) / 1000)
     correlation_factor = kwargs.get("correlation_factor", DEFAULT_CORRELATION_FACTOR)
+    echo_analysis = kwargs.get("echo_analysis", False)
+
     # open the input
     haystack_samplerate, inaud = scipy.io.wavfile.read(infile)
     # force the input to the experiment samplerate
@@ -125,28 +236,36 @@ def audio_analyze_wav(infile, **kwargs):
     needle_target = audio_common.generate_chirp(beep_period_sec, **kwargs)[
         0:beep_duration_samples
     ]
-    # calculate the correlation signal
-    index_list, correlation = get_correlation_indices(
-        inaud,
-        needle_target,
-        min_separation_samples=min_separation_samples,
-        correlation_factor=correlation_factor,
-        debug=debug,
-    )
-    # add a samplerate-based timestamp
-    audio_results = [
-        (
-            index,
-            index / samplerate,
-            int(
-                np.corrcoef(inaud[index : index + len(needle_target)], needle_target)[
-                    1, 0
-                ]
-                * 100
-            ),
+
+    if echo_analysis:
+        # Look for indices with more then 20% match (for now)
+        data = find_needles(inaud, needle_target, 20, samplerate, False)
+        # convert to tuple
+        audio_results = [tuple(x) for x in data.values]
+    else:
+        # calculate the correlation signal
+        index_list, correlation = get_correlation_indices(
+            inaud,
+            needle_target,
+            min_separation_samples=min_separation_samples,
+            correlation_factor=correlation_factor,
+            debug=debug,
         )
-        for index in index_list
-    ]
+        # add a samplerate-based timestamp
+        audio_results = [
+            (
+                index,
+                index / samplerate,
+                int(
+                    np.corrcoef(
+                        inaud[index : index + len(needle_target)], needle_target
+                    )[1, 0]
+                    * 100
+                ),
+            )
+            for index in index_list
+        ]
+
     if debug > 0:
         print(f"audio_results: {audio_results}")
     return audio_results
@@ -199,6 +318,13 @@ def get_options(argv):
         "--correlation_factor",
         default=10,
         help="Sets the threshold for triggering hits. Default is a factor 10 between the highest correlation and the lower threshold for triggering hits.",
+    )
+    parser.add_argument(
+        "-e",
+        "--echo-analysis",
+        dest="echo_analysis",
+        action="store_true",
+        help="Consider multiple hits in order to calculate time between two consecutive audio trigger points. With this a transmission system can be measured for audio and video latency and auiod/video synchronization.",
     )
     parser.add_argument(
         "infile",
