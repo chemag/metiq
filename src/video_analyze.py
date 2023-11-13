@@ -199,14 +199,16 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
     unknown_frames = delta_results.count(None)
     nok_frames = num_frames - sok_frames - unknown_frames
     stddev = np.std([delta for delta in delta_results if delta is not None])
-    delta_info = {
-        "mode": delta_mode,
-        "stddev": stddev,
-        "ok_ratio": ok_frames / num_frames,
-        "sok_ratio": sok_frames / num_frames,
-        "nok_ratio": nok_frames / num_frames,
-        "unknown_ratio": unknown_frames / num_frames,
-    }
+    delta_info = ()
+    if num_frames > 0:
+        delta_info = {
+            "mode": delta_mode,
+            "stddev": stddev,
+            "ok_ratio": ok_frames / num_frames,
+            "sok_ratio": sok_frames / num_frames,
+            "nok_ratio": nok_frames / num_frames,
+            "unknown_ratio": unknown_frames / num_frames,
+        }
     # 5. zip both lists together
     video_results = [
         (*vals, delta) for vals, delta in zip(video_results, delta_results)
@@ -361,6 +363,7 @@ def main(argv):
         options.infile,
         options.width,
         options.height,
+        30,
         options.pixel_format,
         options.luma_threshold,
         options.debug,
