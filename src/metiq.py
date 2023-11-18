@@ -139,7 +139,11 @@ def estimate_avsync(video_results, fps, audio_results, beep_period_sec, debug=0)
         # find the video matches whose timestamps surround the audio one
         while True:
             # find a video entry that has a valid reading
-            prev_video_ts, _, prev_video_frame_num = video_results[video_index][1:4]
+            try:
+                prev_video_ts, _, prev_video_frame_num = video_results[video_index][1:4]
+            except:
+                print(f"error: {video_results[video_index] =}")
+                continue
             if prev_video_frame_num is not None:
                 break
             video_index += 1
@@ -179,25 +183,27 @@ def estimate_avsync(video_results, fps, audio_results, beep_period_sec, debug=0)
     video_frame_num_period = fps * beep_period_sec
     avsync_sec_list = []
     for audio_frame_num in audio_frame_num_list:
-        candidate_1 = (
-            math.floor(audio_frame_num / video_frame_num_period)
-            * video_frame_num_period
-        )
-        candidate_2 = (
-            math.ceil(audio_frame_num / video_frame_num_period) * video_frame_num_period
-        )
-        if (audio_frame_num - candidate_1) < (candidate_2 - audio_frame_num):
-            video_frame_num = candidate_1
-        else:
-            video_frame_num = candidate_2
-        # Following ITU-R BT.1359-1 rec here: "positive value indicates that
-        # sound is advanced with respect to vision"
-        # It can also be though of as a delay time on video i.e.
-        # a negative delay means that the audio is leading.
-        avsync_sec = (video_frame_num - audio_frame_num) / fps
-        avsync_sec_list.append(
-            [video_frame_num, round(audio_frame_num / fps, 3), avsync_sec]
-        )
+        if video_frame_num_period > 0 and not np.isnan(audio_frame_num):
+            candidate_1 = (
+                math.floor(audio_frame_num / video_frame_num_period)
+                * video_frame_num_period
+            )
+            candidate_2 = (
+                math.ceil(audio_frame_num / video_frame_num_period)
+                * video_frame_num_period
+            )
+            if (audio_frame_num - candidate_1) < (candidate_2 - audio_frame_num):
+                video_frame_num = candidate_1
+            else:
+                video_frame_num = candidate_2
+            # Following ITU-R BT.1359-1 rec here: "positive value indicates that
+            # sound is advanced with respect to vision"
+            # It can also be though of as a delay time on video i.e.
+            # a negative delay means that the audio is leading.
+            avsync_sec = (video_frame_num - audio_frame_num) / fps
+            avsync_sec_list.append(
+                [video_frame_num, round(audio_frame_num / fps, 3), avsync_sec]
+            )
     return avsync_sec_list
 
 
@@ -225,6 +231,7 @@ def media_file_analyze(
     video_results = None
     video_delta_info = None
     avsync_sec_list = None
+    errors = None
     if debug > 0:
         path = f"{infile}.video.csv"
         if os.path.exists(f"{infile}.video.csv"):
@@ -242,14 +249,21 @@ def media_file_analyze(
                 .to_records(index=False)
                 .tolist()
             )
-        # todo: delta info
         if os.path.exists(f"{infile}.video_delta_info.csv"):
             vdi = pd.read_csv(f"{infile}.video_delta_info.csv")
             print(f"{video_delta_info=}")
             video_delta_info = vdi.set_index("0").T.to_dict("list")
 
+        if os.path.exists(f"{infile}.video.errors.csv"):
+            perrors = pd.read_csv(f"{infile}.video.errors.csv")
+            print(f"{perrors}")
+            errors = (
+                perrors[["frame", "timestamp", "exception"]]
+                .to_records(index=False)
+                .tolist()
+            )
     if video_results == None:
-        video_results, video_delta_info = video_analyze.video_analyze(
+        video_results, video_delta_info, errors = video_analyze.video_analyze(
             infile,
             width,
             height,
@@ -258,6 +272,9 @@ def media_file_analyze(
             luma_threshold,
             debug=debug,
         )
+        perrors = pd.DataFrame(errors, columns=["frame", "timestamp", "exception"])
+        if perrors is not None and len(perrors) > 0:
+            perrors.to_csv(f"{infile}.video.errors.csv")
         if debug > 0:
             if video_delta_info is not None and len(video_delta_info) > 0:
                 pvideo_delta_info = pd.DataFrame(video_delta_info.items())
@@ -296,7 +313,7 @@ def media_file_analyze(
     if debug > 1:
         print(f"{audio_results = }")
 
-    # 2. estimate a/v sync
+    # 3. estimate a/v sync
     avsync_sec_list = estimate_avsync(
         video_results, fps, audio_results, beep_period_sec, debug
     )
@@ -305,23 +322,30 @@ def media_file_analyze(
             avsync_sec_list, columns=["video_frame_num", "audio_sec", "avsync_sec"]
         )
         pav_sync_list.to_csv(f"{infile}.avsync.csv")
-    if echo_analysis:
-        # 3. calculate audio latency, video latency and the difference between the two
-        latencies = calculate_latency(avsync_sec_list, debug)
-        latencies.to_csv(f"{os.path.splitext(outfile)[0]}.latencies.csv")
-        stats = calculate_stats(latencies, video_results, infile, debug)
-        if stats is not None:
-            stats.to_csv(f"{os.path.splitext(outfile)[0]}.stats.csv")
-        else:
-            print(f"{infile} faiwled to produce stats")
+    latencies = []
+    # 4. calculate audio latency, video latency and the difference between the two
+    latencies = calculate_latency(avsync_sec_list, debug)
+    latencies.to_csv(f"{os.path.splitext(outfile)[0]}.latencies.csv")
+    stats, frame_durations = calculate_stats(
+        latencies, video_results, errors, infile, debug
+    )
+    if stats is not None:
+        stats.to_csv(f"{os.path.splitext(outfile)[0]}.stats.csv")
+    else:
+        print(f"{infile} failed to produce stats")
 
-    # 4. dump results to file
+    if frame_durations is not None:
+        frame_durations.to_csv(f"{infile}.frame_durations.csv")
+
+    # 5. dump results to file
     dump_results(video_results, video_delta_info, audio_results, outfile, debug)
     return video_delta_info, avsync_sec_list
 
 
-def calculate_stats(latencies, video_results, inputfile, debug=False):
+def calculate_stats(latencies, video_results, errors, inputfile, debug=False):
+    print("Calc stats...")
     stats = {}
+    ignore_latency = False
     if len(latencies) == 0 or len(video_results) == 0:
         print(f"Failure - no data")
         return
@@ -349,7 +373,7 @@ def calculate_stats(latencies, video_results, inputfile, debug=False):
         columns=[
             "frame_num",
             "ts",
-            "expected_frane_num",
+            "expected_frame_num",
             "video_frame_num_read",
             "delta",
         ],
@@ -357,20 +381,52 @@ def calculate_stats(latencies, video_results, inputfile, debug=False):
     video["video_frame_num_read_int"] = (
         video["video_frame_num_read"].dropna().astype(int)
     )
-    capt_group = video.groupby("video_frame_num_read_int")
+    capt_group = video.groupby("video_frame_num_read_int")  # .count()
+    cg = capt_group.count()["video_frame_num_read"]
+    cg = cg.value_counts().sort_index().to_frame()
+    cg.index.rename("consecutive_frames", inplace=True)
+    print(f"{cg = }")
     stats["video_frame_times_shows.mean"] = round(capt_group.size().mean(), 2)
+    stats["video_frame_times_shows.std_dev"] = round(capt_group.size().std(), 2)
     frmin = int(video["video_frame_num_read_int"].min())
     frmax = int(video["video_frame_num_read_int"].max())
     not_in_range = np.setdiff1d(
         range(frmin, frmax), np.unique(video["video_frame_num_read_int"].values)
     )
-    frame_count = (frmax - frmin) - len(not_in_range)
+    frame_count = frmax - frmin
     frames_dropped = len(not_in_range)
+    print(f"{frame_count=} {frames_dropped=}")
     stats["frames_nbr"] = frame_count
     stats["frames_dropped"] = frames_dropped
     stats["frame_drop.percentage"] = round(100 * frames_dropped / frame_count, 2)
 
-    return pd.DataFrame(stats, columns=stats.keys(), index=[0])
+    # errors
+    frmin = video["frame_num"].min()
+    frmax = video["frame_num"].max()
+    failed_frames = 0
+    if errors is not None:
+        failed_frames = len(errors)
+    total_frames = frmax - frmin
+    stats["failed_frames"] = failed_frames
+    stats["total_frames_parsed"] = total_frames
+    stats["frame_parse_error.percentage"] = round(100 * failed_frames / total_frames, 2)
+    perrors = pd.DataFrame(errors, columns=["frame", "timestamp", "exception"])
+    print(f"{perrors}")
+    stats[video_analyze.ERROR_NO_VALID_TAG_MSG] = len(
+        perrors.loc[perrors["exception"] == video_analyze.ERROR_NO_VALID_TAG]
+    )
+    stats[video_analyze.ERROR_INVALID_GRAYCODE_MSG] = len(
+        perrors.loc[perrors["exception"] == video_analyze.ERROR_INVALID_GRAYCODE]
+    )
+    stats[video_analyze.ERROR_SINGLE_GRAYCODE_BIT_MSG] = len(
+        perrors.loc[perrors["exception"] == video_analyze.ERROR_SINGLE_GRAYCODE_BIT]
+    )
+    stats[video_analyze.ERROR_UNKNOWN_MSG] = len(
+        perrors.loc[perrors["exception"] == video_analyze.ERROR_UNKNOWN]
+    )
+
+    # TODO match gaps with source frame numbers?
+    return pd.DataFrame(stats, columns=stats.keys(), index=[0]), cg
 
 
 def calculate_latency(sync, debug):
@@ -426,7 +482,9 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
     # video_results: frame_num, timestamp, frame_num_expected, timestamp, frame_num_read
     # audio_results: sample_num, timestamp, correlation
     # write the output as a csv file
-    print(f"{video_delta_info =}")
+    if video_delta_info is None or len(video_delta_info) == 0:
+        print("No video data")
+        return
     with open(outfile, "w") as fd:
         fd.write(
             f"timestamp,video_frame_num,video_frame_num_expected,video_frame_num_read,video_delta_frames_{video_delta_info['mode']},audio_sample_num,audio_correlation\n"
