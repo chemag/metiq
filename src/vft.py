@@ -23,6 +23,21 @@ import aruco_common
 __version__ = "0.1"
 
 
+class NoValidTag(Exception):
+    def __init__(self):
+        super().__init__("error: frame has no valid set of tags")
+
+
+class InvalidGrayCode(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+
+class SingleGraycodeBitError(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+
 VFT_IDS = ("9x8", "9x6", "7x5", "5x4")
 DEFAULT_VFT_ID = "7x5"
 DEFAULT_TAG_BORDER_SIZE = 2
@@ -141,7 +156,7 @@ def analyze(img, luma_threshold, debug):
     vft_id, tag_center_locations, borders = detect_tags(img, debug)
     if tag_center_locations is None:
         # could not read the 3x tags properly: stop here
-        raise Exception("error: frame has no valid set of tags")
+        raise NoValidTag()
         return None, None
     # 2. set the layout
     height, width, _ = img.shape
@@ -362,9 +377,13 @@ def analyze_read_bits(img, vft_layout, luma_threshold, debug):
     # and therefore use a large threshold. Otherwise, we should
     # resort to a smaller threshold.
     bit_stream = []
+    diff = 255
     for luma1, luma2 in zip(block_luma_avgs[0::2], block_luma_avgs[1::2]):
         if abs(luma2 - luma1) < luma_threshold:
             bit = "X"
+            if debug:
+                if abs(luma2 - luma1) < diff:
+                    diff = abs(luma2 - luma1)
         elif luma2 > luma1:
             bit = 1
         else:
@@ -374,6 +393,7 @@ def analyze_read_bits(img, vft_layout, luma_threshold, debug):
     if debug > 1:
         # 4. write annotated image to file
         outfile = "/tmp/vft_debug." + "".join(str(bit) for bit in bit_stream) + ".png"
+        print(f"minimum diff was {diff}")
         write_annotated_tag(img, vft_layout, outfile)
     return bit_stream
 
@@ -417,7 +437,7 @@ def gray_bitstream_to_num(bit_stream):
         gray_num = bit_stream_to_number(bit_stream)
         return graycode.gray_code_to_tc(gray_num)
     elif bit_stream.count("X") > 1:
-        raise Exception(f"warn: invalid gray code read ({bit_stream = }")
+        raise InvalidGrayCode(f"{bit_stream = }")
         return None
     # slightly degenerated case: a single non-read bit
     b0 = [0 if b == "X" else b for b in bit_stream]
@@ -429,7 +449,7 @@ def gray_bitstream_to_num(bit_stream):
     if abs(n0 - n1) == 1:
         # error produces consecutive numbers
         return (n1 + n0) / 2
-    raise Exception(f"warn: single non-read bit not in gray position ({bit_stream = }")
+    raise SingleGraycodeBitError(f"{bit_stream = }")
     return None
 
 

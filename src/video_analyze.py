@@ -19,6 +19,14 @@ COLOR_BLACK = (0, 0, 0)
 COLOR_BACKGROUND = (128, 128, 128)
 COLOR_WHITE = (255, 255, 255)
 
+ERROR_NO_VALID_TAG = 1
+ERROR_NO_VALID_TAG_MSG = "Frame has no valid set of tags"
+ERROR_INVALID_GRAYCODE = 2
+ERROR_INVALID_GRAYCODE_MSG = "Invalid gray code read"
+ERROR_SINGLE_GRAYCODE_BIT = 3
+ERROR_SINGLE_GRAYCODE_BIT_MSG = "Single non-read bit not in gray position"
+ERROR_UNKNOWN = 100
+ERROR_UNKNOWN_MSG = "Unknown error"
 
 default_values = {
     "debug": 0,
@@ -139,6 +147,7 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
     in_fps = video_capture.get(cv2.CAP_PROP_FPS)
     frame_num = -1
     video_results = []
+    errors = []
     while True:
         # get image
         status, img = video_capture.read()
@@ -156,11 +165,19 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
                 f"video_analyze: parsing {frame_num = } {timestamp = } {ref_fps = } {in_fps = }"
             )
         # analyze image
+        value_read = None
         try:
             value_read = image_analyze(img, luma_threshold, debug)
+        except vft.NoValidTag as ex:
+            errors.append([frame_num, timestamp, 1])
+        except vft.InvalidGrayCode as ex:
+            errors.append([frame_num, timestamp, 2])
+        except vft.SingleGraycodeBitError as ex:
+            errors.append([frame_num, timestamp, 3])
         except Exception as ex:
             if debug > 0:
                 print(f"{frame_num = } {str(ex)}")
+            errors.append([frame_num, timestamp, "Unkown"])
             continue
         if debug > 2:
             print(f"video_analyze: read image value: {value_read}")
@@ -213,7 +230,7 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
     video_results = [
         (*vals, delta) for vals, delta in zip(video_results, delta_results)
     ]
-    return video_results, delta_info
+    return video_results, delta_info, errors
 
 
 def image_analyze(img, luma_threshold, debug):
@@ -222,11 +239,23 @@ def image_analyze(img, luma_threshold, debug):
 
 
 def dump_video_results(video_results, outfile, debug):
-    # write the output as a csv file
-    with open(outfile, "w") as fd:
-        fd.write("frame_num,timestamp,frame_num_expected,frame_num_read\n")
-        for frame_num, timestamp, frame_num_expected, frame_num_read in video_results:
-            fd.write(f"{frame_num},{timestamp},{frame_num_expected},{frame_num_read}\n")
+    if video_results is not None and len(video_results) > 0:
+        # write the output as a csv file
+        with open(outfile, "w") as fd:
+            fd.write("frame_num,timestamp,frame_num_expected,frame_num_read\n")
+            print("Write data")
+            for (
+                frame_num,
+                timestamp,
+                frame_num_expected,
+                frame_num_read,
+                delta,
+            ) in video_results:
+                fd.write(
+                    f"{frame_num},{timestamp},{frame_num_expected},{frame_num_read}.{delta}\n"
+                )
+    else:
+        print(f"No video results: {video_results = }")
 
 
 def get_options(argv):
@@ -359,7 +388,7 @@ def main(argv):
     if options.debug > 0:
         print(options)
     # do something
-    video_results, delta_info = video_analyze(
+    video_results, delta_info, errors = video_analyze(
         options.infile,
         options.width,
         options.height,
@@ -368,6 +397,10 @@ def main(argv):
         options.luma_threshold,
         options.debug,
     )
+    perrors = pd.DataFrame(errors, columns=["frame", "timestamp", "exception"])
+    print(f"{perrors = }")
+    if options.debug > 0:
+        perrors.to_csv(f"{infile}.errors.csv")
     dump_video_results(video_results, options.outfile, options.debug)
     # print the delta info
     print(f"score for {options.infile = } {delta_info = }")
