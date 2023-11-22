@@ -9,7 +9,7 @@ import math
 import sys
 import numpy as np
 import scipy
-
+import pandas as pd
 import video_common
 import vft
 from _version import __version__
@@ -167,6 +167,10 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
         # analyze image
         value_read = None
         try:
+            if width> 0 and height > 0:
+                dim = (width, height)
+                img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+
             value_read = image_analyze(img, luma_threshold, debug)
         except vft.NoValidTag as ex:
             errors.append([frame_num, timestamp, 1])
@@ -181,6 +185,8 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
             continue
         if debug > 2:
             print(f"video_analyze: read image value: {value_read}")
+            if value_read is None:
+                cv2.imwrite(f"debug/{infile}_{frame_num}.png", img)
         video_results.append((frame_num, timestamp, frame_num_expected, value_read))
 
     # 2. clean up
@@ -398,9 +404,8 @@ def main(argv):
         options.debug,
     )
     perrors = pd.DataFrame(errors, columns=["frame", "timestamp", "exception"])
-    print(f"{perrors = }")
     if options.debug > 0:
-        perrors.to_csv(f"{infile}.errors.csv")
+        perrors.to_csv(f"{options.infile}.errors.csv")
     dump_video_results(video_results, options.outfile, options.debug)
     # print the delta info
     print(f"score for {options.infile = } {delta_info = }")
