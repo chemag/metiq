@@ -18,7 +18,7 @@ import typing
 import numpy as np
 
 import aruco_common
-
+import time
 
 __version__ = "0.1"
 
@@ -107,8 +107,19 @@ def generate_file(width, height, vft_id, tag_border_size, value, outfile, debug)
     cv2.imwrite(outfile, img)
 
 
-def analyze_file(infile, luma_threshold, debug):
+def analyze_file(infile, luma_threshold, width=0, height=0, debug=0):
     img = cv2.imread(cv2.samples.findFile(infile))
+    if width > 0 and height > 0:
+        dim = (width, height)
+    # Img stats
+    if debug > 0:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gmin = np.min(gray)
+        gmax = np.max(gray)
+        gmean = int(np.mean(gray))
+        gstd = int(np.std(gray))
+        print(f"min/max luminance: {gmin}/{gmax}, mean: {gmean} +/- {gstd}")
+    img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
     return analyze_graycode(img, luma_threshold, debug)
 
 
@@ -149,6 +160,9 @@ def generate(width, height, vft_id, tag_border_size, value, debug):
             if value_bit_position >= vft_layout.numbits:
                 break
     return img
+
+
+vft_layout = None
 
 
 def analyze(img, luma_threshold, debug):
@@ -626,7 +640,11 @@ def main(argv):
             options.infile = "/dev/fd/0"
         assert options.infile is not None, "error: need a valid in file"
         num_read, vft_id = analyze_file(
-            options.infile, options.luma_threshold, options.debug
+            options.infile,
+            options.luma_threshold,
+            options.width,
+            options.height,
+            options.debug,
         )
         print(f"read: {num_read = } ({vft_id = })")
 
