@@ -251,12 +251,10 @@ def media_file_analyze(
             )
         if os.path.exists(f"{infile}.video_delta_info.csv"):
             vdi = pd.read_csv(f"{infile}.video_delta_info.csv")
-            print(f"{video_delta_info=}")
             video_delta_info = vdi.set_index("0").T.to_dict("list")
 
         if os.path.exists(f"{infile}.video.errors.csv"):
             perrors = pd.read_csv(f"{infile}.video.errors.csv")
-            print(f"{perrors}")
             errors = (
                 perrors[["frame", "timestamp", "exception"]]
                 .to_records(index=False)
@@ -342,6 +340,36 @@ def media_file_analyze(
     return video_delta_info, avsync_sec_list
 
 
+def calculate_dropped_frames_stats(video, start=-1, stop=-1):
+    video = video.dropna()
+    if start > 0 or stop > 0:
+        video = video.loc[(video["ts"] >= start) & (video["ts"] < stop)]
+    if len(video) == 0:
+        return 0, 0
+
+    frmin = int(video["video_frame_num_read_int"].min())
+    frmax = int(video["video_frame_num_read_int"].max())
+    not_in_range = np.setdiff1d(
+        range(frmin, frmax), np.unique(video["video_frame_num_read_int"].values)
+    )
+    frame_count = frmax - frmin
+    frames_dropped = len(not_in_range)
+    return frame_count, frames_dropped
+
+
+def dump_frame_drops(video, inputfile):
+    # persecond moving average
+    start = int(video["ts"].min())
+    end = int(video["ts"].max() + 0.5)
+    dur = end - start
+
+    framedrops_per_sec = [
+        calculate_dropped_frames_stats(video, x, x + 1) for x in range(end - start)
+    ]
+    fdp = pd.DataFrame(framedrops_per_sec, columns=["frames", "dropped"])
+    fdp.to_csv(f"{inputfile}.average.frame.drops.csv")
+
+
 def calculate_stats(latencies, video_results, errors, inputfile, debug=False):
     print("Calc stats...")
     stats = {}
@@ -385,24 +413,17 @@ def calculate_stats(latencies, video_results, errors, inputfile, debug=False):
     cg = capt_group.count()["video_frame_num_read"]
     cg = cg.value_counts().sort_index().to_frame()
     cg.index.rename("consecutive_frames", inplace=True)
-    print(f"{cg = }")
     stats["video_frame_times_shows.mean"] = round(capt_group.size().mean(), 2)
     stats["video_frame_times_shows.std_dev"] = round(capt_group.size().std(), 2)
-    frmin = int(video["video_frame_num_read_int"].min())
-    frmax = int(video["video_frame_num_read_int"].max())
-    not_in_range = np.setdiff1d(
-        range(frmin, frmax), np.unique(video["video_frame_num_read_int"].values)
-    )
-    frame_count = frmax - frmin
-    frames_dropped = len(not_in_range)
-    print(f"{frame_count=} {frames_dropped=}")
+    frame_count, frames_dropped = calculate_dropped_frames_stats(video)
     stats["frames_nbr"] = frame_count
     stats["frames_dropped"] = frames_dropped
     stats["frame_drop.percentage"] = round(100 * frames_dropped / frame_count, 2)
-
+    dump_frame_drops(video, inputfile)
     # errors
     frmin = video["frame_num"].min()
     frmax = video["frame_num"].max()
+
     failed_frames = 0
     if errors is not None:
         failed_frames = len(errors)
@@ -411,7 +432,6 @@ def calculate_stats(latencies, video_results, errors, inputfile, debug=False):
     stats["total_frames_parsed"] = total_frames
     stats["frame_parse_error.percentage"] = round(100 * failed_frames / total_frames, 2)
     perrors = pd.DataFrame(errors, columns=["frame", "timestamp", "exception"])
-    print(f"{perrors}")
     stats[video_analyze.ERROR_NO_VALID_TAG_MSG] = len(
         perrors.loc[perrors["exception"] == video_analyze.ERROR_NO_VALID_TAG]
     )
