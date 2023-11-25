@@ -90,8 +90,8 @@ def generate_graycode(width, height, vft_id, tag_border_size, value, debug):
     return generate(width, height, vft_id, tag_border_size, graycode_value, debug)
 
 
-def analyze_graycode(img, luma_threshold, debug):
-    bit_stream, vft_id = analyze(img, luma_threshold, debug)
+def analyze_graycode(img, luma_threshold, lock_layout = False, debug = 0):
+    bit_stream, vft_id = analyze(img, luma_threshold, lock_layout, debug)
     # convert gray code in bit_stream to a number
     num_read = gray_bitstream_to_num(bit_stream)
     return num_read, vft_id
@@ -107,10 +107,11 @@ def generate_file(width, height, vft_id, tag_border_size, value, outfile, debug)
     cv2.imwrite(outfile, img)
 
 
-def analyze_file(infile, luma_threshold, width=0, height=0, debug=0):
+def analyze_file(infile, luma_threshold, width=0, height=0, lock_layout = False, debug=0):
     img = cv2.imread(cv2.samples.findFile(infile))
     if width > 0 and height > 0:
         dim = (width, height)
+        img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
     # Img stats
     if debug > 0:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -119,8 +120,8 @@ def analyze_file(infile, luma_threshold, width=0, height=0, debug=0):
         gmean = int(np.mean(gray))
         gstd = int(np.std(gray))
         print(f"min/max luminance: {gmin}/{gmax}, mean: {gmean} +/- {gstd}")
-    img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-    return analyze_graycode(img, luma_threshold, debug)
+    bit_stream, vft_id = analyze(img, luma_threshold, debug)
+    return analyze_graycode(img, luma_threshold, lock_layout, debug)
 
 
 # Generic Number-based API
@@ -163,18 +164,20 @@ def generate(width, height, vft_id, tag_border_size, value, debug):
 
 
 vft_layout = None
-
-
-def analyze(img, luma_threshold, debug):
-    # 1. get VFT id and tag locations
-    vft_id, tag_center_locations, borders = detect_tags(img, debug)
-    if tag_center_locations is None:
-        # could not read the 3x tags properly: stop here
-        raise NoValidTag()
-        return None, None
-    # 2. set the layout
-    height, width, _ = img.shape
-    vft_layout = VFTLayout(width, height, vft_id)
+tag_center_locations = None
+vft_id = None
+def analyze(img, luma_threshold, lock_layout = False, debug = 0):
+    global vft_layout, tag_center_locations, vft_id
+    if vft_layout is None or tag_center_locations is None or vft_id is None and lock_layout:
+        # 1. get VFT id and tag locations
+        vft_id, tag_center_locations, borders = detect_tags(img, debug)
+        if tag_center_locations is None:
+            # could not read the 3x tags properly: stop here
+            raise NoValidTag()
+            return None, None
+        # 2. set the layout
+        height, width, _ = img.shape
+        vft_layout = VFTLayout(width, height, vft_id)
     # 3. apply affine transformation to source image
     tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
     img_affine = affine_transformation(
@@ -247,7 +250,7 @@ def generate_add_tag(img, vft_layout, tag_number, debug):
         vft_layout.tag_size, tag_id, vft_layout.tag_border_size
     )
     block_id = vft_layout.tag_block_ids[tag_number]
-    # get the coordinates
+    # get the cnoordinates
     col, row = vft_layout.get_colrow(block_id)
     x0 = vft_layout.x[col]
     x1 = x0 + vft_layout.tag_size
@@ -305,10 +308,21 @@ def detect_tags(img, debug):
         if debug > 2:
             print("error: cannot detect any tags in image")
         return None, None, None
-    if len(ids) != 3:
+    if len(ids) < 3:
         if debug > 2:
             print(f"error: image has {len(ids)} tag(s) (should have 3)")
         return None, None, None
+    if len(ids) > 3:
+        if debug > 2:
+            print(f"error: image has {len(ids)} tag(s) (should have 3)")
+        # check tag list last number VFT_LAYOUT last number 2-5
+        ids = [id for id in ids if id in [0,1,2,3,4,5]]
+
+        if len(ids) > 3:
+            if debug > 2:
+                print(f"error: image has wrong tag {ids =}")
+            return None, None, None
+
     # 2. make sure they are a valid set
     ids.shape = 3
     vft_id = get_vft_id(list(ids))
