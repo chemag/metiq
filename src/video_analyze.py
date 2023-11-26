@@ -138,7 +138,7 @@ def estimate_video_smoothness(video_results, fps):
 #   if it cannot read it).
 # * (e) `delta_frame`: `frame_num_read - delta_mode` (None if
 #   `frame_num_read` is not readable).
-def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, debug):
+def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, lock_layout = False, debug = 0):
     video_capture = get_video_capture(infile, width, height, pixel_format)
     if not video_capture.isOpened():
         print(f"error: {infile = } is not open")
@@ -171,7 +171,7 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
                 dim = (width, height)
                 img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
 
-            value_read = image_analyze(img, luma_threshold, debug)
+            value_read = image_analyze(img, luma_threshold, lock_layout, debug)
         except vft.NoValidTag as ex:
             errors.append([frame_num, timestamp, 1])
         except vft.InvalidGrayCode as ex:
@@ -239,8 +239,8 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
     return video_results, delta_info, errors
 
 
-def image_analyze(img, luma_threshold, debug):
-    num_read, vft_id = vft.analyze_graycode(img, luma_threshold, debug)
+def image_analyze(img, luma_threshold, lock_layout=False, debug=0):
+    num_read, vft_id = vft.analyze_graycode(img, luma_threshold, lock_layout, debug)
     return num_read
 
 
