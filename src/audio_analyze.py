@@ -101,7 +101,7 @@ def find_needles(haystack, needle, threshold, samplerate, verbose=False):
             if (len(split_times) > 0) and (
                 abs(time - split_times[-1][1]) < ref_duration / 2
             ):
-                if split_times[-1][2] <= cc:
+                if split_times[-1][2] <= cc and time != split_times[-1][1]:
                     split_times.pop(-1)
             else:
                 split_times.append([pos, time, cc])
@@ -192,7 +192,6 @@ def audio_analyze(infile, **kwargs):
         print(f"warn: no audio stream in {infile}")
         return []
     # analyze audio file
-    print("Audio analyze")
     audio_results = audio_analyze_wav(wav_filename, **kwargs)
     # sort the index list
     audio_results.sort()
@@ -200,7 +199,6 @@ def audio_analyze(infile, **kwargs):
 
 
 def audio_analyze_wav(infile, **kwargs):
-    print("audioanalyze")
     # get optional input parameters
     debug = kwargs.get("debug", audio_common.DEFAULT_DEBUG)
     beep_period_sec = kwargs.get(
@@ -375,6 +373,7 @@ def main(argv):
         debug=options.debug,
         min_separation_msec=options.min_separation_msec,
         min_correlation_factor=options.correlation_factor,
+        echo_analysis=options.echo_analysis,
     )
     dump_results(audio_results, options.outfile, options.debug)
 
