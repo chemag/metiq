@@ -649,7 +649,8 @@ def get_options(argv):
         nargs="?",
         default=default_values["vft_id"],
         choices=vft.VFT_IDS,
-        help="%s" % (" | ".join("{}".format(k) for k in vft.VFT_IDS)),
+        help="%s (default: %s)"
+        % (" | ".join("{}".format(k) for k in vft.VFT_IDS), default_values["vft_id"]),
     )
     parser.add_argument(
         "--vft-tag-border-size",
