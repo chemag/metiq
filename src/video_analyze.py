@@ -138,7 +138,16 @@ def estimate_video_smoothness(video_results, fps):
 #   if it cannot read it).
 # * (e) `delta_frame`: `frame_num_read - delta_mode` (None if
 #   `frame_num_read` is not readable).
-def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, lock_layout = False, debug = 0):
+def video_analyze(
+    infile,
+    width,
+    height,
+    ref_fps,
+    pixel_format,
+    luma_threshold,
+    lock_layout=False,
+    debug=0,
+):
     video_capture = get_video_capture(infile, width, height, pixel_format)
     if not video_capture.isOpened():
         print(f"error: {infile = } is not open")
@@ -167,7 +176,7 @@ def video_analyze(infile, width, height, ref_fps, pixel_format, luma_threshold, 
         # analyze image
         value_read = None
         try:
-            if width> 0 and height > 0:
+            if width > 0 and height > 0:
                 dim = (width, height)
                 img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
 

@@ -498,7 +498,6 @@ def match_video_to_time(
     filt = [x for x in video_results if x[1] <= round(ts, 3)]
     next_val = video_results[len(filt)]
     if len(filt) > 0:
-
         read_frame_num = filt[-1][3]
         source_frame_num = filt[-1][0]
         if read_frame_num == None or np.isnan(read_frame_num):
@@ -550,7 +549,6 @@ def calculate_latency(
             # correlation indicates that match is an echo (if ts_diff < period)
             if prev[2] > match[2]:
                 if ts_diff < beep_period_sec * 0.8:
-
                     vmatch = match_video_to_time(
                         prev[1],
                         video_results,

@@ -90,7 +90,7 @@ def generate_graycode(width, height, vft_id, tag_border_size, value, debug):
     return generate(width, height, vft_id, tag_border_size, graycode_value, debug)
 
 
-def analyze_graycode(img, luma_threshold, lock_layout = False, debug = 0):
+def analyze_graycode(img, luma_threshold, lock_layout=False, debug=0):
     bit_stream, vft_id = analyze(img, luma_threshold, lock_layout, debug)
     # convert gray code in bit_stream to a number
     num_read = gray_bitstream_to_num(bit_stream)
@@ -107,7 +107,7 @@ def generate_file(width, height, vft_id, tag_border_size, value, outfile, debug)
     cv2.imwrite(outfile, img)
 
 
-def analyze_file(infile, luma_threshold, width=0, height=0, lock_layout = False, debug=0):
+def analyze_file(infile, luma_threshold, width=0, height=0, lock_layout=False, debug=0):
     img = cv2.imread(cv2.samples.findFile(infile))
     if width > 0 and height > 0:
         dim = (width, height)
@@ -166,9 +166,16 @@ def generate(width, height, vft_id, tag_border_size, value, debug):
 vft_layout = None
 tag_center_locations = None
 vft_id = None
-def analyze(img, luma_threshold, lock_layout = False, debug = 0):
+
+
+def analyze(img, luma_threshold, lock_layout=False, debug=0):
     global vft_layout, tag_center_locations, vft_id
-    if vft_layout is None or tag_center_locations is None or vft_id is None and lock_layout:
+    if (
+        vft_layout is None
+        or tag_center_locations is None
+        or vft_id is None
+        and lock_layout
+    ):
         # 1. get VFT id and tag locations
         vft_id, tag_center_locations, borders = detect_tags(img, debug)
         if tag_center_locations is None:
@@ -316,7 +323,7 @@ def detect_tags(img, debug):
         if debug > 2:
             print(f"error: image has {len(ids)} tag(s) (should have 3)")
         # check tag list last number VFT_LAYOUT last number 2-5
-        ids = [id for id in ids if id in [0,1,2,3,4,5]]
+        ids = [id for id in ids if id in [0, 1, 2, 3, 4, 5]]
 
         if len(ids) > 3:
             if debug > 2:
