@@ -1,4 +1,4 @@
-#!/usr/bin/env python0
+#!/usr/bin/env python
 
 """metiq.py module description."""
 
