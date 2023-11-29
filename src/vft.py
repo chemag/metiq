@@ -257,7 +257,7 @@ def generate_add_tag(img, vft_layout, tag_number, debug):
         vft_layout.tag_size, tag_id, vft_layout.tag_border_size
     )
     block_id = vft_layout.tag_block_ids[tag_number]
-    # get the cnoordinates
+    # get the coordinates
     col, row = vft_layout.get_colrow(block_id)
     x0 = vft_layout.x[col]
     x1 = x0 + vft_layout.tag_size
