@@ -18,6 +18,7 @@ DEFAULT_BEEP_PERIOD_SEC = 3
 
 DEFAULT_MAX_VALUES = 10000
 
+
 # https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.chirp.html
 def generate_chirp(duration_sec, **kwargs):
     # get optional input parameters
