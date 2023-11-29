@@ -727,7 +727,7 @@ def get_options(argv):
     parser.add_argument(
         "--correlation_factor",
         default=default_values["correlation_factor"],
-        help="Sets the threshold for triggering hits. Default is 10s ratio between the highest correlation and the lower threshold for triggering hits.",
+        help="Sets the threshold for triggering hits. Default is 10x ratio between the highest correlation and the lower threshold for triggering hits.",
     )
     parser.add_argument(
         "-e",
