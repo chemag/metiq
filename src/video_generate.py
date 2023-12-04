@@ -19,6 +19,7 @@ VFT_ID = "7x5"
 
 COLOR_BLACK = (0, 0, 0)
 COLOR_BACKGROUND = (128, 128, 128)
+COLOR_BACKGROUND_ALT = COLOR_BLACK
 COLOR_WHITE = (255, 255, 255)
 
 
@@ -26,13 +27,16 @@ default_values = {
     "debug": 0,
     "fps": 30,
     "num_frames": 150,
+    "beep_frame_period": 30,
     "width": video_common.DEFAULT_WIDTH,
     "height": video_common.DEFAULT_HEIGHT,
     "outfile": None,
 }
 
 
-def image_generate(image_info, frame_num, text1, text2, font, vft_id, debug):
+def image_generate(
+    image_info, frame_num, text1, text2, beep_color, font, vft_id, debug
+):
     # 0. start with an empty image
     img = np.zeros((image_info.height, image_info.width, 3), np.uint8)
     # 1. paint the original image
@@ -41,7 +45,8 @@ def image_generate(image_info, frame_num, text1, text2, font, vft_id, debug):
     y0 = 0
     y1 = image_info.height
     pts = np.array([[x0, y0], [x0, y1 - 1], [x1 - 1, y1 - 1], [x1 - 1, y0]])
-    cv2.fillPoly(img, pts=[pts], color=COLOR_BACKGROUND)
+    color_background = COLOR_BACKGROUND if not beep_color else COLOR_BACKGROUND_ALT
+    cv2.fillPoly(img, pts=[pts], color=color_background)
     # 2. write the text(s)
     if text1:
         x0 = 32
@@ -67,7 +72,17 @@ def image_generate(image_info, frame_num, text1, text2, font, vft_id, debug):
 
 
 def video_generate(
-    width, height, fps, num_frames, frame_period, outfile, metiq_id, vft_id, rem, debug
+    width,
+    height,
+    fps,
+    num_frames,
+    beep_frame_period,
+    frame_period,
+    outfile,
+    metiq_id,
+    vft_id,
+    rem,
+    debug,
 ):
     image_info = video_common.ImageInfo(width, height)
     vft_layout = vft.VFTLayout(width, height, vft_id)
@@ -82,8 +97,16 @@ def video_generate(
             num_bits = math.ceil(math.log2(num_frames))
             text1 = f"id: {metiq_id} frame: {actual_frame_num} time: {time:.03f} gray_num: {gray_num:0{num_bits}b}"
             text2 = f"fps: {fps:.2f} resolution: {img.shape[1]}x{img.shape[0]} {rem}"
+            beep_color = (frame_num % beep_frame_period) == 0
             img = image_generate(
-                image_info, actual_frame_num, text1, text2, font, vft_id, debug
+                image_info,
+                actual_frame_num,
+                text1,
+                text2,
+                beep_color,
+                font,
+                vft_id,
+                debug,
             )
             rawstream.write(img)
 
@@ -176,6 +199,18 @@ def get_options(argv):
         help=("use NUM_FRAMES frames (default: %i)" % default_values["num_frames"]),
     )
     parser.add_argument(
+        "--beep-frame-period",
+        action="store",
+        type=int,
+        dest="beep_frame_period",
+        default=default_values["beep_frame_period"],
+        metavar="BEEP_FRAME_PERIOD",
+        help=(
+            "use BEEP_FRAME_PERIOD frames (default: %i)"
+            % default_values["beep_frame_period"]
+        ),
+    )
+    parser.add_argument(
         "outfile",
         type=str,
         default=default_values["outfile"],
@@ -208,6 +243,7 @@ def main(argv):
         options.height,
         options.fps,
         options.num_frames,
+        options.beep_frame_period,
         options.num_frames,
         options.outfile,
         "default",

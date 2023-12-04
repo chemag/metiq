@@ -89,6 +89,7 @@ def media_file_generate(
         height,
         fps,
         num_frames,
+        beep_period_frames,
         frame_period,
         video_filename,
         "default",
