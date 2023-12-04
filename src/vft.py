@@ -173,8 +173,7 @@ def analyze(img, luma_threshold, lock_layout=False, debug=0):
     if (
         vft_layout is None
         or tag_center_locations is None
-        or vft_id is None
-        and lock_layout
+        or (vft_id is None and lock_layout)
     ):
         # 1. get VFT id and tag locations
         vft_id, tag_center_locations, borders = detect_tags(img, debug)
