@@ -952,7 +952,7 @@ def get_options(argv):
         "--echo-analysis",
         dest="echo_analysis",
         action="store_true",
-        help="Consider multiple hits in order to calculate time between two consecutive audio trigger points. With this a transmission system can be measured for audio and video latency and auiod/video synchronization.",
+        help="Allow multiple audio hits for a single period. This will calculate the time between two consecutive audio trigger points. Feature is useful to include audio and video latency measurements.",
     )
     parser.add_argument(
         "func",
@@ -993,7 +993,7 @@ def get_options(argv):
         "--lock-layout",
         action="store_true",
         dest="lock_layout",
-        help="With a fixed setup it the first foudn layout can be used for subsequent frames",
+        help="Reuse video frame layout location from the first frame to subsequent frames. This reduces the complexity of the analysis when the camera and DUT are set in a fixed setup",
     )
 
     # do the parsing
