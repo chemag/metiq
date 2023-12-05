@@ -497,6 +497,14 @@ def calculate_stats(
     return pd.DataFrame(stats, columns=stats.keys(), index=[0]), cg
 
 
+# Function searches for the video_result row whose timestamp
+# is closer to ts
+# It returns a tuple containing:
+# (a) the frame_num of the selected row,
+# (b) the searched (input) timestamp,
+# (c) the value read in the selected frame,
+# (d) the frame_num of the next frame where a beep is expected,
+# (e) the latency assuming the initial frame_time.
 def match_video_to_time(
     ts, video_results, beep_period_frames, frame_time, closest=False
 ):
