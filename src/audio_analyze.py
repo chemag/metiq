@@ -190,12 +190,14 @@ def audio_analyze(infile, **kwargs):
     ret, stdout, stderr = common.run(command, debug=debug)
     if ret != 0:
         print(f"warn: no audio stream in {infile}")
-        return []
+        return [], None, None
     # analyze audio file
-    audio_results = audio_analyze_wav(wav_filename, **kwargs)
+    audio_results, audio_duration_samples, audio_duration_seconds = audio_analyze_wav(
+        wav_filename, **kwargs
+    )
     # sort the index list
     audio_results.sort()
-    return audio_results
+    return audio_results, audio_duration_samples, audio_duration_seconds
 
 
 def audio_analyze_wav(infile, **kwargs):
@@ -212,6 +214,9 @@ def audio_analyze_wav(infile, **kwargs):
 
     # open the input
     haystack_samplerate, inaud = scipy.io.wavfile.read(infile)
+    audio_duration_samples = len(inaud)
+    audio_duration_seconds = audio_duration_samples / haystack_samplerate
+
     # force the input to the experiment samplerate
     if haystack_samplerate != samplerate:
         # need to convert the input's samplerate
@@ -266,7 +271,7 @@ def audio_analyze_wav(infile, **kwargs):
 
     if debug > 0:
         print(f"audio_results: {audio_results}")
-    return audio_results
+    return audio_results, audio_duration_samples, audio_duration_seconds
 
 
 def get_options(argv):
@@ -368,7 +373,7 @@ def main(argv):
     if options.debug > 0:
         print(options)
     # do something
-    audio_results = audio_analyze(
+    audio_results, audio_duration_samples, audio_duration_seconds = audio_analyze(
         options.infile,
         debug=options.debug,
         min_separation_msec=options.min_separation_msec,
@@ -376,6 +381,8 @@ def main(argv):
         echo_analysis=options.echo_analysis,
     )
     dump_results(audio_results, options.outfile, options.debug)
+    print(f"{audio_duration_samples=}")
+    print(f"{audio_duration_seconds=}")
 
 
 if __name__ == "__main__":

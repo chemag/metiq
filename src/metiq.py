@@ -295,7 +295,11 @@ def media_file_analyze(
                 pvideo_results.to_csv(path)
 
     # 2. analyze the audio stream
-    audio_results = audio_analyze.audio_analyze(
+    (
+        audio_results,
+        audio_duration_samples,
+        audio_duration_seconds,
+    ) = audio_analyze.audio_analyze(
         infile,
         pre_samples=pre_samples,
         samplerate=samplerate,
