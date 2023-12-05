@@ -136,7 +136,7 @@ def estimate_avsync(video_results, fps, audio_results, beep_period_sec, debug=0)
     video_index = 0
     # get the video frame_num corresponding to each audio timestamp
     audio_frame_num_list = []
-    for _audio_sample, audio_ts, _audio_correlation in audio_results:
+    for audio_ts in audio_results["timestamp"]:
         if video_index >= len(video_results):
             break
         # find the video matches whose timestamps surround the audio one
@@ -293,11 +293,8 @@ def media_file_analyze(
         debug=debug,
     )
     if debug > 0:
-        paudio_results = pd.DataFrame(
-            audio_results, columns=["audio_sample", "timestamp", "correlation"]
-        )
         path_audio = f"{infile}.audio.csv"
-        paudio_results.to_csv(path_audio, index_label="match")
+        audio_results.to_csv(path_audio, index_label="match")
     if debug > 1:
         print(f"{audio_results = }")
     if not echo_analysis:
@@ -557,14 +554,15 @@ def calculate_latency(
     combined = []
     beep_period_frames = int(beep_period_sec * 30)  # fps
     frame_time = 1 / 30
-    for match in audio_results:
+    for index in range(len(audio_results)):
         if prev is not None:
-            ts_diff = match[1] - prev[1]
+            match = audio_results.iloc[index]
+            ts_diff = match["timestamp"] - prev["timestamp"]
             # correlation indicates that match is an echo (if ts_diff < period)
-            if prev[2] > match[2]:
+            if prev["correlation"] > match["correlation"]:
                 if ts_diff < beep_period_sec * 0.8:
                     vmatch = match_video_to_time(
-                        prev[1],
+                        prev["timestamp"],
                         video_results,
                         beep_period_frames,
                         frame_time,
@@ -575,16 +573,16 @@ def calculate_latency(
                         video_latencies.append(vmatch)
                         audio_latencies.append(
                             [
-                                prev[0],
-                                round(prev[1], 3),
+                                prev["audio_sample"],
+                                round(prev["timestamp"], 3),
                                 vmatch[3],
                                 round(ts_diff + audio_offset, 3),
-                                prev[2],
-                                match[2],
+                                prev["correlation"],
+                                match["correlation"],
                             ]
                         )
                     avmatch = match_video_to_time(
-                        match[1],
+                        match["timestamp"],
                         video_results,
                         beep_period_frames,
                         frame_time,
@@ -604,13 +602,18 @@ def calculate_latency(
                             ]
                         )
 
-        prev = match
+        prev = audio_results.iloc[index]
 
     if len(av_sync) == 0:
-        # No echo alysis result, this is probably just a av synch measurement
-        for match in audio_results:
+        # No echo analysis result, this is probably just a av sync measurement
+        for index in range(len(audio_results)):
+            match = audio_results.iloc[index]
             vmatch = match_video_to_time(
-                match[1], video_results, beep_period_frames, frame_time, closest=True
+                match["timestamp"],
+                video_results,
+                beep_period_frames,
+                frame_time,
+                closest=True,
             )
             if vmatch is not None:
                 vmatch[4] = round(vmatch[4] + audio_offset, 3)
@@ -725,42 +728,57 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
         aindex = 0
         while vindex < len(video_results) or aindex < len(audio_results):
             # get the timestamps
-            vts = (
+            video_ts = (
                 video_results.iloc[vindex]["timestamp"]
                 if vindex < len(video_results)
                 else None
             )
-            ats = audio_results[aindex][1] if aindex < len(audio_results) else None
-            if vts == ats:
+            audio_ts = (
+                audio_results.iloc[aindex]["timestamp"]
+                if aindex < len(audio_results)
+                else None
+            )
+            if video_ts == audio_ts:
                 # dump both video and audio entry
                 (
                     video_frame_num,
-                    timestamp,
+                    video_timestamp,
                     video_frame_num_expected,
                     video_frame_num_read,
                     video_delta_frames,
                 ) = video_results.iloc[vindex]
-                audio_sample_num, timestamp, audio_correlation = audio_results[aindex]
+                (
+                    audio_sample_num,
+                    audio_timestamp,
+                    audio_correlation,
+                ) = audio_results.iloc[aindex]
                 vindex += 1
                 aindex += 1
-            elif ats is None or (vts is not None and vts <= ats):
+                timestamp = video_timestamp
+            elif audio_ts is None or (video_ts is not None and video_ts <= audio_ts):
                 # dump a video entry
                 (
                     video_frame_num,
-                    timestamp,
+                    video_timestamp,
                     video_frame_num_expected,
                     video_frame_num_read,
                     video_delta_frames,
                 ) = video_results.iloc[vindex]
                 audio_sample_num = audio_correlation = ""
                 vindex += 1
+                timestamp = video_timestamp
             else:
                 # dump an audio entry
-                audio_sample_num, timestamp, audio_correlation = audio_results[aindex]
+                (
+                    audio_sample_num,
+                    audio_timestamp,
+                    audio_correlation,
+                ) = audio_results.iloc[aindex]
                 video_frame_num = (
                     video_frame_num_expected
                 ) = video_frame_num_read = video_delta_frames = ""
                 aindex += 1
+                timestamp = audio_timestamp
             fd.write(
                 f"{timestamp},{video_frame_num},{video_frame_num_expected},{video_frame_num_read},{video_delta_frames},{audio_sample_num},{audio_correlation}\n"
             )

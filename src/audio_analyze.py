@@ -110,9 +110,8 @@ def find_needles(haystack, needle, threshold, samplerate, verbose=False):
         counter += 1
 
     data = pd.DataFrame()
-    labels = ["sample", "time", "correlation"]
+    labels = ["audio_sample", "timestamp", "correlation"]
     data = pd.DataFrame.from_records(split_times, columns=labels, coerce_float=True)
-
     return data
 
 
@@ -190,13 +189,14 @@ def audio_analyze(infile, **kwargs):
     ret, stdout, stderr = common.run(command, debug=debug)
     if ret != 0:
         print(f"warn: no audio stream in {infile}")
-        return [], None, None
+        return None, None, None
     # analyze audio file
     audio_results, audio_duration_samples, audio_duration_seconds = audio_analyze_wav(
         wav_filename, **kwargs
     )
-    # sort the index list
-    audio_results.sort()
+    # sort the index by timestamp
+    audio_results = audio_results.sort_values(by=["audio_sample"])
+    audio_results = audio_results.reset_index(drop=True)
     return audio_results, audio_duration_samples, audio_duration_seconds
 
 
@@ -240,11 +240,11 @@ def audio_analyze_wav(infile, **kwargs):
         0:beep_duration_samples
     ]
 
+    audio_results = pd.DataFrame(columns=["audio_sample", "timestamp", "correlation"])
+
     if echo_analysis:
-        # Look for indices with more then 20% match (for now)
-        data = find_needles(inaud, needle_target, 20, samplerate, False)
-        # convert to tuple
-        audio_results = [tuple(x) for x in data.values]
+        # look for indices with more then 20% match (for now)
+        audio_results = find_needles(inaud, needle_target, 20, samplerate, False)
     else:
         # calculate the correlation signal
         index_list, correlation = get_correlation_indices(
@@ -255,8 +255,8 @@ def audio_analyze_wav(infile, **kwargs):
             debug=debug,
         )
         # add a samplerate-based timestamp
-        audio_results = [
-            (
+        for index in index_list:
+            audio_results.loc[len(audio_results.index)] = [
                 index,
                 index / samplerate,
                 int(
@@ -265,9 +265,7 @@ def audio_analyze_wav(infile, **kwargs):
                     )[1, 0]
                     * 100
                 ),
-            )
-            for index in index_list
-        ]
+            ]
 
     if debug > 0:
         print(f"audio_results: {audio_results}")
@@ -350,12 +348,14 @@ def get_options(argv):
     return options
 
 
-def dump_results(audio_results, outfile, debug):
+def dump_audio_results(audio_results, outfile, debug):
     # write the output as a csv file
     with open(outfile, "w") as fd:
-        fd.write("index,timestamp,correlation\n")
-        for index, timestamp, correlation in audio_results:
-            fd.write(f"{index},{timestamp},{correlation}\n")
+        fd.write(f"{','.join(list(audio_results.columns))}\n")
+        for index in range(len(audio_results)):
+            fd.write(
+                f"{','.join(str(item) for item in list(audio_results.iloc[index]))}\n"
+            )
 
 
 def main(argv):
@@ -380,7 +380,7 @@ def main(argv):
         min_correlation_factor=options.correlation_factor,
         echo_analysis=options.echo_analysis,
     )
-    dump_results(audio_results, options.outfile, options.debug)
+    dump_audio_results(audio_results, options.outfile, options.debug)
     print(f"{audio_duration_samples=}")
     print(f"{audio_duration_seconds=}")
 
