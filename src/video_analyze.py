@@ -197,7 +197,7 @@ def video_analyze(
         except Exception as ex:
             if debug > 0:
                 print(f"{frame_num = } {str(ex)}")
-            errors.append([frame_num, timestamp, "Unkown"])
+            errors.append([frame_num, timestamp, ERROR_UNKNOWN])
             continue
         if debug > 2:
             print(f"video_analyze: read image value: {value_read}")
