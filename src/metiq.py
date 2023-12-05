@@ -587,8 +587,7 @@ def calculate_latency(
                     prev["timestamp"],
                     match["audio_sample"],
                     match["timestamp"],
-                    audio_offset,
-                    round(ts_diff + audio_offset, 3),
+                    ts_diff,
                     prev["correlation"],
                     match["correlation"],
                 ]
@@ -654,7 +653,6 @@ def calculate_latency(
             "timestamp1",
             "audio_sample2",
             "timestamp2",
-            "audio_offset",
             "audio_latency_sec",
             "cor1",
             "cor2",
