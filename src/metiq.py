@@ -544,7 +544,7 @@ def calculate_latency(
     audio_results, video_results, beep_period_sec, audio_offset=0, debug=False
 ):
     # audio is {sample, ts, cor}
-    # video is (frame, ts, expected, read, delta)
+    # video is (frame, ts, expected, status, read, delta)
     # 1) audio latency is the time between two correlatied values where one should be higher
     # 2) video latency is the time between the frame shown when a signal is played
     # and the time when is should be played out
@@ -747,6 +747,7 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
                     video_frame_num,
                     video_timestamp,
                     video_frame_num_expected,
+                    video_status,
                     video_frame_num_read,
                     video_delta_frames,
                 ) = video_results.iloc[vindex]
@@ -764,6 +765,7 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
                     video_frame_num,
                     video_timestamp,
                     video_frame_num_expected,
+                    video_status,
                     video_frame_num_read,
                     video_delta_frames,
                 ) = video_results.iloc[vindex]
@@ -779,7 +781,7 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
                 ) = audio_results.iloc[aindex]
                 video_frame_num = (
                     video_frame_num_expected
-                ) = video_frame_num_read = video_delta_frames = ""
+                ) = video_status = video_frame_num_read = video_delta_frames = ""
                 aindex += 1
                 timestamp = audio_timestamp
             fd.write(

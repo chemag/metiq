@@ -141,9 +141,10 @@ def estimate_video_smoothness(video_results, fps):
 #   and the distorted fps value,
 # * (c) `frame_num_expected`: the expected frame number based on
 #   `timestamp` and the reference fps (`timestamp * reference_fps`),
-# * (d) `value_read`: the frame number read in the frame (None
+# * (d) `status`: whether metiq managed to read the value_read
+# * (e) `value_read`: the frame number read in the frame (None
 #   if it cannot read it).
-# * (e) `delta_frame`: `value_read - delta_mode` (None if
+# * (f) `delta_frame`: `value_read - delta_mode` (None if
 #   `value_read` is not readable).
 def video_analyze(
     infile,
@@ -163,7 +164,7 @@ def video_analyze(
     in_fps = video_capture.get(cv2.CAP_PROP_FPS)
     frame_num = -1
     video_results = pd.DataFrame(
-        columns=("frame_num", "timestamp", "frame_num_expected", "value_read")
+        columns=("frame_num", "timestamp", "frame_num_expected", "status", "value_read")
     )
     video_metiq_errors = pd.DataFrame(columns=["frame_num", "timestamp", "error_type"])
     while True:
@@ -190,24 +191,28 @@ def video_analyze(
                 img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
 
             value_read = image_analyze(img, luma_threshold, lock_layout, debug)
+            status = 0
         except vft.NoValidTag as ex:
             video_metiq_errors.loc[len(video_metiq_errors.index)] = (
                 frame_num,
                 timestamp,
                 ERROR_NO_VALID_TAG,
             )
+            status = ERROR_NO_VALID_TAG
         except vft.InvalidGrayCode as ex:
             video_metiq_errors.loc[len(video_metiq_errors.index)] = (
                 frame_num,
                 timestamp,
                 ERROR_INVALID_GRAYCODE,
             )
+            status = ERROR_INVALID_GRAYCODE
         except vft.SingleGraycodeBitError as ex:
             video_metiq_errors.loc[len(video_metiq_errors.index)] = (
                 frame_num,
                 timestamp,
                 ERROR_SINGLE_GRAYCODE_BIT,
             )
+            status = ERROR_SINGLE_GRAYCODE_BIT
         except Exception as ex:
             if debug > 0:
                 print(f"{frame_num = } {str(ex)}")
@@ -216,6 +221,7 @@ def video_analyze(
                 timestamp,
                 ERROR_UNKNOWN,
             )
+            status = ERROR_UNKNOWN
             continue
         if debug > 2:
             print(f"video_analyze: read image value: {value_read}")
@@ -225,6 +231,7 @@ def video_analyze(
             frame_num,
             timestamp,
             frame_num_expected,
+            status,
             value_read,
         )
 
