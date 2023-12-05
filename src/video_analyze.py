@@ -20,13 +20,20 @@ COLOR_BACKGROUND = (128, 128, 128)
 COLOR_WHITE = (255, 255, 255)
 
 ERROR_NO_VALID_TAG = 1
-ERROR_NO_VALID_TAG_MSG = "Frame has no valid set of tags"
 ERROR_INVALID_GRAYCODE = 2
-ERROR_INVALID_GRAYCODE_MSG = "Invalid gray code read"
 ERROR_SINGLE_GRAYCODE_BIT = 3
-ERROR_SINGLE_GRAYCODE_BIT_MSG = "Single non-read bit not in gray position"
 ERROR_UNKNOWN = 100
-ERROR_UNKNOWN_MSG = "Unknown error"
+
+ERROR_TYPES = {
+    # error_id: ("short message", "long message"),
+    ERROR_NO_VALID_TAG: ("no_valid_tag", "Frame has no valid set of tags"),
+    ERROR_INVALID_GRAYCODE: ("invalid_graycode", "Invalid gray code read"),
+    ERROR_SINGLE_GRAYCODE_BIT: (
+        "single_graycode_bit",
+        "Single non-read bit not in gray position",
+    ),
+    ERROR_UNKNOWN: ("unknown", "Unknown error"),
+}
 
 default_values = {
     "debug": 0,
@@ -182,11 +189,11 @@ def video_analyze(
 
             value_read = image_analyze(img, luma_threshold, lock_layout, debug)
         except vft.NoValidTag as ex:
-            errors.append([frame_num, timestamp, 1])
+            errors.append([frame_num, timestamp, ERROR_NO_VALID_TAG])
         except vft.InvalidGrayCode as ex:
-            errors.append([frame_num, timestamp, 2])
+            errors.append([frame_num, timestamp, ERROR_INVALID_GRAYCODE])
         except vft.SingleGraycodeBitError as ex:
-            errors.append([frame_num, timestamp, 3])
+            errors.append([frame_num, timestamp, ERROR_SINGLE_GRAYCODE_BIT])
         except Exception as ex:
             if debug > 0:
                 print(f"{frame_num = } {str(ex)}")
