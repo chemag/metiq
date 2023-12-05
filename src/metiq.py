@@ -317,7 +317,7 @@ def media_file_analyze(
     else:
         latencies = []
         # 3b. calculate audio latency, video latency and the difference between the two
-        audio_latencies, video_latencies, avsyncs, combined = calculate_latency(
+        audio_latencies, video_latencies, av_syncs, combined = calculate_latency(
             audio_results, video_results, beep_period_sec, audio_offset, debug
         )
         if debug > 0:
@@ -326,14 +326,14 @@ def media_file_analyze(
             path_video_latencies = f"{os.path.splitext(outfile)[0]}.video.latencies.csv"
             video_latencies.to_csv(path_video_latencies, index=False)
         path_avsync = f"{os.path.splitext(outfile)[0]}.avsync.csv"
-        avsyncs.to_csv(path_avsync, index=False)
+        av_syncs.to_csv(path_avsync, index=False)
         path_latencies_combined = f"{os.path.splitext(outfile)[0]}.latencies.csv"
         combined.to_csv(path_latencies_combined, index=False)
         # combine the lists to one common one
         stats, frame_durations = calculate_stats(
             audio_latencies,
             video_latencies,
-            avsyncs,
+            av_syncs,
             video_results,
             audio_duration_samples,
             audio_duration_seconds,
@@ -553,7 +553,7 @@ def calculate_latency(
     prev = None
     audio_latencies = []
     video_latencies = []
-    av_sync = []
+    av_syncs = []
     combined = []
     beep_period_frames = int(beep_period_sec * 30)  # fps
     frame_time = 1 / 30
@@ -593,7 +593,7 @@ def calculate_latency(
                     )
                     if avmatch is not None:
                         avmatch[4] = round(avmatch[4] + audio_offset, 3)
-                        av_sync.append(avmatch)
+                        av_syncs.append(avmatch)
 
                     if vmatch is not None and avmatch is not None:
                         combined.append(
@@ -607,7 +607,7 @@ def calculate_latency(
 
         prev = audio_results.iloc[index]
 
-    if len(av_sync) == 0:
+    if len(av_syncs) == 0:
         # No echo analysis result, this is probably just a av sync measurement
         for index in range(len(audio_results)):
             match = audio_results.iloc[index]
@@ -620,7 +620,7 @@ def calculate_latency(
             )
             if vmatch is not None:
                 vmatch[4] = round(vmatch[4] + audio_offset, 3)
-                av_sync.append(vmatch)
+                av_syncs.append(vmatch)
 
     audio_latencies = pd.DataFrame(
         audio_latencies,
@@ -643,8 +643,8 @@ def calculate_latency(
             "video_latency_sec",
         ],
     )
-    av_sync = pd.DataFrame(
-        av_sync,
+    av_syncs = pd.DataFrame(
+        av_syncs,
         columns=[
             "frame_num",
             "timestamp",
@@ -660,9 +660,9 @@ def calculate_latency(
     if debug > 0:
         print(f"{audio_latencies =}")
         print(f"{video_latencies =}")
-        print(f"{av_sync=}")
+        print(f"{av_syncs=}")
         print(f"{combined =}")
-    return audio_latencies, video_latencies, av_sync, combined
+    return audio_latencies, video_latencies, av_syncs, combined
 
 
 def calculate_latency_old(sync, debug):
