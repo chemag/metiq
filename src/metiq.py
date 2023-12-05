@@ -243,13 +243,13 @@ def media_file_analyze(
     if debug > 0:
         path_video = f"{infile}.video.csv"
         if os.path.exists(path_video):
-            video_results = pd.read_csv(path_video, index_col=0)
+            video_results = pd.read_csv(path_video)
         path_video_delta_info = f"{infile}.video.delta_info.csv"
         if os.path.exists(path_video_delta_info):
             video_delta_info = pd.read_csv(path_video_delta_info)
         path_video_errors = f"{infile}.video.errors.csv"
         if os.path.exists(path_video_errors):
-            video_metiq_errors = pd.read_csv(path_video_errors, index_col=0)
+            video_metiq_errors = pd.read_csv(path_video_errors)
 
     if video_results is None:
         (
@@ -268,11 +268,11 @@ def media_file_analyze(
         )
         if video_metiq_errors is not None and len(video_metiq_errors) > 0:
             path_video_errors = f"{infile}.video.errors.csv"
-            video_metiq_errors.to_csv(path_video_errors, index_label="error_id")
+            video_metiq_errors.to_csv(path_video_errors, index=False)
         if video_delta_info is not None and len(video_delta_info) > 0:
             path_video_delta_info = f"{infile}.video.delta_info.csv"
             video_delta_info.to_csv(path_video_delta_info, index=False)
-        video_results.to_csv(path_video, index_label="frame_id")
+        video_results.to_csv(path_video, index=False)
 
     # 2. analyze the audio stream
     (
@@ -294,7 +294,7 @@ def media_file_analyze(
     )
     if debug > 0:
         path_audio = f"{infile}.audio.csv"
-        audio_results.to_csv(path_audio, index_label="match")
+        audio_results.to_csv(path_audio, index=False)
     if debug > 1:
         print(f"{audio_results = }")
     if not echo_analysis:
@@ -307,7 +307,7 @@ def media_file_analyze(
                 avsync_sec_list, columns=["video_frame_num", "audio_sec", "avsync_sec"]
             )
             path_avsync = f"{infile}.avsync.csv"
-            pav_sync_list.to_csv(path_avsync)
+            pav_sync_list.to_csv(path_avsync, index=False)
 
         # 4. dump results to file
         dump_results(video_results, video_delta_info, audio_results, outfile, debug)
@@ -322,13 +322,13 @@ def media_file_analyze(
         )
         if debug > 0:
             path_audio_latencies = f"{os.path.splitext(outfile)[0]}.audio.latencies.csv"
-            audio_latencies.to_csv(path_audio_latencies, index_label="match")
+            audio_latencies.to_csv(path_audio_latencies, index=False)
             path_video_latencies = f"{os.path.splitext(outfile)[0]}.video.latencies.csv"
-            video_latencies.to_csv(path_video_latencies, index_label="match")
+            video_latencies.to_csv(path_video_latencies, index=False)
         path_avsync = f"{os.path.splitext(outfile)[0]}.avsync.csv"
-        avsyncs.to_csv(path_avsync, index_label="match")
+        avsyncs.to_csv(path_avsync, index=False)
         path_latencies_combined = f"{os.path.splitext(outfile)[0]}.latencies.csv"
-        combined.to_csv(path_latencies_combined, index_label="match")
+        combined.to_csv(path_latencies_combined, index=False)
         # combine the lists to one common one
         stats, frame_durations = calculate_stats(
             audio_latencies,
@@ -343,13 +343,13 @@ def media_file_analyze(
         )
         if stats is not None:
             path_stats = f"{os.path.splitext(outfile)[0]}.stats.csv"
-            stats.to_csv(path_stats, index_label="media_id")
+            stats.to_csv(path_stats, index=False)
         else:
             print(f"{infile} failed to produce stats")
 
         if frame_durations is not None:
             path_frame_durations = f"{infile}.video.frame_durations.csv"
-            frame_durations.to_csv(path_frame_durations)
+            frame_durations.to_csv(path_frame_durations, index=False)
 
     return None, None
 
@@ -470,14 +470,7 @@ def calculate_stats(
     stats["video_frames_source_unseen_percentage"] = round(
         100 * video_frames_source_unseen / video_frames_source_count, 2
     )
-    # 5.2. times each source (metiq) frame been show
-    capt_group = video_results.groupby("value_read_int")  # .count()
-    cg = capt_group.count()["value_read"]
-    cg = cg.value_counts().sort_index().to_frame()
-    cg.index.rename("consecutive_frames", inplace=True)
-    stats["video_frames_source_appearances.mean"] = round(capt_group.size().mean(), 2)
-    stats["video_frames_source_appearances.std_dev"] = round(capt_group.size().std(), 2)
-    # 5.3. metiq processing statistics
+    # 6. metiq processing statistics
     video_frames_metiq_errors = (
         len(video_metiq_errors) if video_metiq_errors is not None else 0
     )
@@ -490,6 +483,16 @@ def calculate_stats(
         stats["video_frames_metiq_error." + short] = len(
             video_metiq_errors.loc[video_metiq_errors["error_type"] == error]
         )
+    # 7. calculate consecutive frame distribution
+    capt_group = video_results.groupby("value_read_int")  # .count()
+    cg = capt_group.count()["value_read"]
+    cg = cg.value_counts().sort_index().to_frame()
+    cg.index.rename("consecutive_frames", inplace=True)
+    cg = cg.reset_index()
+    # 7.2. times each source (metiq) frame been show
+    stats["video_frames_source_appearances.mean"] = round(capt_group.size().mean(), 2)
+    stats["video_frames_source_appearances.std_dev"] = round(capt_group.size().std(), 2)
+
     # TODO match gaps with source frame numbers?
     return pd.DataFrame(stats, columns=stats.keys(), index=[0]), cg
 
