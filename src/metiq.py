@@ -580,6 +580,22 @@ def calculate_latency(
             if ts_diff >= beep_period_sec * 0.8:
                 continue
             # audio latency match
+            # 1. add audio latency match
+            audio_latencies.append(
+                [
+                    prev["audio_sample"],
+                    prev["timestamp"],
+                    match["audio_sample"],
+                    match["timestamp"],
+                    audio_offset,
+                    round(ts_diff + audio_offset, 3),
+                    prev["correlation"],
+                    match["correlation"],
+                ]
+            )
+            # 2. calculate video latency based on the
+            # timestamp of the first (prev) audio match
+            # vs. the timestamp of the video frame.
             vmatch = match_video_to_time(
                 prev["timestamp"],
                 video_results,
@@ -587,19 +603,9 @@ def calculate_latency(
                 frame_time,
                 closest=False,
             )
-            if vmatch is not None:
-                vmatch[4] = round(vmatch[4] + audio_offset, 3)
-                video_latencies.append(vmatch)
-                audio_latencies.append(
-                    [
-                        prev["audio_sample"],
-                        round(prev["timestamp"], 3),
-                        vmatch[3],
-                        round(ts_diff + audio_offset, 3),
-                        prev["correlation"],
-                        match["correlation"],
-                    ]
-                )
+            # 3. calculate a/v offset based on the
+            # timestamp of the second (match) audio match
+            # vs. the timestamp of the video frame.
             avmatch = match_video_to_time(
                 match["timestamp"],
                 video_results,
@@ -607,7 +613,12 @@ def calculate_latency(
                 frame_time,
                 closest=True,
             )
+            if vmatch is not None:
+                # fix the latency using the audio_offset
+                vmatch[4] = round(vmatch[4] + audio_offset, 3)
+                video_latencies.append(vmatch)
             if avmatch is not None:
+                # fix the latency using the audio_offset
                 avmatch[4] = round(avmatch[4] + audio_offset, 3)
                 av_syncs.append(avmatch)
             if vmatch is not None and avmatch is not None:
@@ -619,7 +630,6 @@ def calculate_latency(
                         avmatch[4],
                     ]
                 )
-
         prev = audio_results.iloc[index]
 
     if len(av_syncs) == 0:
@@ -640,9 +650,11 @@ def calculate_latency(
     audio_latencies = pd.DataFrame(
         audio_latencies,
         columns=[
-            "audio_sample",
-            "timestamp",
-            "original_frame",
+            "audio_sample1",
+            "timestamp1",
+            "audio_sample2",
+            "timestamp2",
+            "audio_offset",
             "audio_latency_sec",
             "cor1",
             "cor2",
