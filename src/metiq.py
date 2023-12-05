@@ -207,9 +207,7 @@ def estimate_avsync(video_results, fps, audio_results, beep_period_sec, debug=0)
             # It can also be though of as a delay time on video i.e.
             # a negative delay means that the audio is leading.
             avsync_sec = (video_frame_num - audio_frame_num) / fps
-            avsync_sec_list.append(
-                [video_frame_num, round(audio_frame_num / fps, 3), avsync_sec]
-            )
+            avsync_sec_list.append([video_frame_num, audio_frame_num / fps, avsync_sec])
     return avsync_sec_list
 
 
@@ -424,12 +422,12 @@ def calculate_stats(
     stats["video_latency_sec.mean"] = (
         np.nan
         if len(video_latencies) == 0
-        else round(np.mean(video_latencies["video_latency_sec"]), 3)
+        else np.mean(video_latencies["video_latency_sec"])
     )
     stats["video_latency_sec.std_dev"] = (
         np.nan
         if len(video_latencies) == 0
-        else round(np.std(video_latencies["video_latency_sec"].values), 3)
+        else np.std(video_latencies["video_latency_sec"].values)
     )
 
     # 3. video latency statistics
@@ -437,18 +435,18 @@ def calculate_stats(
     stats["audio_latency_sec.mean"] = (
         np.nan
         if len(video_latencies) == 0
-        else round(np.mean(audio_latencies["audio_latency_sec"]), 3)
+        else np.mean(audio_latencies["audio_latency_sec"])
     )
     stats["audio_latency_sec.std_dev"] = (
         np.nan
         if len(audio_latencies) == 0
-        else round(np.std(audio_latencies["audio_latency_sec"].values), 3)
+        else np.std(audio_latencies["audio_latency_sec"].values)
     )
 
     # 4. avsync statistics
     stats["av_sync_sec.num_samples"] = len(av_syncs)
-    stats["av_sync_sec.mean"] = round(np.mean(av_syncs["av_sync_sec"]), 3)
-    stats["av_sync_sec.std_dev"] = round(np.std(av_syncs["av_sync_sec"].values), 3)
+    stats["av_sync_sec.mean"] = np.mean(av_syncs["av_sync_sec"])
+    stats["av_sync_sec.std_dev"] = np.std(av_syncs["av_sync_sec"].values)
 
     # 5. video source (metiq) stats
     video_results["value_read_int"] = video_results["value_read"].dropna().astype(int)
@@ -490,8 +488,8 @@ def calculate_stats(
     cg.index.rename("consecutive_frames", inplace=True)
     cg = cg.reset_index()
     # 7.2. times each source (metiq) frame been show
-    stats["video_frames_source_appearances.mean"] = round(capt_group.size().mean(), 2)
-    stats["video_frames_source_appearances.std_dev"] = round(capt_group.size().std(), 2)
+    stats["video_frames_source_appearances.mean"] = capt_group.size().mean()
+    stats["video_frames_source_appearances.std_dev"] = capt_group.size().std()
 
     # TODO match gaps with source frame numbers?
     return pd.DataFrame(stats, columns=stats.keys(), index=[0]), cg
@@ -509,9 +507,7 @@ def match_video_to_time(
     ts, video_results, beep_period_frames, frame_time, closest=False
 ):
     # get all entries whose ts <= signal ts to a filter
-    candidate_list = video_results.index[
-        video_results["timestamp"] <= round(ts, 3)
-    ].tolist()
+    candidate_list = video_results.index[video_results["timestamp"] <= ts].tolist()
     if len(candidate_list) > 0:
         # check the latest video frame in the filter
         latest_iloc = candidate_list[-1]
@@ -539,10 +535,10 @@ def match_video_to_time(
         else:
             vlat = [
                 latest_frame_num,
-                round(ts, 3),
+                ts,
                 latest_value_read,
                 next_beep_frame,
-                round(latency, 3),
+                latency,
             ]
             return vlat
     return None
@@ -614,17 +610,17 @@ def calculate_latency(
             )
             if vmatch is not None:
                 # fix the latency using the audio_offset
-                vmatch[4] = round(vmatch[4] + audio_offset, 3)
+                vmatch[4] = vmatch[4] + audio_offset
                 video_latencies.append(vmatch)
             if avmatch is not None:
                 # fix the latency using the audio_offset
-                avmatch[4] = round(avmatch[4] + audio_offset, 3)
+                avmatch[4] = avmatch[4] + audio_offset
                 av_syncs.append(avmatch)
             if vmatch is not None and avmatch is not None:
                 combined.append(
                     [
                         vmatch[3],
-                        round(ts_diff + audio_offset, 3),
+                        ts_diff + audio_offset,
                         vmatch[4],
                         avmatch[4],
                     ]
@@ -643,7 +639,7 @@ def calculate_latency(
                 closest=True,
             )
             if vmatch is not None:
-                vmatch[4] = round(vmatch[4] + audio_offset, 3)
+                vmatch[4] = vmatch[4] + audio_offset
                 av_syncs.append(vmatch)
 
     audio_latencies = pd.DataFrame(
