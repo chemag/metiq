@@ -626,7 +626,7 @@ def calculate_latency(
         audio_latencies,
         columns=[
             "audio_sample",
-            "ts_sec",
+            "timestamp",
             "original_frame",
             "audio_latency_sec",
             "cor1",
@@ -637,7 +637,7 @@ def calculate_latency(
         video_latencies,
         columns=[
             "frame_num",
-            "ts_sec",
+            "timestamp",
             "frame_num_read",
             "original_frame",
             "video_latency_sec",
@@ -647,7 +647,7 @@ def calculate_latency(
         av_sync,
         columns=[
             "frame_num",
-            "ts_sec",
+            "timestamp",
             "frame_num_read",
             "original_frame",
             "av_sync_sec",
