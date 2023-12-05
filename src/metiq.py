@@ -143,9 +143,12 @@ def estimate_avsync(video_results, fps, audio_results, beep_period_sec, debug=0)
         while True:
             # find a video entry that has a valid reading
             try:
-                prev_video_ts, _, prev_video_frame_num = video_results[video_index][1:4]
+                prev_video_ts = video_results.iloc[video_index]["timestamp"]
+                prev_video_frame_num = video_results.iloc[video_index][
+                    "frame_num_expected"
+                ]
             except:
-                print(f"error: {video_results[video_index] =}")
+                print(f"error: {video_results.iloc[video_index] =}")
                 continue
             if prev_video_frame_num is not None:
                 break
@@ -153,7 +156,8 @@ def estimate_avsync(video_results, fps, audio_results, beep_period_sec, debug=0)
         video_index += 1
         get_next_audio_ts = False
         while not get_next_audio_ts and video_index < len(video_results):
-            video_ts, _, video_frame_num = video_results[video_index][1:4]
+            video_ts = video_results.iloc[video_index]["timestamp"]
+            video_frame_num = video_results.iloc[video_index]["frame_num_expected"]
             if video_frame_num is None:
                 video_index += 1
                 continue
@@ -235,39 +239,24 @@ def media_file_analyze(
     video_results = None
     video_delta_info = None
     avsync_sec_list = None
-    video_errors = None
+    video_metiq_errors = None
     if debug > 0:
         path_video = f"{infile}.video.csv"
         if os.path.exists(path_video):
-            pvideo_results = pd.read_csv(path_video)
-            video_results = (
-                pvideo_results[
-                    [
-                        "frame_num",
-                        "timestamp",
-                        "expected_frame_num",
-                        "video_frame_num_read",
-                        "delta",
-                    ]
-                ]
-                .to_records(index=False)
-                .tolist()
-            )
+            video_results = pd.read_csv(path_video, index_col=0)
         path_video_delta_info = f"{infile}.video.delta_info.csv"
         if os.path.exists(path_video_delta_info):
-            vdi = pd.read_csv(path_video_delta_info)
-            video_delta_info = vdi.set_index("0").T.to_dict("list")
-
+            video_delta_info = pd.read_csv(path_video_delta_info)
         path_video_errors = f"{infile}.video.errors.csv"
         if os.path.exists(path_video_errors):
-            perrors = pd.read_csv(path_video_errors)
-            video_errors = (
-                perrors[["frame_num", "timestamp", "error_type"]]
-                .to_records(index=False)
-                .tolist()
-            )
-    if video_results == None:
-        video_results, video_delta_info, video_errors = video_analyze.video_analyze(
+            video_metiq_errors = pd.read_csv(path_video_errors, index_col=0)
+
+    if video_results is None:
+        (
+            video_results,
+            video_delta_info,
+            video_metiq_errors,
+        ) = video_analyze.video_analyze(
             infile,
             width,
             height,
@@ -277,28 +266,13 @@ def media_file_analyze(
             lock_layout=lock_layout,
             debug=debug,
         )
-        perrors = pd.DataFrame(
-            video_errors, columns=["frame_num", "timestamp", "error_type"]
-        )
-        if perrors is not None and len(perrors) > 0:
+        if video_metiq_errors is not None and len(video_metiq_errors) > 0:
             path_video_errors = f"{infile}.video.errors.csv"
-            perrors.to_csv(path_video_errors, index_label="error_id")
-        if debug > 0:
-            if video_delta_info is not None and len(video_delta_info) > 0:
-                pvideo_delta_info = pd.DataFrame(video_delta_info.items())
-                path_video_delta_info = f"{infile}.video.delta_info.csv"
-                pvideo_delta_info.to_csv(path_video_delta_info, index=False)
-                pvideo_results = pd.DataFrame(
-                    video_results,
-                    columns=[
-                        "frame_num",
-                        "timestamp",
-                        "expected_frame_num",
-                        "video_frame_num_read",
-                        "delta",
-                    ],
-                )
-                pvideo_results.to_csv(path_video, index_label="frame_id")
+            video_metiq_errors.to_csv(path_video_errors, index_label="error_id")
+        if video_delta_info is not None and len(video_delta_info) > 0:
+            path_video_delta_info = f"{infile}.video.delta_info.csv"
+            video_delta_info.to_csv(path_video_delta_info, index=False)
+        video_results.to_csv(path_video, index_label="frame_id")
 
     # 2. analyze the audio stream
     (
@@ -366,7 +340,7 @@ def media_file_analyze(
             video_results,
             audio_duration_samples,
             audio_duration_seconds,
-            video_errors,
+            video_metiq_errors,
             infile,
             debug,
         )
@@ -383,35 +357,39 @@ def media_file_analyze(
     return None, None
 
 
-def calculate_dropped_frames_stats(video, start=-1, stop=-1):
-    video = video.dropna()
+def calculate_dropped_frames_stats(video_results, start=-1, stop=-1):
+    video_results = video_results.dropna()
     if start > 0 or stop > 0:
-        video = video.loc[(video["ts"] >= start) & (video["ts"] < stop)]
-    if len(video) == 0:
+        video_results = video_results.loc[
+            (video_results["timestamp"] >= start) & (video_results["timestamp"] < stop)
+        ]
+    if len(video_results) == 0:
         return 0, 0
 
-    frmin = int(video["video_frame_num_read_int"].min())
-    frmax = int(video["video_frame_num_read_int"].max())
+    frmin = int(video_results["value_read_int"].min())
+    frmax = int(video_results["value_read_int"].max())
     not_in_range = np.setdiff1d(
-        range(frmin, frmax), np.unique(video["video_frame_num_read_int"].values)
+        range(frmin, frmax), np.unique(video_results["value_read_int"].values)
     )
     frame_count = frmax - frmin
     frames_unseen = len(not_in_range)
     return frame_count, frames_unseen
 
 
-def dump_frame_drops(video, inputfile):
-    # persecond moving average
-    start = int(video["ts"].min())
-    end = int(video["ts"].max() + 0.5)
+def dump_frame_drops(video_results, inputfile):
+    # per-second moving average
+    start = int(video_results["timestamp"].min())
+    end = int(video_results["timestamp"].max() + 0.5)
     dur = end - start
-
     framedrops_per_sec = [
-        calculate_dropped_frames_stats(video, x, x + 1) for x in range(end - start)
+        (x,) + calculate_dropped_frames_stats(video_results, x, x + 1)
+        for x in range(end - start)
     ]
-    fdp = pd.DataFrame(framedrops_per_sec, columns=["frames", "dropped"])
+    fdp = pd.DataFrame(
+        framedrops_per_sec, columns=["timestamp_start", "frames", "dropped"]
+    )
     path_average_frame_drops = f"{inputfile}.video.frame_drops.csv"
-    fdp.to_csv(path_average_frame_drops, index_label="second")
+    fdp.to_csv(path_average_frame_drops, index=False)
 
 
 def calculate_stats(
@@ -421,7 +399,7 @@ def calculate_stats(
     video_results,
     audio_duration_samples,
     audio_duration_seconds,
-    video_errors,
+    video_metiq_errors,
     inputfile,
     debug=False,
 ):
@@ -431,23 +409,15 @@ def calculate_stats(
         print(f"Failure - no data")
         return None, None
 
-    # 0. prepare video stats
-    video = pd.DataFrame(
-        video_results,
-        columns=[
-            "frame_num",
-            "ts",
-            "expected_frame_num",
-            "video_frame_num_read",
-            "delta",
-        ],
-    )
-
     # 1. basic file statistics
     stats["file"] = inputfile
-    video_frames_capture_duration = video["ts"].max() - video["ts"].min()
+    video_frames_capture_duration = (
+        video_results["timestamp"].max() - video_results["timestamp"].min()
+    )
     stats["video_frames_capture_duration_sec"] = video_frames_capture_duration
-    video_frames_capture_total = video["frame_num"].max() - video["frame_num"].min()
+    video_frames_capture_total = (
+        video_results["frame_num"].max() - video_results["frame_num"].min()
+    )
     stats["video_frames_capture_total"] = video_frames_capture_total
     stats["audio_frames_capture_duration_frames"] = audio_duration_seconds
     stats["audio_frames_capture_duration_samples"] = audio_duration_samples
@@ -484,19 +454,17 @@ def calculate_stats(
     stats["av_sync_sec.std_dev"] = round(np.std(av_syncs["av_sync_sec"].values), 3)
 
     # 5. video source (metiq) stats
-    video["video_frame_num_read_int"] = (
-        video["video_frame_num_read"].dropna().astype(int)
-    )
-    dump_frame_drops(video, inputfile)
+    video_results["value_read_int"] = video_results["value_read"].dropna().astype(int)
+    dump_frame_drops(video_results, inputfile)
     # 5.1. which source (metiq) frames have been show
-    video_frames_sources_min = int(video["video_frame_num_read_int"].min())
-    video_frames_sources_max = int(video["video_frame_num_read_int"].max())
+    video_frames_sources_min = int(video_results["value_read_int"].min())
+    video_frames_sources_max = int(video_results["value_read_int"].max())
     stats["video_frames_source_min"] = video_frames_sources_min
     stats["video_frames_source_max"] = video_frames_sources_max
     (
         video_frames_source_count,
         video_frames_source_unseen,
-    ) = calculate_dropped_frames_stats(video)
+    ) = calculate_dropped_frames_stats(video_results)
     stats["video_frames_source_total"] = video_frames_source_count
     stats["video_frames_source_seen"] = (
         video_frames_source_count - video_frames_source_unseen
@@ -506,23 +474,24 @@ def calculate_stats(
         100 * video_frames_source_unseen / video_frames_source_count, 2
     )
     # 5.2. times each source (metiq) frame been show
-    capt_group = video.groupby("video_frame_num_read_int")  # .count()
-    cg = capt_group.count()["video_frame_num_read"]
+    capt_group = video_results.groupby("value_read_int")  # .count()
+    cg = capt_group.count()["value_read"]
     cg = cg.value_counts().sort_index().to_frame()
     cg.index.rename("consecutive_frames", inplace=True)
     stats["video_frames_source_appearances.mean"] = round(capt_group.size().mean(), 2)
     stats["video_frames_source_appearances.std_dev"] = round(capt_group.size().std(), 2)
     # 5.3. metiq processing statistics
-    video_frames_metiq_errors = len(video_errors) if video_errors is not None else 0
+    video_frames_metiq_errors = (
+        len(video_metiq_errors) if video_metiq_errors is not None else 0
+    )
     stats["video_frames_metiq_errors"] = video_frames_metiq_errors
     stats["video_frames_metiq_errors_percentage"] = round(
         100 * video_frames_metiq_errors / video_frames_capture_total, 2
     )
-    # errors
-    perrors = pd.DataFrame(video_errors, columns=["frame_num", "timestamp", "error_type"])
+    # video metiq errors
     for error, (short, _) in video_analyze.ERROR_TYPES.items():
         stats["video_frames_metiq_error." + short] = len(
-            perrors.loc[perrors["error_type"] == error]
+            video_metiq_errors.loc[video_metiq_errors["error_type"] == error]
         )
     # TODO match gaps with source frame numbers?
     return pd.DataFrame(stats, columns=stats.keys(), index=[0]), cg
@@ -531,32 +500,39 @@ def calculate_stats(
 def match_video_to_time(
     ts, video_results, beep_period_frames, frame_time, closest=False
 ):
-    # find video frame with ts <= signal ts unless closest
-    # then we look both forward and backwards (avsync)
-    filt = [x for x in video_results if x[1] <= round(ts, 3)]
-    next_val = video_results[len(filt)]
-    if len(filt) > 0:
-        read_frame_num = filt[-1][3]
-        source_frame_num = filt[-1][0]
-        if read_frame_num == None or np.isnan(read_frame_num):
+    # get all entries whose ts <= signal ts to a filter
+    candidate_list = video_results.index[
+        video_results["timestamp"] <= round(ts, 3)
+    ].tolist()
+    if len(candidate_list) > 0:
+        # check the latest video frame in the filter
+        latest_iloc = candidate_list[-1]
+        latest_frame_num = video_results.iloc[latest_iloc]["frame_num"]
+        latest_value_read = video_results.iloc[latest_iloc]["value_read"]
+        if latest_value_read == None or np.isnan(latest_value_read):
             print("read is nan")
             return None
+        # estimate the frame for the next beep based on the frequency
         next_beep_frame = (
-            int(read_frame_num / beep_period_frames) + 1
+            int(latest_value_read / beep_period_frames) + 1
         ) * beep_period_frames
-        if closest and next_beep_frame - read_frame_num > beep_period_frames / 2:
+        if closest and next_beep_frame - latest_value_read > beep_period_frames / 2:
             next_beep_frame -= beep_period_frames
-        # to next beep minus the time we already watched this frame
-        filt = [x for x in filt if x[3] == read_frame_num]
-        time_in_frame = ts - filt[0][1]
-        latency = (next_beep_frame - read_frame_num) * frame_time - time_in_frame
+        # look for other frames where we read the same value
+        new_candidate_list = video_results.index[
+            video_results["value_read"] == latest_value_read
+        ].tolist()
+        # get the intersection
+        candidate_list = sorted(list(set(candidate_list) & set(new_candidate_list)))
+        time_in_frame = ts - video_results.iloc[candidate_list[0]]["timestamp"]
+        latency = (next_beep_frame - latest_value_read) * frame_time - time_in_frame
         if not closest and latency < 0:
             print("ERROR: negative latency")
         else:
             vlat = [
-                source_frame_num,
+                latest_frame_num,
                 round(ts, 3),
-                read_frame_num,
+                latest_value_read,
                 next_beep_frame,
                 round(latency, 3),
             ]
@@ -743,13 +719,17 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
         return
     with open(outfile, "w") as fd:
         fd.write(
-            f"timestamp,video_frame_num,video_frame_num_expected,video_frame_num_read,video_delta_frames_{video_delta_info['mode']},audio_sample_num,audio_correlation\n"
+            f"timestamp,video_frame_num,video_frame_num_expected,video_frame_num_read,video_delta_frames_{video_delta_info.iloc[0]['mode']},audio_sample_num,audio_correlation\n"
         )
         vindex = 0
         aindex = 0
         while vindex < len(video_results) or aindex < len(audio_results):
             # get the timestamps
-            vts = video_results[vindex][1] if vindex < len(video_results) else None
+            vts = (
+                video_results.iloc[vindex]["timestamp"]
+                if vindex < len(video_results)
+                else None
+            )
             ats = audio_results[aindex][1] if aindex < len(audio_results) else None
             if vts == ats:
                 # dump both video and audio entry
@@ -759,7 +739,7 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
                     video_frame_num_expected,
                     video_frame_num_read,
                     video_delta_frames,
-                ) = video_results[vindex]
+                ) = video_results.iloc[vindex]
                 audio_sample_num, timestamp, audio_correlation = audio_results[aindex]
                 vindex += 1
                 aindex += 1
@@ -771,7 +751,7 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
                     video_frame_num_expected,
                     video_frame_num_read,
                     video_delta_frames,
-                ) = video_results[vindex]
+                ) = video_results.iloc[vindex]
                 audio_sample_num = audio_correlation = ""
                 vindex += 1
             else:

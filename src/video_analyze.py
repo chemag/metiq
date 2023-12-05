@@ -162,8 +162,10 @@ def video_analyze(
     # 1. analyze the video image-by-image
     in_fps = video_capture.get(cv2.CAP_PROP_FPS)
     frame_num = -1
-    video_results = []
-    errors = []
+    video_results = pd.DataFrame(
+        columns=("frame_num", "timestamp", "frame_num_expected", "value_read")
+    )
+    video_metiq_errors = pd.DataFrame(columns=["frame_num", "timestamp", "error_type"])
     while True:
         # get image
         status, img = video_capture.read()
@@ -189,21 +191,42 @@ def video_analyze(
 
             value_read = image_analyze(img, luma_threshold, lock_layout, debug)
         except vft.NoValidTag as ex:
-            errors.append([frame_num, timestamp, ERROR_NO_VALID_TAG])
+            video_metiq_errors.loc[len(video_metiq_errors.index)] = (
+                frame_num,
+                timestamp,
+                ERROR_NO_VALID_TAG,
+            )
         except vft.InvalidGrayCode as ex:
-            errors.append([frame_num, timestamp, ERROR_INVALID_GRAYCODE])
+            video_metiq_errors.loc[len(video_metiq_errors.index)] = (
+                frame_num,
+                timestamp,
+                ERROR_INVALID_GRAYCODE,
+            )
         except vft.SingleGraycodeBitError as ex:
-            errors.append([frame_num, timestamp, ERROR_SINGLE_GRAYCODE_BIT])
+            video_metiq_errors.loc[len(video_metiq_errors.index)] = (
+                frame_num,
+                timestamp,
+                ERROR_SINGLE_GRAYCODE_BIT,
+            )
         except Exception as ex:
             if debug > 0:
                 print(f"{frame_num = } {str(ex)}")
-            errors.append([frame_num, timestamp, ERROR_UNKNOWN])
+            video_metiq_errors.loc[len(video_metiq_errors.index)] = (
+                frame_num,
+                timestamp,
+                ERROR_UNKNOWN,
+            )
             continue
         if debug > 2:
             print(f"video_analyze: read image value: {value_read}")
             if value_read is None:
                 cv2.imwrite(f"debug/{infile}_{frame_num}.png", img)
-        video_results.append((frame_num, timestamp, frame_num_expected, value_read))
+        video_results.loc[len(video_results.index)] = (
+            frame_num,
+            timestamp,
+            frame_num_expected,
+            value_read,
+        )
 
     # 2. clean up
     try:
@@ -212,47 +235,48 @@ def video_analyze(
         print(f"error: {exc = }")
         pass
     # 3. calculate the delta mode
-    # video_results = [[frame_num, timestamp, frame_num_expected, frame_num_read]*]
     # note that <timestamps> = k * <frame_num>
     num_frames = len(video_results)
     # remove the None values in order to calculate the delta between frames
-    delta_list = [
-        round_to_nearest_half(t[3] - t[2]) for t in video_results if t[3] is not None
-    ]
+    delta_list = round_to_nearest_half(
+        video_results["value_read"] - video_results["frame_num_expected"]
+    )
     # calculate the mode of the delta between frames
     delta_mode = scipy.stats.mode(delta_list, keepdims=True).mode[0]
     # 4. calculate the delta column
     # simplify the results: substract the mode, and keep the None
-    # * t[3] - (t[2] + delta_mode)  # if t[3] is not None
+    # * value_read - (frame_num_expected + delta_mode)  # if value_read is not None
     # * None  # otherwise
-    delta_results = [
-        (
-            (round_to_nearest_half(t[3] - t[2]) - delta_mode)
-            if t[3] is not None
-            else None
-        )
-        for t in video_results
-    ]
-    ok_frames = delta_results.count(0.0)
-    sok_frames = ok_frames + delta_results.count(0.5) + delta_results.count(-0.5)
-    unknown_frames = delta_results.count(None)
+    video_results["delta_frame"] = round_to_nearest_half(
+        video_results["value_read"] - video_results["frame_num_expected"] - delta_mode
+    )
+    # calculate video_delta_info
+    ok_frames = (video_results["delta_frame"] == 0.0).sum()
+    sok_frames = (video_results["delta_frame"].between(-0.5, 0.5)).sum()
+    unknown_frames = video_results["delta_frame"].isna().sum()
     nok_frames = num_frames - sok_frames - unknown_frames
-    stddev = np.std([delta for delta in delta_results if delta is not None])
-    delta_info = ()
+    stddev = video_results["delta_frame"].std()
+    video_delta_info = None
     if num_frames > 0:
-        delta_info = {
-            "mode": delta_mode,
-            "stddev": stddev,
-            "ok_ratio": ok_frames / num_frames,
-            "sok_ratio": sok_frames / num_frames,
-            "nok_ratio": nok_frames / num_frames,
-            "unknown_ratio": unknown_frames / num_frames,
-        }
-    # 5. zip both lists together
-    video_results = [
-        (*vals, delta) for vals, delta in zip(video_results, delta_results)
-    ]
-    return video_results, delta_info, errors
+        video_delta_info = pd.DataFrame(
+            columns=(
+                "mode",
+                "stddev",
+                "ok_ratio",
+                "sok_ratio",
+                "nok_ratio",
+                "unknown_ratio",
+            )
+        )
+        video_delta_info.loc[len(video_delta_info.index)] = (
+            delta_mode,
+            stddev,
+            ok_frames / num_frames,
+            sok_frames / num_frames,
+            nok_frames / num_frames,
+            unknown_frames / num_frames,
+        )
+    return video_results, video_delta_info, video_metiq_errors
 
 
 def image_analyze(img, luma_threshold, lock_layout=False, debug=0):
@@ -261,23 +285,16 @@ def image_analyze(img, luma_threshold, lock_layout=False, debug=0):
 
 
 def dump_video_results(video_results, outfile, debug):
-    if video_results is not None and len(video_results) > 0:
-        # write the output as a csv file
-        with open(outfile, "w") as fd:
-            fd.write("frame_num,timestamp,frame_num_expected,frame_num_read\n")
-            print("Write data")
-            for (
-                frame_num,
-                timestamp,
-                frame_num_expected,
-                frame_num_read,
-                delta,
-            ) in video_results:
-                fd.write(
-                    f"{frame_num},{timestamp},{frame_num_expected},{frame_num_read}.{delta}\n"
-                )
-    else:
+    if video_results is None or len(video_results) == 0:
         print(f"No video results: {video_results = }")
+        return
+    # write the output as a csv file
+    with open(outfile, "w") as fd:
+        fd.write(f"{','.join(list(video_results.columns))}\n")
+        for index in range(len(video_results)):
+            fd.write(
+                f"{','.join(str(item) for item in list(video_results.iloc[index]))}\n"
+            )
 
 
 def get_options(argv):
@@ -410,7 +427,7 @@ def main(argv):
     if options.debug > 0:
         print(options)
     # do something
-    video_results, delta_info, errors = video_analyze(
+    video_results, video_delta_info, video_metiq_errors = video_analyze(
         options.infile,
         options.width,
         options.height,
@@ -419,12 +436,11 @@ def main(argv):
         options.luma_threshold,
         options.debug,
     )
-    perrors = pd.DataFrame(errors, columns=["frame", "timestamp", "exception"])
     if options.debug > 0:
-        perrors.to_csv(f"{options.infile}.errors.csv")
+        video_metiq_errors.to_csv(f"{options.infile}.video.metiq_errors.csv")
     dump_video_results(video_results, options.outfile, options.debug)
     # print the delta info
-    print(f"score for {options.infile = } {delta_info = }")
+    print(f"score for {options.infile = } {video_delta_info = }")
 
 
 if __name__ == "__main__":
