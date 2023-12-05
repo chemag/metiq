@@ -112,14 +112,14 @@ def round_to_nearest_half(value):
 
 
 def estimate_video_smoothness(video_results, fps):
-    # video_results = [[frame_num, timestamp, frame_num_expected, frame_num_read]*]
+    # video_results = [[frame_num, timestamp, frame_num_expected, value_read]*]
     # note that <timestamps> = k * <frame_num>
-    # * in the ideal case, the distance between <frame_num_read>
-    #   in 2x consecutive frames (  in the ideal case, the distance between <frame_num_read>
+    # * in the ideal case, the distance between <value_read>
+    #   in 2x consecutive frames (  in the ideal case, the distance between <value_read>
     #
-    #                          <timestamp>_{i+1} - <timestamp>_i
-    # video_speed_{i+1} = -------------------------------------------
-    #                     <frame_num_read>_{i+1} - <frame_num_read>_i
+    #                      <timestamp>_{i+1} - <timestamp>_i
+    # video_speed_{i+1} = -----------------------------------
+    #                     <value_read>_{i+1} - <value_read>_i
     #
     video_speed_list = []
     for vr1, vr0 in zip(video_results[1:], video_results[:-1]):
@@ -141,10 +141,10 @@ def estimate_video_smoothness(video_results, fps):
 #   and the distorted fps value,
 # * (c) `frame_num_expected`: the expected frame number based on
 #   `timestamp` and the reference fps (`timestamp * reference_fps`),
-# * (d) `frame_num_read`: the frame number read in the frame (None
+# * (d) `value_read`: the frame number read in the frame (None
 #   if it cannot read it).
-# * (e) `delta_frame`: `frame_num_read - delta_mode` (None if
-#   `frame_num_read` is not readable).
+# * (e) `delta_frame`: `value_read - delta_mode` (None if
+#   `value_read` is not readable).
 def video_analyze(
     infile,
     width,
