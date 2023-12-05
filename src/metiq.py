@@ -553,65 +553,72 @@ def calculate_latency(
 ):
     # audio is {sample, ts, cor}
     # video is (frame, ts, expected, status, read, delta)
-    # 1) audio latency is the time between two correlatied values where one should be higher
+    # 1) audio latency is the time between two correlated values where one should be higher
     # 2) video latency is the time between the frame shown when a signal is played
-    # and the time when is should be played out
-    # 3) av sync is the difference between when a singal is heard and when the frame is shown
+    # and the time when it should be played out
+    # 3) av sync is the difference between when a signal is heard and when the frame is shown
 
     prev = None
     audio_latencies = []
     video_latencies = []
     av_syncs = []
     combined = []
+    # TODO(chema): this assumes the original source was 30 fps
     beep_period_frames = int(beep_period_sec * 30)  # fps
     frame_time = 1 / 30
+    # run audio_results looking for audio latency matches,
+    # defined as 2x audio correlations that are close and
+    # where the correlation value goes down
     for index in range(len(audio_results)):
         if prev is not None:
             match = audio_results.iloc[index]
             ts_diff = match["timestamp"] - prev["timestamp"]
             # correlation indicates that match is an echo (if ts_diff < period)
-            if prev["correlation"] > match["correlation"]:
-                if ts_diff < beep_period_sec * 0.8:
-                    vmatch = match_video_to_time(
-                        prev["timestamp"],
-                        video_results,
-                        beep_period_frames,
-                        frame_time,
-                        closest=False,
-                    )
-                    if vmatch is not None:
-                        vmatch[4] = round(vmatch[4] + audio_offset, 3)
-                        video_latencies.append(vmatch)
-                        audio_latencies.append(
-                            [
-                                prev["audio_sample"],
-                                round(prev["timestamp"], 3),
-                                vmatch[3],
-                                round(ts_diff + audio_offset, 3),
-                                prev["correlation"],
-                                match["correlation"],
-                            ]
-                        )
-                    avmatch = match_video_to_time(
-                        match["timestamp"],
-                        video_results,
-                        beep_period_frames,
-                        frame_time,
-                        closest=True,
-                    )
-                    if avmatch is not None:
-                        avmatch[4] = round(avmatch[4] + audio_offset, 3)
-                        av_syncs.append(avmatch)
-
-                    if vmatch is not None and avmatch is not None:
-                        combined.append(
-                            [
-                                vmatch[3],
-                                round(ts_diff + audio_offset, 3),
-                                vmatch[4],
-                                avmatch[4],
-                            ]
-                        )
+            if prev["correlation"] <= match["correlation"]:
+                continue
+            # ensure the 2x correlations are close enough
+            if ts_diff >= beep_period_sec * 0.8:
+                continue
+            # audio latency match
+            vmatch = match_video_to_time(
+                prev["timestamp"],
+                video_results,
+                beep_period_frames,
+                frame_time,
+                closest=False,
+            )
+            if vmatch is not None:
+                vmatch[4] = round(vmatch[4] + audio_offset, 3)
+                video_latencies.append(vmatch)
+                audio_latencies.append(
+                    [
+                        prev["audio_sample"],
+                        round(prev["timestamp"], 3),
+                        vmatch[3],
+                        round(ts_diff + audio_offset, 3),
+                        prev["correlation"],
+                        match["correlation"],
+                    ]
+                )
+            avmatch = match_video_to_time(
+                match["timestamp"],
+                video_results,
+                beep_period_frames,
+                frame_time,
+                closest=True,
+            )
+            if avmatch is not None:
+                avmatch[4] = round(avmatch[4] + audio_offset, 3)
+                av_syncs.append(avmatch)
+            if vmatch is not None and avmatch is not None:
+                combined.append(
+                    [
+                        vmatch[3],
+                        round(ts_diff + audio_offset, 3),
+                        vmatch[4],
+                        avmatch[4],
+                    ]
+                )
 
         prev = audio_results.iloc[index]
 
