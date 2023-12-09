@@ -545,7 +545,12 @@ def match_video_to_time(
 
 
 def calculate_latency(
-    audio_results, video_results, beep_period_sec, audio_offset=0, debug=False
+    audio_results,
+    video_results,
+    beep_period_sec,
+    audio_offset=0,
+    ignore_match_order=True,
+    debug=False,
 ):
     # audio is {sample, ts, cor}
     # video is (frame, ts, expected, status, read, delta)
@@ -570,61 +575,62 @@ def calculate_latency(
             match = audio_results.iloc[index]
             ts_diff = match["timestamp"] - prev["timestamp"]
             # correlation indicates that match is an echo (if ts_diff < period)
-            if prev["correlation"] <= match["correlation"]:
+            if not ignore_match_order and prev["correlation"] <= match["correlation"]:
                 continue
             # ensure the 2x correlations are close enough
-            if ts_diff >= beep_period_sec * 0.8:
-                continue
-            # audio latency match
-            # 1. add audio latency match
-            audio_latencies.append(
-                [
-                    prev["audio_sample"],
-                    prev["timestamp"],
-                    match["audio_sample"],
-                    match["timestamp"],
-                    ts_diff,
-                    prev["correlation"],
-                    match["correlation"],
-                ]
-            )
-            # 2. calculate video latency based on the
-            # timestamp of the first (prev) audio match
-            # vs. the timestamp of the video frame.
-            vmatch = match_video_to_time(
-                prev["timestamp"],
-                video_results,
-                beep_period_frames,
-                frame_time,
-                closest=False,
-            )
-            # 3. calculate a/v offset based on the
-            # timestamp of the second (match) audio match
-            # vs. the timestamp of the video frame.
-            avmatch = match_video_to_time(
-                match["timestamp"],
-                video_results,
-                beep_period_frames,
-                frame_time,
-                closest=True,
-            )
-            if vmatch is not None:
-                # fix the latency using the audio_offset
-                vmatch[4] = vmatch[4] + audio_offset
-                video_latencies.append(vmatch)
-            if avmatch is not None:
-                # fix the latency using the audio_offset
-                avmatch[4] = avmatch[4] + audio_offset
-                av_syncs.append(avmatch)
-            if vmatch is not None and avmatch is not None:
-                combined.append(
+            if (
+                ts_diff < beep_period_sec * 0.5
+            ):  # default 3 sec -> 1.5 sec, max detected audio delay
+                # audio latency match
+                # 1. add audio latency match
+                audio_latencies.append(
                     [
-                        vmatch[3],
-                        ts_diff + audio_offset,
-                        vmatch[4],
-                        avmatch[4],
+                        prev["audio_sample"],
+                        prev["timestamp"],
+                        match["audio_sample"],
+                        match["timestamp"],
+                        ts_diff,
+                        prev["correlation"],
+                        match["correlation"],
                     ]
                 )
+                # 2. calculate video latency based on the
+                # timestamp of the first (prev) audio match
+                # vs. the timestamp of the video frame.
+                vmatch = match_video_to_time(
+                    prev["timestamp"],
+                    video_results,
+                    beep_period_frames,
+                    frame_time,
+                    closest=False,
+                )
+                # 3. calculate a/v offset based on the
+                # timestamp of the second (match) audio match
+                # vs. the timestamp of the video frame.
+                avmatch = match_video_to_time(
+                    match["timestamp"],
+                    video_results,
+                    beep_period_frames,
+                    frame_time,
+                    closest=True,
+                )
+                if vmatch is not None:
+                    # fix the latency using the audio_offset
+                    vmatch[4] = vmatch[4] + audio_offset
+                    video_latencies.append(vmatch)
+                if avmatch is not None:
+                    # fix the latency using the audio_offset
+                    avmatch[4] = avmatch[4] + audio_offset
+                    av_syncs.append(avmatch)
+                if vmatch is not None and avmatch is not None:
+                    combined.append(
+                        [
+                            vmatch[3],
+                            ts_diff + audio_offset,
+                            vmatch[4],
+                            avmatch[4],
+                        ]
+                    )
         prev = audio_results.iloc[index]
 
     if len(av_syncs) == 0:
