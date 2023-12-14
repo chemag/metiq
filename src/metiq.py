@@ -237,7 +237,6 @@ def media_file_analyze(
     video_results = None
     video_delta_info = None
     avsync_sec_list = None
-    video_metiq_errors = None
     if debug > 0:
         path_video = f"{infile}.video.csv"
         if os.path.exists(path_video):
@@ -245,15 +244,11 @@ def media_file_analyze(
         path_video_delta_info = f"{infile}.video.delta_info.csv"
         if os.path.exists(path_video_delta_info):
             video_delta_info = pd.read_csv(path_video_delta_info)
-        path_video_errors = f"{infile}.video.errors.csv"
-        if os.path.exists(path_video_errors):
-            video_metiq_errors = pd.read_csv(path_video_errors)
 
     if video_results is None:
         (
             video_results,
             video_delta_info,
-            video_metiq_errors,
         ) = video_analyze.video_analyze(
             infile,
             width,
@@ -264,9 +259,6 @@ def media_file_analyze(
             lock_layout=lock_layout,
             debug=debug,
         )
-        if video_metiq_errors is not None and len(video_metiq_errors) > 0:
-            path_video_errors = f"{infile}.video.errors.csv"
-            video_metiq_errors.to_csv(path_video_errors, index=False)
         if video_delta_info is not None and len(video_delta_info) > 0:
             path_video_delta_info = f"{infile}.video.delta_info.csv"
             video_delta_info.to_csv(path_video_delta_info, index=False)
@@ -335,7 +327,6 @@ def media_file_analyze(
             video_results,
             audio_duration_samples,
             audio_duration_seconds,
-            video_metiq_errors,
             infile,
             debug,
         )
@@ -394,7 +385,6 @@ def calculate_stats(
     video_results,
     audio_duration_samples,
     audio_duration_seconds,
-    video_metiq_errors,
     inputfile,
     debug=False,
 ):
@@ -469,18 +459,16 @@ def calculate_stats(
         100 * video_frames_source_unseen / video_frames_source_count, 2
     )
     # 6. metiq processing statistics
-    video_frames_metiq_errors = (
-        len(video_metiq_errors) if video_metiq_errors is not None else 0
-    )
-    stats["video_frames_metiq_errors"] = video_frames_metiq_errors
-    stats["video_frames_metiq_errors_percentage"] = round(
-        100 * video_frames_metiq_errors / video_frames_capture_total, 2
-    )
+    # TODO(chema): use video.csv information to calculate errors
+    # stats["video_frames_metiq_errors"] = video_frames_metiq_errors
+    # stats["video_frames_metiq_errors_percentage"] = round(
+    #    100 * video_frames_metiq_errors / video_frames_capture_total, 2
+    # )
     # video metiq errors
-    for error, (short, _) in video_analyze.ERROR_TYPES.items():
-        stats["video_frames_metiq_error." + short] = len(
-            video_metiq_errors.loc[video_metiq_errors["error_type"] == error]
-        )
+    # for error, (short, _) in video_analyze.ERROR_TYPES.items():
+    #     stats["video_frames_metiq_error." + short] = len(
+    #         video_metiq_errors.loc[video_metiq_errors["error_type"] == error]
+    #     )
     # 7. calculate consecutive frame distribution
     capt_group = video_results.groupby("value_read_int")  # .count()
     cg = capt_group.count()["value_read"]

@@ -166,7 +166,6 @@ def video_analyze(
     video_results = pd.DataFrame(
         columns=("frame_num", "timestamp", "frame_num_expected", "status", "value_read")
     )
-    video_metiq_errors = pd.DataFrame(columns=["frame_num", "timestamp", "error_type"])
     while True:
         # get image
         status, img = video_capture.read()
@@ -193,34 +192,14 @@ def video_analyze(
             value_read = image_analyze(img, luma_threshold, lock_layout, debug)
             status = 0
         except vft.NoValidTag as ex:
-            video_metiq_errors.loc[len(video_metiq_errors.index)] = (
-                frame_num,
-                timestamp,
-                ERROR_NO_VALID_TAG,
-            )
             status = ERROR_NO_VALID_TAG
         except vft.InvalidGrayCode as ex:
-            video_metiq_errors.loc[len(video_metiq_errors.index)] = (
-                frame_num,
-                timestamp,
-                ERROR_INVALID_GRAYCODE,
-            )
             status = ERROR_INVALID_GRAYCODE
         except vft.SingleGraycodeBitError as ex:
-            video_metiq_errors.loc[len(video_metiq_errors.index)] = (
-                frame_num,
-                timestamp,
-                ERROR_SINGLE_GRAYCODE_BIT,
-            )
             status = ERROR_SINGLE_GRAYCODE_BIT
         except Exception as ex:
             if debug > 0:
                 print(f"{frame_num = } {str(ex)}")
-            video_metiq_errors.loc[len(video_metiq_errors.index)] = (
-                frame_num,
-                timestamp,
-                ERROR_UNKNOWN,
-            )
             status = ERROR_UNKNOWN
             continue
         if debug > 2:
@@ -283,7 +262,7 @@ def video_analyze(
             nok_frames / num_frames,
             unknown_frames / num_frames,
         )
-    return video_results, video_delta_info, video_metiq_errors
+    return video_results, video_delta_info
 
 
 def image_analyze(img, luma_threshold, lock_layout=False, debug=0):
@@ -434,7 +413,7 @@ def main(argv):
     if options.debug > 0:
         print(options)
     # do something
-    video_results, video_delta_info, video_metiq_errors = video_analyze(
+    video_results, video_delta_info = video_analyze(
         options.infile,
         options.width,
         options.height,
@@ -443,8 +422,6 @@ def main(argv):
         options.luma_threshold,
         options.debug,
     )
-    if options.debug > 0:
-        video_metiq_errors.to_csv(f"{options.infile}.video.metiq_errors.csv")
     dump_video_results(video_results, options.outfile, options.debug)
     # print the delta info
     print(f"score for {options.infile = } {video_delta_info = }")
