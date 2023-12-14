@@ -373,15 +373,19 @@ def get_options(argv):
         ),
     )
     parser.add_argument(
-        "infile",
+        "-i",
+        "--input",
         type=str,
+        dest="infile",
         default=default_values["infile"],
         metavar="input-file",
         help="input file",
     )
     parser.add_argument(
-        "outfile",
+        "-o",
+        "--output",
         type=str,
+        dest="outfile",
         default=default_values["outfile"],
         metavar="output-file",
         help="output file",
