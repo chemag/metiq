@@ -236,9 +236,7 @@ def video_analyze(
     video_results["delta_frame"] = round_to_nearest_half(
         video_results["value_read"] - video_results["frame_num_expected"] - delta_mode
     )
-    # calculate video_delta_info
-    video_delta_info = video_analyze_delta_info(video_results)
-    return video_results, video_delta_info
+    return video_results
 
 
 # distill video_delta_info from video_results
@@ -425,7 +423,7 @@ def main(argv):
     if options.debug > 0:
         print(options)
     # do something
-    video_results, video_delta_info = video_analyze(
+    video_results = video_analyze(
         options.infile,
         options.width,
         options.height,
@@ -436,6 +434,7 @@ def main(argv):
     )
     dump_video_results(video_results, options.outfile, options.debug)
     # print the delta info
+    video_delta_info = video_analyze_delta_info(video_results)
     print(f"score for {options.infile = } {video_delta_info = }")
 
 

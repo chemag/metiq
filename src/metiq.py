@@ -246,10 +246,7 @@ def media_file_analyze(
             video_delta_info = pd.read_csv(path_video_delta_info)
 
     if video_results is None:
-        (
-            video_results,
-            video_delta_info,
-        ) = video_analyze.video_analyze(
+        video_results = video_analyze.video_analyze(
             infile,
             width,
             height,
@@ -259,6 +256,7 @@ def media_file_analyze(
             lock_layout=lock_layout,
             debug=debug,
         )
+        video_delta_info = video_analyze.video_analyze_delta_info(video_results)
         if video_delta_info is not None and len(video_delta_info) > 0:
             path_video_delta_info = f"{infile}.video.delta_info.csv"
             video_delta_info.to_csv(path_video_delta_info, index=False)
