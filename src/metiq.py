@@ -51,7 +51,7 @@ default_values = {
     "beep_period_sec": audio_common.DEFAULT_BEEP_PERIOD_SEC,
     "scale": audio_common.DEFAULT_SCALE,
     "min_separation_msec": audio_analyze.DEFAULT_MIN_SEPARATION_MSEC,
-    "correlation_factor": audio_analyze.DEFAULT_CORRELATION_FACTOR,
+    "min_match_threshold": audio_analyze.DEFAULT_MIN_MATCH_THRESHOLD,
     # common parameters
     "func": "help",
     "infile": None,
@@ -273,7 +273,7 @@ def media_analyze(
             beep_period_sec=beep_period_sec,
             scale=scale,
             min_separation_msec=kwargs.get("min_separation_msec", 50),
-            correlation_factor=kwargs.get("correlation_factor", 10),
+            min_match_threshold=kwargs.get("min_match_threshold", 10),
             echo_analysis=echo_analysis,
             debug=debug,
         )
@@ -995,14 +995,16 @@ def get_options(argv):
         help=("use scale [0-1] (default: %i)" % default_values["scale"]),
     )
     parser.add_argument(
-        "--min_separation_msec",
+        "--min-separation-msec",
+        dest="min_separation_msec",
         default=default_values["min_separation_msec"],
         help="Sets a minimal distance between two adjacent signals and sets the shortest detectable time difference in ms. Default is set to half the needle length.",
     )
     parser.add_argument(
-        "--correlation_factor",
-        default=default_values["correlation_factor"],
-        help="Sets the threshold for triggering hits. Default is 10x ratio between the highest correlation and the lower threshold for triggering hits.",
+        "--min-match-threshold",
+        dest="min_match_threshold",
+        default=default_values["min_match_threshold"],
+        help=f"Sets the threshold for detecting audio matches. Default is {default_values['min_match_threshold']}, ratio between the highest correlation and the lower threshold for triggering hits.",
     )
     parser.add_argument(
         "-e",
@@ -1145,7 +1147,7 @@ def main(argv):
             options.outfile,
             options.debug,
             min_separation_msec=options.min_separation_msec,
-            correlation_factor=options.correlation_factor,
+            min_match_threshold=options.min_match_threshold,
             echo_analysis=options.echo_analysis,
             audio_offset=options.audio_offset,
             cache_audio=cache_audio,
