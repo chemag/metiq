@@ -328,15 +328,19 @@ def get_options(argv):
         help="Consider multiple hits in order to calculate time between two consecutive audio trigger points. With this a transmission system can be measured for audio and video latency and auiod/video synchronization.",
     )
     parser.add_argument(
-        "infile",
+        "-i",
+        "--input",
         type=str,
+        dest="infile",
         default=default_values["infile"],
         metavar="input-file",
         help="input file [wav]",
     )
     parser.add_argument(
-        "outfile",
+        "-o",
+        "--output",
         type=str,
+        dest="outfile",
         default=default_values["outfile"],
         metavar="output-file",
         help="output file [csv]",
