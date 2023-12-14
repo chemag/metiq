@@ -275,12 +275,7 @@ def dump_video_results(video_results, outfile, debug):
         print(f"No video results: {video_results = }")
         return
     # write the output as a csv file
-    with open(outfile, "w") as fd:
-        fd.write(f"{','.join(list(video_results.columns))}\n")
-        for index in range(len(video_results)):
-            fd.write(
-                f"{','.join(str(item) for item in list(video_results.iloc[index]))}\n"
-            )
+    video_results.to_csv(outfile, index=False)
 
 
 def get_options(argv):
