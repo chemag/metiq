@@ -319,7 +319,7 @@ def media_analyze(
         (
             audio_duration_samples,
             audio_duration_seconds,
-        ) = audio_analyze.get_audio_duration(infile)
+        ) = audio_analyze.get_audio_duration(infile, debug)
         stats, frame_durations = calculate_stats(
             audio_latencies,
             video_latencies,

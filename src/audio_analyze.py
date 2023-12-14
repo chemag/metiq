@@ -198,9 +198,17 @@ def audio_analyze(infile, **kwargs):
     return audio_results
 
 
-def get_audio_duration(infile):
+def get_audio_duration(infile, debug):
+    # convert audio file to wav (mono)
+    wav_filename = tempfile.NamedTemporaryFile().name + ".wav"
+    # Note that by default this downmixes both channels.
+    command = f"ffmpeg -y -i {infile} -vn -ac 1 {wav_filename}"
+    ret, stdout, stderr = common.run(command, debug=debug)
+    if ret != 0:
+        print(f"warn: no audio stream in {infile}")
+        return None
     # open the input
-    haystack_samplerate, inaud = scipy.io.wavfile.read(infile)
+    haystack_samplerate, inaud = scipy.io.wavfile.read(wav_filename)
     audio_duration_samples = len(inaud)
     audio_duration_seconds = audio_duration_samples / haystack_samplerate
     return audio_duration_samples, audio_duration_seconds
@@ -388,7 +396,9 @@ def main(argv):
     )
     dump_audio_results(audio_results, options.outfile, options.debug)
     # get audio duration
-    audio_duration_samples, audio_duration_seconds = get_audio_duration(options.infile)
+    audio_duration_samples, audio_duration_seconds = get_audio_duration(
+        options.infile, options.debug
+    )
     print(f"{audio_duration_samples=}")
     print(f"{audio_duration_seconds=}")
 
