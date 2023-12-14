@@ -237,6 +237,19 @@ def video_analyze(
         video_results["value_read"] - video_results["frame_num_expected"] - delta_mode
     )
     # calculate video_delta_info
+    video_delta_info = video_analyze_delta_info(video_results)
+    return video_results, video_delta_info
+
+
+# distill video_delta_info from video_results
+def video_analyze_delta_info(video_results):
+    num_frames = len(video_results)
+    # remove the None values in order to calculate the delta between frames
+    delta_list = round_to_nearest_half(
+        video_results["value_read"] - video_results["frame_num_expected"]
+    )
+    # calculate the mode of the delta between frames
+    delta_mode = scipy.stats.mode(delta_list, keepdims=True).mode[0]
     ok_frames = (video_results["delta_frame"] == 0.0).sum()
     sok_frames = (video_results["delta_frame"].between(-0.5, 0.5)).sum()
     unknown_frames = video_results["delta_frame"].isna().sum()
@@ -262,7 +275,7 @@ def video_analyze(
             nok_frames / num_frames,
             unknown_frames / num_frames,
         )
-    return video_results, video_delta_info
+    return video_delta_info
 
 
 def image_analyze(img, luma_threshold, lock_layout=False, debug=0):
