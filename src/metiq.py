@@ -61,7 +61,7 @@ default_values = {
 }
 
 
-def media_file_generate(
+def media_generate(
     width,
     height,
     fps,
@@ -211,7 +211,7 @@ def estimate_avsync(video_results, fps, audio_results, beep_period_sec, debug=0)
     return avsync_sec_list
 
 
-def media_file_analyze(
+def media_analyze(
     width,
     height,
     fps,
@@ -251,10 +251,11 @@ def media_file_analyze(
             lock_layout=lock_layout,
             debug=debug,
         )
-    video_delta_info = video_analyze.video_analyze_delta_info(video_results)
     # write up the results to disk
     video_results.to_csv(path_video, index=False)
+    # TODO(chema): move this to a separate analyzer
     path_video_delta_info = f"{infile}.video.delta_info.csv"
+    video_delta_info = video_analyze.video_analyze_delta_info(video_results)
     video_delta_info.to_csv(path_video_delta_info, index=False)
 
     # 2. analyze the audio stream
@@ -278,6 +279,9 @@ def media_file_analyze(
         )
     # write up the results to disk
     audio_results.to_csv(path_audio, index=False)
+
+    # TODO(chema): media_analyze should return here
+    # return video_results, audio_results
 
     if not echo_analysis:
         # 3a. estimate a/v sync
@@ -1099,7 +1103,7 @@ def main(argv):
             options.outfile = "/dev/fd/1"
         assert options.outfile is not None, "error: need a valid output file"
         # do something
-        media_file_generate(
+        media_generate(
             options.width,
             options.height,
             options.fps,
@@ -1124,7 +1128,7 @@ def main(argv):
             options.outfile = "/dev/fd/1"
         cache_audio = options.cache_audio and options.cache_both
         cache_video = options.cache_video and options.cache_both
-        video_delta_info, avsync_sec_list = media_file_analyze(
+        video_delta_info, avsync_sec_list = media_analyze(
             options.width,
             options.height,
             options.fps,
