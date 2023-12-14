@@ -232,20 +232,14 @@ def media_file_analyze(
     echo_analysis = kwargs.get("echo_analysis", False)
     audio_offset = kwargs.get("audio_offset", 0)
     lock_layout = kwargs.get("lock_layout", False)
+    cache_video = kwargs.get("cache_video", True)
 
     # 1. analyze the video stream
-    video_results = None
-    video_delta_info = None
-    avsync_sec_list = None
-    if debug > 0:
-        path_video = f"{infile}.video.csv"
-        if os.path.exists(path_video):
-            video_results = pd.read_csv(path_video)
-        path_video_delta_info = f"{infile}.video.delta_info.csv"
-        if os.path.exists(path_video_delta_info):
-            video_delta_info = pd.read_csv(path_video_delta_info)
-
-    if video_results is None:
+    path_video = f"{infile}.video.csv"
+    if cache_video and os.path.exists(path_video):
+        video_results = pd.read_csv(path_video)
+    else:
+        # recalculate the video results
         video_results = video_analyze.video_analyze(
             infile,
             width,
@@ -256,11 +250,11 @@ def media_file_analyze(
             lock_layout=lock_layout,
             debug=debug,
         )
-        video_delta_info = video_analyze.video_analyze_delta_info(video_results)
-        if video_delta_info is not None and len(video_delta_info) > 0:
-            path_video_delta_info = f"{infile}.video.delta_info.csv"
-            video_delta_info.to_csv(path_video_delta_info, index=False)
-        video_results.to_csv(path_video, index=False)
+    video_delta_info = video_analyze.video_analyze_delta_info(video_results)
+    # write up the results to disk
+    video_results.to_csv(path_video, index=False)
+    path_video_delta_info = f"{infile}.video.delta_info.csv"
+    video_delta_info.to_csv(path_video_delta_info, index=False)
 
     # 2. analyze the audio stream
     (
@@ -1037,6 +1031,27 @@ def get_options(argv):
         help="output file",
     )
     parser.add_argument(
+        "--no-cache",
+        action="store_false",
+        dest="cache_both",
+        default=True,
+        help="Recalculate both audio and video analysis",
+    )
+    parser.add_argument(
+        "--no-cache-audio",
+        action="store_false",
+        dest="cache_audio",
+        default=True,
+        help="Recalculate audio analysis",
+    )
+    parser.add_argument(
+        "--no-cache-video",
+        action="store_false",
+        dest="cache_video",
+        default=True,
+        help="Recalculate video analysis",
+    )
+    parser.add_argument(
         "--audio-offset",
         type=float,
         dest="audio_offset",
@@ -1103,6 +1118,8 @@ def main(argv):
         # get outfile
         if options.outfile is None or options.outfile == "-":
             options.outfile = "/dev/fd/1"
+        cache_audio = options.cache_audio and options.cache_both
+        cache_video = options.cache_video and options.cache_both
         video_delta_info, avsync_sec_list = media_file_analyze(
             options.width,
             options.height,
@@ -1123,6 +1140,8 @@ def main(argv):
             correlation_factor=options.correlation_factor,
             echo_analysis=options.echo_analysis,
             audio_offset=options.audio_offset,
+            cache_audio=cache_audio,
+            cache_video=cache_video,
         )
         if not options.echo_analysis:
             if options.debug:
