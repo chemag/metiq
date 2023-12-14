@@ -255,26 +255,26 @@ def video_analyze_delta_info(video_results):
     unknown_frames = video_results["delta_frame"].isna().sum()
     nok_frames = num_frames - sok_frames - unknown_frames
     stddev = video_results["delta_frame"].std()
-    video_delta_info = None
-    if num_frames > 0:
-        video_delta_info = pd.DataFrame(
-            columns=(
-                "mode",
-                "stddev",
-                "ok_ratio",
-                "sok_ratio",
-                "nok_ratio",
-                "unknown_ratio",
-            )
+    if num_frames == 0:
+        return None
+    video_delta_info = pd.DataFrame(
+        columns=(
+            "mode",
+            "stddev",
+            "ok_ratio",
+            "sok_ratio",
+            "nok_ratio",
+            "unknown_ratio",
         )
-        video_delta_info.loc[len(video_delta_info.index)] = (
-            delta_mode,
-            stddev,
-            ok_frames / num_frames,
-            sok_frames / num_frames,
-            nok_frames / num_frames,
-            unknown_frames / num_frames,
-        )
+    )
+    video_delta_info.loc[len(video_delta_info.index)] = (
+        delta_mode,
+        stddev,
+        ok_frames / num_frames,
+        sok_frames / num_frames,
+        nok_frames / num_frames,
+        unknown_frames / num_frames,
+    )
     return video_delta_info
 
 
