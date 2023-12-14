@@ -304,7 +304,7 @@ def media_analyze(
         latencies = []
         # 3b. calculate audio latency, video latency and the difference between the two
         audio_latencies, video_latencies, av_syncs, combined = calculate_latency(
-            audio_results, video_results, beep_period_sec, audio_offset, debug
+            audio_results, video_results, beep_period_sec, audio_offset, debug=debug
         )
         if debug > 0:
             path_audio_latencies = f"{os.path.splitext(outfile)[0]}.audio.latencies.csv"
@@ -562,13 +562,18 @@ def calculate_latency(
         if prev is not None:
             match = audio_results.iloc[index]
             ts_diff = match["timestamp"] - prev["timestamp"]
+
             # correlation indicates that match is an echo (if ts_diff < period)
-            if not ignore_match_order and prev["correlation"] <= match["correlation"]:
+            if not ignore_match_order and prev["correlation"] < match["correlation"]:
+                # This skip does not move previoua but the next iteration will
+                # test agains same prev match
                 continue
             # ensure the 2x correlations are close enough
             if ts_diff >= beep_period_sec * 0.5:
                 # default 3 sec -> 1.5 sec, max detected audio delay
+                prev = match
                 continue
+
             # audio latency match
             # 1. add audio latency match
             audio_latencies.append(
