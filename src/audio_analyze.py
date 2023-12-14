@@ -353,13 +353,11 @@ def get_options(argv):
 
 
 def dump_audio_results(audio_results, outfile, debug):
+    if audio_results is None or len(audio_results) == 0:
+        print(f"No audio results: {audio_results = }")
+        return
     # write the output as a csv file
-    with open(outfile, "w") as fd:
-        fd.write(f"{','.join(list(audio_results.columns))}\n")
-        for index in range(len(audio_results)):
-            fd.write(
-                f"{','.join(str(item) for item in list(audio_results.iloc[index]))}\n"
-            )
+    audio_results.to_csv(outfile, index=False)
 
 
 def main(argv):
