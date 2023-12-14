@@ -233,6 +233,7 @@ def media_file_analyze(
     audio_offset = kwargs.get("audio_offset", 0)
     lock_layout = kwargs.get("lock_layout", False)
     cache_video = kwargs.get("cache_video", True)
+    cache_audio = kwargs.get("cache_audio", True)
 
     # 1. analyze the video stream
     path_video = f"{infile}.video.csv"
@@ -257,24 +258,27 @@ def media_file_analyze(
     video_delta_info.to_csv(path_video_delta_info, index=False)
 
     # 2. analyze the audio stream
-    audio_results = audio_analyze.audio_analyze(
-        infile,
-        pre_samples=pre_samples,
-        samplerate=samplerate,
-        beep_freq=beep_freq,
-        beep_duration_samples=beep_duration_samples,
-        beep_period_sec=beep_period_sec,
-        scale=scale,
-        min_separation_msec=kwargs.get("min_separation_msec", 50),
-        correlation_factor=kwargs.get("correlation_factor", 10),
-        echo_analysis=echo_analysis,
-        debug=debug,
-    )
-    if debug > 0:
-        path_audio = f"{infile}.audio.csv"
-        audio_results.to_csv(path_audio, index=False)
-    if debug > 1:
-        print(f"{audio_results = }")
+    path_audio = f"{infile}.audio.csv"
+    if cache_audio and os.path.exists(path_audio):
+        audio_results = pd.read_csv(path_audio)
+    else:
+        # recalculate the audio results
+        audio_results = audio_analyze.audio_analyze(
+            infile,
+            pre_samples=pre_samples,
+            samplerate=samplerate,
+            beep_freq=beep_freq,
+            beep_duration_samples=beep_duration_samples,
+            beep_period_sec=beep_period_sec,
+            scale=scale,
+            min_separation_msec=kwargs.get("min_separation_msec", 50),
+            correlation_factor=kwargs.get("correlation_factor", 10),
+            echo_analysis=echo_analysis,
+            debug=debug,
+        )
+    # write up the results to disk
+    audio_results.to_csv(path_audio, index=False)
+
     if not echo_analysis:
         # 3a. estimate a/v sync
         avsync_sec_list = estimate_avsync(
