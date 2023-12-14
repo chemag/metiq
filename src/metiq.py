@@ -257,11 +257,7 @@ def media_file_analyze(
     video_delta_info.to_csv(path_video_delta_info, index=False)
 
     # 2. analyze the audio stream
-    (
-        audio_results,
-        audio_duration_samples,
-        audio_duration_seconds,
-    ) = audio_analyze.audio_analyze(
+    audio_results = audio_analyze.audio_analyze(
         infile,
         pre_samples=pre_samples,
         samplerate=samplerate,
@@ -312,6 +308,10 @@ def media_file_analyze(
         path_latencies_combined = f"{os.path.splitext(outfile)[0]}.latencies.csv"
         combined.to_csv(path_latencies_combined, index=False)
         # combine the lists to one common one
+        (
+            audio_duration_samples,
+            audio_duration_seconds,
+        ) = audio_analyze.get_audio_duration(infile)
         stats, frame_durations = calculate_stats(
             audio_latencies,
             video_latencies,
