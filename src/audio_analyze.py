@@ -46,7 +46,6 @@ def get_correlation_indices(haystack, needle, **kwargs):
     min_separation_samples = int(kwargs.get("min_separation_samples", 1))
     min_match_threshold = float(kwargs.get("min_match_threshold", 0))
 
-    print(f"{min_match_threshold=}, {min_separation_samples=}")
     # calculate the correlation in FP numbers to avoid saturation
     needlesize = len(needle)
     correlation = np.correlate(haystack.astype(np.float32), needle.astype(np.float32))
