@@ -146,7 +146,33 @@ def media_analyze(
     cache_video = kwargs.get("cache_video", True)
     cache_audio = kwargs.get("cache_audio", True)
 
-    # 1. analyze the video stream
+    # 1. analyze the audio stream
+    path_audio = f"{infile}.audio.csv"
+    if cache_audio and os.path.exists(path_audio):
+        audio_results = pd.read_csv(path_audio)
+    else:
+        # recalculate the audio results
+        audio_results = audio_analyze.audio_analyze(
+            infile,
+            pre_samples=pre_samples,
+            samplerate=samplerate,
+            beep_freq=beep_freq,
+            beep_duration_samples=beep_duration_samples,
+            beep_period_sec=beep_period_sec,
+            scale=scale,
+            min_separation_msec=kwargs.get("min_separation_msec", 50),
+            min_match_threshold=kwargs.get("min_match_threshold", 10),
+            debug=debug,
+        )
+        if audio_results is None or len(audio_results) == 0:
+            # without audio there is not point in running the video analysis
+            raise Exception(
+                "ERROR: audio calculation failed. Verify that there are signals in audio stream."
+            )
+        # write up the results to disk
+        audio_results.to_csv(path_audio, index=False)
+
+    # 2. analyze the video stream
     path_video = f"{infile}.video.csv"
     if cache_video and os.path.exists(path_video):
         video_results = pd.read_csv(path_video)
@@ -168,27 +194,6 @@ def media_analyze(
     path_video_delta_info = f"{infile}.video.delta_info.csv"
     video_delta_info = video_analyze.video_analyze_delta_info(video_results)
     video_delta_info.to_csv(path_video_delta_info, index=False)
-
-    # 2. analyze the audio stream
-    path_audio = f"{infile}.audio.csv"
-    if cache_audio and os.path.exists(path_audio):
-        audio_results = pd.read_csv(path_audio)
-    else:
-        # recalculate the audio results
-        audio_results = audio_analyze.audio_analyze(
-            infile,
-            pre_samples=pre_samples,
-            samplerate=samplerate,
-            beep_freq=beep_freq,
-            beep_duration_samples=beep_duration_samples,
-            beep_period_sec=beep_period_sec,
-            scale=scale,
-            min_separation_msec=kwargs.get("min_separation_msec", 50),
-            min_match_threshold=kwargs.get("min_match_threshold", 10),
-            debug=debug,
-        )
-        # write up the results to disk
-        audio_results.to_csv(path_audio, index=False)
 
     return video_results, audio_results
 
@@ -1008,31 +1013,31 @@ def main(argv):
                 outfile = "/dev/fd/1"
             cache_video = options.cache_video and options.cache_both
             cache_audio = options.cache_audio and options.cache_both
-            video_result, audio_result = media_analyze(
-                options.width,
-                options.height,
-                options.fps,
-                options.num_frames,
-                options.pixel_format,
-                options.luma_threshold,
-                options.pre_samples,
-                options.samplerate,
-                options.beep_freq,
-                options.beep_duration_samples,
-                options.beep_period_sec,
-                options.scale,
-                infile,
-                outfile,
-                options.debug,
-                min_separation_msec=options.min_separation_msec,
-                min_match_threshold=options.min_match_threshold,
-                audio_offset=options.audio_offset,
-                cache_audio=cache_audio,
-                cache_video=cache_video,
-            )
-
-            if len(audio_result) == 0:
-                print("ERROR: no audio singals found.")
+            try:
+                video_result, audio_result = media_analyze(
+                    options.width,
+                    options.height,
+                    options.fps,
+                    options.num_frames,
+                    options.pixel_format,
+                    options.luma_threshold,
+                    options.pre_samples,
+                    options.samplerate,
+                    options.beep_freq,
+                    options.beep_duration_samples,
+                    options.beep_period_sec,
+                    options.scale,
+                    infile,
+                    outfile,
+                    options.debug,
+                    min_separation_msec=options.min_separation_msec,
+                    min_match_threshold=options.min_match_threshold,
+                    audio_offset=options.audio_offset,
+                    cache_audio=cache_audio,
+                    cache_video=cache_video,
+                )
+            except Exception as ex:
+                print(f"ERROR: no audio signals found in {infile}")
                 continue
             audio_latency = None
             video_latency = None
