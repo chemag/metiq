@@ -198,39 +198,79 @@ def media_analyze(
     return video_results, audio_results
 
 
-def calculate_dropped_frames_stats(video_results, start=-1, stop=-1):
-    video_results = video_results.dropna()
-    if start > 0 or stop > 0:
-        video_results = video_results.loc[
-            (video_results["timestamp"] >= start) & (video_results["timestamp"] < stop)
+def calulcate_frames_moving_average(video_result, window_size_sec=1):
+    # frame, ts, video_result_frame_num_read_int
+
+    video_result = video_result.dropna()
+    # only one testcase and one situation so no filter is needed.
+    startframe = video_result.iloc[0]["value_read"]
+    endframe = video_result.iloc[-1]["value_read"]
+
+    frame = startframe
+    window_sum = 0
+    tmp = 0
+    average = []
+    while frame < endframe:
+        current = video_result.loc[video_result["value_read"] == frame]
+        if len(current) == 0:
+            frame += 1
+            continue
+        nextframe = video_result.loc[
+            video_result["timestamp"]
+            >= (current.iloc[0]["timestamp"] + window_size_sec)
         ]
-    if len(video_results) == 0:
-        return 0, 0
+        if len(nextframe) == 0:
+            break
 
-    frmin = int(video_results["value_read_int"].min())
-    frmax = int(video_results["value_read_int"].max())
-    not_in_range = np.setdiff1d(
-        range(frmin, frmax), np.unique(video_results["value_read_int"].values)
+        nextframe_num = nextframe.iloc[0]["value_read"]
+
+        windowed_data = video_result.loc[
+            (video_result["value_read"] >= frame)
+            & (video_result["value_read"] < nextframe_num)
+        ]
+        window_sum = len(np.unique(windowed_data["value_read"]))
+        distance = nextframe_num - frame
+        drops = distance - window_sum
+        average.append(
+            {
+                "frame": frame,
+                "frames": distance,
+                "shown": window_sum,
+                "drops": drops,
+                "window": (
+                    nextframe.iloc[0]["timestamp"] - current.iloc[0]["timestamp"]
+                ),
+            }
+        )
+        frame += 1
+
+    return pd.DataFrame(average)
+
+
+def calculate_frame_durations(video_result):
+    # Calculate how many times a source frame is shown in capture frames/time
+    capture_fps = len(video_result) / (
+        video_result["timestamp"].max() - video_result["timestamp"].min()
     )
-    frame_count = frmax - frmin
-    frames_unseen = len(not_in_range)
-    return frame_count, frames_unseen
-
-
-def dump_frame_drops(video_results, inputfile):
-    # per-second moving average
-    start = int(video_results["timestamp"].min())
-    end = int(video_results["timestamp"].max() + 0.5)
-    dur = end - start
-    framedrops_per_sec = [
-        (x,) + calculate_dropped_frames_stats(video_results, x, x + 1)
-        for x in range(end - start)
-    ]
-    fdp = pd.DataFrame(
-        framedrops_per_sec, columns=["timestamp_start", "frames", "dropped"]
-    )
-    path_average_frame_drops = f"{inputfile}.video.frame_drops.csv"
-    fdp.to_csv(path_average_frame_drops, index=False)
+    video_result["value_read_int"] = video_result["value_read"].astype(int)
+    min_val = video_result["value_read_int"].min()
+    min_ts = video_result.loc[video_result["value_read_int"] == min_val][
+        "timestamp"
+    ].values[0]
+    max_val = video_result["value_read_int"].max()
+    max_ts = video_result.loc[video_result["value_read_int"] == max_val][
+        "timestamp"
+    ].values[0]
+    source_fps = len(video_result["value_read_int"].unique()) / (max_ts - min_ts)
+    capt_group = video_result.groupby("value_read_int")
+    cg = capt_group.count()["value_read"]
+    cg = cg.value_counts().sort_index().to_frame()
+    cg.index.rename("consecutive_frames", inplace=True)
+    cg["frame_count"] = np.arange(1, len(cg) + 1)
+    cg["time"] = cg["frame_count"] / capture_fps
+    cg["capture_fps"] = capture_fps
+    cg["source_fps"] = source_fps
+    return cg
 
 
 def calculate_measurement_quality_stats(audio_result, video_result):
@@ -939,6 +979,20 @@ def get_options(argv):
         dest="av_sync",
         help="Calculate audio/video synchronization using audio timestamps and video frame numbers.",
     )
+    parser.add_argument(
+        "--windowed-stats-sec",
+        type=float,
+        dest="windowed_stats_sec",
+        default=-1,
+        help="Calculate video frames shown/dropped per unit sec.",
+    )
+    parser.add_argument(
+        "--calc-frame-durations",
+        action="store_true",
+        dest="calculate_frame_durations",
+        help="Calculate source frame durations.",
+    )
+
     # do the parsing
     options = parser.parse_args(argv[1:])
     if options.version:
@@ -976,6 +1030,8 @@ def main(argv):
 
     quality_stats = pd.DataFrame()
     all_quality_stats = pd.DataFrame()
+
+    all_frame_duration = pd.DataFrame()
 
     for infile in files:
         # do something
@@ -1141,6 +1197,21 @@ def main(argv):
                 path = f"{outfile}.measurement.quality.csv"
             quality_stats.to_csv(path, index=False)
 
+            if options.windowed_stats_sec:
+                df = calulcate_frames_moving_average(
+                    video_result, options.windowed_stats_sec
+                )
+                df.to_csv(
+                    f"{infile}.video.frames_per_{options.windowed_stats_sec}sec.csv"
+                )
+
+            if options.calculate_frame_durations:
+                df = calculate_frame_durations(video_result)
+                df.to_csv(f"{infile}.video.frame_durations.csv")
+                if len(files) > 1:
+                    df["file"] = infile
+                    all_frame_duration = pd.concat([all_frame_duration, df])
+
             if len(files) > 1:
                 quality_stats["file"] = infile
                 all_quality_stats = pd.concat([all_quality_stats, quality_stats])
@@ -1164,6 +1235,7 @@ def main(argv):
                     if options.av_sync:
                         av_sync["file"] = infile
                         all_av_sync = pd.concat([all_av_sync, av_sync])
+
             # print statistics
             if av_sync is not None:
                 avsync_sec_average = np.average(av_sync["av_sync_sec"])
@@ -1201,6 +1273,12 @@ def main(argv):
         if outfile is not None and len(outfile) > 0:
             path = f"{outfile}.all.measurement.quality.csv"
         all_quality_stats.to_csv(path, index=False)
+
+    if len(all_frame_duration) > 0:
+        path = f"all.frame_duration.csv"
+        if outfile is not None and len(outfile) > 0:
+            path = f"{outfile}.all.frame_duration.csv"
+        all_frame_duration.to_csv(path, index=False)
 
 
 if __name__ == "__main__":
