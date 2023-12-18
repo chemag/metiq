@@ -316,6 +316,35 @@ def dump_frame_drops(video_results, inputfile):
     fdp.to_csv(path_average_frame_drops, index=False)
 
 
+def calculate_measurement_quality_stats(audio_result, video_result):
+    stats = {}
+    frame_errors = video_result.loc[video_result["status"] > 0]
+    video_frames_capture_total = len(video_result)
+
+    stats["video_frames_metiq_errors_percentage"] = round(
+        100 * len(frame_errors) / video_frames_capture_total, 2
+    )
+
+    # video metiq errors
+    for error, (short, _) in video_analyze.ERROR_TYPES.items():
+        stats["video_frames_metiq_error." + short] = len(
+            video_result.loc[video_result["status"] == error]
+        )
+
+    # Audio signal
+    audio_duration = audio_result["timestamp"].max() - audio_result["timestamp"].min()
+    audio_sig_detected = len(audio_result)
+    if audio_sig_detected == 0:
+        audio_sig_detected = -1  # avoid division by zero
+    stats["signal_distance_sec"] = audio_duration / audio_sig_detected
+    stats["max_correlation"] = audio_result["correlation"].max()
+    stats["min_correlation"] = audio_result["correlation"].min()
+    stats["mean_correlation"] = audio_result["correlation"].mean()
+    stats["index"] = 0
+
+    return pd.DataFrame(stats, index=[0])
+
+
 def calculate_stats(
     audio_latencies,
     video_latencies,
@@ -1028,6 +1057,9 @@ def main(argv):
     all_av_sync = pd.DataFrame()
     all_combined = pd.DataFrame()
 
+    quality_stats = pd.DataFrame()
+    all_quality_stats = pd.DataFrame()
+
     for infile in files:
         # do something
         outfile = None
@@ -1177,13 +1209,25 @@ def main(argv):
                         "av_sync_sec",
                     ],
                 )
+
                 if len(combined) > 0:
                     path = f"{infile}.latencies.csv"
                     if outfile is not None and len(outfile) > 0 and len(files) == 1:
                         path = f"{outfile}.audio.latency.csv"
                     combined.to_csv(path, index=False)
 
+            quality_stats = calculate_measurement_quality_stats(
+                audio_result, video_result
+            )
+            path = f"{infile}.measurement.quality.csv"
+            if outfile is not None and len(outfile) > 0 and len(files) == 1:
+                path = f"{outfile}.measurement.quality.csv"
+            quality_stats.to_csv(path, index=False)
+
             if len(files) > 1:
+                quality_stats["file"] = infile
+                all_quality_stats = pd.concat([all_quality_stats, quality_stats])
+
                 # combined data
                 if options.calc_all:
                     # only create the combined stat file
@@ -1234,6 +1278,12 @@ def main(argv):
         if outfile is not None and len(outfile) > 0:
             path = f"{outfile}.all.latencies.csv"
         all_combined.to_csv(path, index=False)
+
+    if len(all_quality_stats) > 0:
+        path = f"all.quality_stats.csv"
+        if outfile is not None and len(outfile) > 0:
+            path = f"{outfile}.all.measurement.quality.csv"
+        all_quality_stats.to_csv(path, index=False)
 
 
 if __name__ == "__main__":
