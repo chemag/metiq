@@ -970,9 +970,9 @@ def get_options(argv):
         help="Reuse video frame layout location from the first frame to subsequent frames. This reduces the complexity of the analysis when the camera and DUT are set in a fixed setup",
     )
     parser.add_argument(
-        "--all-calc",
+        "--calc-all",
         action="store_true",
-        dest="all_calc",
+        dest="calc_all",
         help="Calculate all possible derived data",
     )
     parser.add_argument(
@@ -1094,7 +1094,7 @@ def main(argv):
             video_latency = None
             av_sync = None
 
-            if options.audio_latency or options.video_latency or options.all_calc:
+            if options.audio_latency or options.video_latency or options.calc_all:
                 audio_latency = calculate_audio_latency(
                     audio_result,
                     video_result,
@@ -1102,13 +1102,13 @@ def main(argv):
                     audio_offset=options.audio_offset,
                     debug=options.debug,
                 )
-            if options.all_calc or options.audio_latency:
+            if options.calc_all or options.audio_latency:
                 path = f"{infile}.audio.latency.csv"
                 if outfile is not None and len(outfile) > 0 and len(files) == 1:
                     path = f"{outfile}.audio.latency.csv"
                 audio_latency.to_csv(path, index=False)
 
-            if options.video_latency or options.all_calc:
+            if options.video_latency or options.calc_all:
                 video_latency = calculate_video_latency(
                     audio_latency,
                     video_result,
@@ -1122,7 +1122,7 @@ def main(argv):
                         path = f"{outfile}.audio.latency.csv"
                     video_latency.to_csv(path, index=False)
 
-            if options.av_sync or options.all_calc:
+            if options.av_sync or options.calc_all:
                 audio_source = audio_result
                 if audio_latency is not None and len(audio_latency) > 0:
                     audio_source = audio_latency
@@ -1138,7 +1138,7 @@ def main(argv):
                         path = f"{outfile}.audio.latency.csv"
                     av_sync.to_csv(path, index=False)
 
-            if options.all_calc:
+            if options.calc_all:
                 # video latency and avsync latency share original frame
                 # video latency and audio latency share timestamp
 
@@ -1185,7 +1185,7 @@ def main(argv):
 
             if len(files) > 1:
                 # combined data
-                if options.all_calc:
+                if options.calc_all:
                     # only create the combined stat file
                     combined["file"] = infile
                     all_combined = pd.concat([all_combined, combined])
