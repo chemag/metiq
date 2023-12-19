@@ -247,8 +247,8 @@ def calulcate_frames_moving_average(video_result, window_size_sec=1):
     return pd.DataFrame(average)
 
 
-def calculate_frame_durations(video_result):
-    # Calculate how many times a source frame is shown in capture frames/time
+def estimate_fps(video_result):
+    # Estimate source and capture fps by looking at video timestamps
     capture_fps = len(video_result) / (
         video_result["timestamp"].max() - video_result["timestamp"].min()
     )
@@ -262,6 +262,14 @@ def calculate_frame_durations(video_result):
         "timestamp"
     ].values[0]
     source_fps = len(video_result["value_read_int"].unique()) / (max_ts - min_ts)
+
+    return source_fps, capture_fps
+
+
+def calculate_frame_durations(video_result):
+    # Calculate how many times a source frame is shown in capture frames/time
+    source_fps, capture_fps = estimate_fps(video_result)
+    video_result["value_read_int"] = video_result["value_read"].astype(int)
     capt_group = video_result.groupby("value_read_int")
     cg = capt_group.count()["value_read"]
     cg = cg.value_counts().sort_index().to_frame()
