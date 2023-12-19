@@ -251,6 +251,10 @@ def calculate_frames_moving_average(video_result, window_size_sec=1):
 
 def estimate_fps(video_result):
     # Estimate source and capture fps by looking at video timestamps
+    video_result = video_result.dropna()
+    if len(video_result) == 0:
+        print(f"{video_analyze =}")
+        raise Exception("Failed to estimate fps")
     capture_fps = len(video_result) / (
         video_result["timestamp"].max() - video_result["timestamp"].min()
     )
@@ -1047,7 +1051,7 @@ def main(argv):
         # do something
         outfile = None
         if options.outfile is not None:
-            outfile = options.outfile
+            outfile = options.outfile.split(".csv")[0]
         if options.func == "generate":
             # get outfile
             if options.outfile == "-":
@@ -1172,16 +1176,14 @@ def main(argv):
 
                     if len(audio_latency_row) == 0:
                         continue
-
                     audio_latency_sec = audio_latency_row["audio_latency_sec"].values[0]
-
                     av_sync_sec_row = av_sync.loc[av_sync["original_frame"] == frame]
                     if len(av_sync_sec_row) == 0:
                         continue
 
                     av_sync_sec = av_sync_sec_row["av_sync_sec"].values[0]
                     combined.append(
-                        [frame, video_latency_sec, audio_latency_sec, av_sync_sec]
+                        [frame, audio_latency_sec, video_latency_sec, av_sync_sec]
                     )
 
                 combined = pd.DataFrame(
