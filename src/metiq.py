@@ -251,13 +251,15 @@ def calculate_frames_moving_average(video_result, window_size_sec=1):
 
 def estimate_fps(video_result):
     # Estimate source and capture fps by looking at video timestamps
-    video_result = video_result.dropna()
+    video_result = video_result.replace([np.inf, -np.inf], np.nan)
+    video_result = video_result.dropna(subset=["value_read"])
+
     if len(video_result) == 0:
-        print(f"{video_analyze =}")
         raise Exception("Failed to estimate fps")
     capture_fps = len(video_result) / (
         video_result["timestamp"].max() - video_result["timestamp"].min()
     )
+
     video_result["value_read_int"] = video_result["value_read"].astype(int)
     min_val = video_result["value_read_int"].min()
     min_ts = video_result.loc[video_result["value_read_int"] == min_val][
@@ -274,6 +276,9 @@ def estimate_fps(video_result):
 
 def calculate_frame_durations(video_result):
     # Calculate how many times a source frame is shown in capture frames/time
+    video_result = video_result.replace([np.inf, -np.inf], np.nan)
+    video_result = video_result.dropna(subset=["value_read"])
+
     source_fps, capture_fps = estimate_fps(video_result)
     video_result["value_read_int"] = video_result["value_read"].astype(int)
     capt_group = video_result.groupby("value_read_int")
