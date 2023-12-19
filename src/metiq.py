@@ -243,7 +243,7 @@ def calculate_frames_moving_average(video_result, window_size_sec=1):
     return pd.DataFrame(average)
 
 
-def estimate_fps(video_result):
+def estimate_fps(video_result, use_common_fps_vals=True):
     # Estimate source and capture fps by looking at video timestamps
     video_result = video_result.replace([np.inf, -np.inf], np.nan)
     video_result = video_result.dropna(subset=["value_read"])
@@ -263,8 +263,17 @@ def estimate_fps(video_result):
     max_ts = video_result.loc[video_result["value_read_int"] == max_val][
         "timestamp"
     ].values[0]
-    ref_fps = len(video_result["value_read_int"].unique()) / (max_ts - min_ts)
+    vals = video_result["value_read_int"].unique()
 
+    min_val = np.min(vals)
+    max_val = np.max(vals)
+
+    ref_fps = (max_val - min_val) / (max_ts - min_ts)
+
+    common_fps = [7.0, 15.0, 29.97, 30.0, 59.94, 60.0, 119.88, 120.0, 239.76]
+    if use_common_fps_vals:
+        ref_fps = common_fps[np.argmin([abs(x - ref_fps) for x in common_fps])]
+        capture_fps = common_fps[np.argmin([abs(x - capture_fps) for x in common_fps])]
     return ref_fps, capture_fps
 
 
@@ -781,13 +790,15 @@ def get_options(argv):
         help=("use FPS fps (default: %i)" % default_values["fps"]),
     )
     parser.add_argument(
-        "--force-fpsi",
+        "--force-fps",
         action="store",
         type=int,
         dest="force_fps",
         default=-1,
         metavar="ForceFPS",
-        help=("If the auto detection mechanism failes, this value can be used to override te measured value."),
+        help=(
+            "If the auto detection mechanism failes, this value can be used to override te measured value."
+        ),
     )
 
     parser.add_argument(
@@ -1178,7 +1189,6 @@ def main(argv):
 
                 combined = []
                 frames = video_latency["original_frame"].values
-                print("Calc combined")
                 for frame in frames:
                     video_latency_row = video_latency.loc[
                         video_latency["original_frame"] == frame
