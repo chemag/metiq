@@ -198,10 +198,12 @@ def media_analyze(
     return video_results, audio_results
 
 
-def calulcate_frames_moving_average(video_result, window_size_sec=1):
+def calculate_frames_moving_average(video_result, window_size_sec=1):
     # frame, ts, video_result_frame_num_read_int
 
     video_result = video_result.dropna()
+    if len(video_result) == 0:
+        return pd.DataFrame()
     # only one testcase and one situation so no filter is needed.
     startframe = video_result.iloc[0]["value_read"]
     endframe = video_result.iloc[-1]["value_read"]
@@ -1205,8 +1207,8 @@ def main(argv):
                 path = f"{outfile}.measurement.quality.csv"
             quality_stats.to_csv(path, index=False)
 
-            if options.windowed_stats_sec:
-                df = calulcate_frames_moving_average(
+            if options.windowed_stats_sec > 0:
+                df = calculate_frames_moving_average(
                     video_result, options.windowed_stats_sec
                 )
                 df.to_csv(
