@@ -126,7 +126,6 @@ def media_generate(
 def media_analyze(
     width,
     height,
-    fps,
     num_frames,
     pixel_format,
     luma_threshold,
@@ -178,11 +177,10 @@ def media_analyze(
         video_results = pd.read_csv(path_video)
     else:
         # recalculate the video results
-        video_results = video_analyze.video_analyze(
+        video_results = video_analyze.video_parse(
             infile,
             width,
             height,
-            fps,
             pixel_format,
             luma_threshold,
             lock_layout=lock_layout,
@@ -190,10 +188,6 @@ def media_analyze(
         )
     # write up the results to disk
     video_results.to_csv(path_video, index=False)
-    # TODO(chema): move this to a separate analyzer
-    path_video_delta_info = f"{infile}.video.delta_info.csv"
-    video_delta_info = video_analyze.video_analyze_delta_info(video_results)
-    video_delta_info.to_csv(path_video_delta_info, index=False)
 
     return video_results, audio_results
 
@@ -269,9 +263,9 @@ def estimate_fps(video_result):
     max_ts = video_result.loc[video_result["value_read_int"] == max_val][
         "timestamp"
     ].values[0]
-    source_fps = len(video_result["value_read_int"].unique()) / (max_ts - min_ts)
+    ref_fps = len(video_result["value_read_int"].unique()) / (max_ts - min_ts)
 
-    return source_fps, capture_fps
+    return ref_fps, capture_fps
 
 
 def calculate_frame_durations(video_result):
@@ -279,7 +273,7 @@ def calculate_frame_durations(video_result):
     video_result = video_result.replace([np.inf, -np.inf], np.nan)
     video_result = video_result.dropna(subset=["value_read"])
 
-    source_fps, capture_fps = estimate_fps(video_result)
+    ref_fps, capture_fps = estimate_fps(video_result)
     video_result["value_read_int"] = video_result["value_read"].astype(int)
     capt_group = video_result.groupby("value_read_int")
     cg = capt_group.count()["value_read"]
@@ -288,7 +282,7 @@ def calculate_frame_durations(video_result):
     cg["frame_count"] = np.arange(1, len(cg) + 1)
     cg["time"] = cg["frame_count"] / capture_fps
     cg["capture_fps"] = capture_fps
-    cg["source_fps"] = source_fps
+    cg["ref_fps"] = ref_fps
     return cg
 
 
@@ -787,6 +781,16 @@ def get_options(argv):
         help=("use FPS fps (default: %i)" % default_values["fps"]),
     )
     parser.add_argument(
+        "--force-fpsi",
+        action="store",
+        type=int,
+        dest="force_fps",
+        default=-1,
+        metavar="ForceFPS",
+        help=("If the auto detection mechanism failes, this value can be used to override te measured value."),
+    )
+
+    parser.add_argument(
         "--num-frames",
         action="store",
         type=int,
@@ -1092,7 +1096,6 @@ def main(argv):
                 video_result, audio_result = media_analyze(
                     options.width,
                     options.height,
-                    options.fps,
                     options.num_frames,
                     options.pixel_format,
                     options.luma_threshold,
@@ -1112,16 +1115,21 @@ def main(argv):
                     cache_video=cache_video,
                 )
             except Exception as ex:
-                print(f"ERROR: no audio signals found in {infile}")
+                print(f"ERROR: {ex} {infile}")
                 continue
             audio_latency = None
             video_latency = None
             av_sync = None
 
+            ref_fps, capture_fps = estimate_fps(video_result)
+            if options.force_fps > 0:
+                ref_fps = options.force_fps
+
             if options.audio_latency or options.video_latency or options.calc_all:
                 audio_latency = calculate_audio_latency(
                     audio_result,
                     video_result,
+                    fps=ref_fps,
                     beep_period_sec=options.beep_period_sec,
                     audio_offset=options.audio_offset,
                     debug=options.debug,
@@ -1136,6 +1144,7 @@ def main(argv):
                 video_latency = calculate_video_latency(
                     audio_latency,
                     video_result,
+                    fps=ref_fps,
                     beep_period_sec=options.beep_period_sec,
                     audio_offset=options.audio_offset,
                     debug=options.debug,
@@ -1150,10 +1159,10 @@ def main(argv):
                 audio_source = audio_result
                 if audio_latency is not None and len(audio_latency) > 0:
                     audio_source = audio_latency
-                    print(f"call av syn calc")
                 av_sync = calculate_av_sync(
                     audio_source,
                     video_result,
+                    fps=ref_fps,
                     beep_period_sec=options.beep_period_sec,
                     debug=options.debug,
                 )
@@ -1169,6 +1178,7 @@ def main(argv):
 
                 combined = []
                 frames = video_latency["original_frame"].values
+                print("Calc combined")
                 for frame in frames:
                     video_latency_row = video_latency.loc[
                         video_latency["original_frame"] == frame
@@ -1204,7 +1214,7 @@ def main(argv):
                 if len(combined) > 0:
                     path = f"{infile}.latencies.csv"
                     if outfile is not None and len(outfile) > 0 and len(files) == 1:
-                        path = f"{outfile}.audio.latency.csv"
+                        path = f"{outfile}.latencies.csv"
                     combined.to_csv(path, index=False)
 
             quality_stats = calculate_measurement_quality_stats(
