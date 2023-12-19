@@ -1134,13 +1134,14 @@ def main(argv):
                 if len(video_latency) > 0:
                     path = f"{infile}.video.latency.csv"
                     if outfile is not None and len(outfile) > 0 and len(files) == 1:
-                        path = f"{outfile}.audio.latency.csv"
+                        path = f"{outfile}.video.latency.csv"
                     video_latency.to_csv(path, index=False)
 
             if options.av_sync or options.calc_all:
                 audio_source = audio_result
                 if audio_latency is not None and len(audio_latency) > 0:
                     audio_source = audio_latency
+                    print(f"call av syn calc")
                 av_sync = calculate_av_sync(
                     audio_source,
                     video_result,
@@ -1150,7 +1151,7 @@ def main(argv):
                 if len(av_sync) > 0:
                     path = f"{infile}.avsync.csv"
                     if outfile is not None and len(outfile) > 0 and len(files) == 1:
-                        path = f"{outfile}.audio.latency.csv"
+                        path = f"{outfile}.avsync.csv"
                     av_sync.to_csv(path, index=False)
 
             if options.calc_all:
