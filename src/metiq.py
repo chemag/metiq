@@ -438,7 +438,7 @@ def calculate_stats(
 # (d) the frame_num of the next frame where a beep is expected,
 # (e) the latency assuming the initial frame_time.
 def match_video_to_time(
-    ts, video_results, beep_period_frames, frame_time, closest=False
+    ts, video_results, beep_period_frames, frame_time, closest=False, debug=0
 ):
     # get all entries whose ts <= signal ts to a filter
     candidate_list = video_results.index[video_results["timestamp"] <= ts].tolist()
