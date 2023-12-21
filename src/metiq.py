@@ -579,10 +579,13 @@ def calculate_video_relation(
             frame_time,
             closest=closest_reference,
         )
-        if vmatch is not None:
+
+        if vmatch is not None and (vmatch[4] >= 0 or closest_reference): # avsync can be negative
             # fix the latency using the audio_offset
             vmatch[4] = vmatch[4] + audio_offset
             video_latencies.loc[len(video_latencies.index)] = vmatch
+        else:
+            print(f"ERROR: negative video latency - period length needs to be increased, {vmatch}")
 
     return video_latencies
 
@@ -1175,6 +1178,7 @@ def main(argv):
                     video_result,
                     fps=ref_fps,
                     beep_period_sec=options.beep_period_sec,
+                    audio_offset=options.audio_offset,
                     debug=options.debug,
                 )
                 if len(av_sync) > 0:
