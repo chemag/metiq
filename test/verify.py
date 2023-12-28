@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
 """Generate and run test content"""
+import sys
+metiq_path = "../src"
+sys.path.append(metiq_path)
 
 import common
 import video_generate
@@ -9,7 +12,6 @@ import audio_common
 import video_common
 import vft
 import pandas as pd
-import sys
 import argparse
 import tempfile
 import cv2
@@ -201,8 +203,11 @@ def generate_test_file(**settings):
 def run_metiq_cli(**settings):
     filename = settings.get("outfile", "")
     audio_offset = settings.get("audio_offset", 0)
-    command = f"python3 metiq.py -i {filename} --audio-offset {audio_offset} --calc-all analyze --no-cache"
+    command = f"python3 {metiq_path}/metiq.py -i {filename} --audio-offset {audio_offset} --calc-all analyze --no-cache"
     ret, stdout, stderr = common.run(command, debug=DEBUG)
+    print(f"{command=}")
+    assert ret == 0, f"error: {stderr}"
+
 
 
 def verify_metiq_cli(**settings):
