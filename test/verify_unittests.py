@@ -35,7 +35,7 @@ def test1():
     """
     audio = 0.0
     video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
+    descr = f"{inspect.currentframe().f_code.co_name}"
 
     settings = {
         "outfile": f"{descr}.mov",
@@ -54,7 +54,7 @@ def test2():
     """
     audio = -0.030
     video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
+    descr = f"{inspect.currentframe().f_code.co_name}"
     settings = {
         "outfile": f"{descr}.mov",
         "descr": f"{descr}",
@@ -73,7 +73,7 @@ def test3():
     audio = -0.030
     video = 0.0
     offset = -audio
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
+    descr = f"{inspect.currentframe().f_code.co_name}"
     settings = {
         "outfile": f"{descr}.mov",
         "descr": f"{descr}",
@@ -92,7 +92,7 @@ def test4():
     """
     audio = 0.030
     video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
+    descr = f"{inspect.currentframe().f_code.co_name}"
     settings = {
         "outfile": f"{descr}.mov",
         "descr": f"{descr}",
@@ -111,7 +111,7 @@ def test5():
     """
     audio = 0.0
     video = 0.600
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
+    descr = f"{inspect.currentframe().f_code.co_name}"
 
     settings = {
         "outfile": f"{descr}.mov",
@@ -130,7 +130,7 @@ def test6():
     """
     audio = -0.060
     video = 0.100
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
+    descr = f"{inspect.currentframe().f_code.co_name}"
     settings = {
         "outfile": f"{descr}.mov",
         "descr": f"{descr}",
@@ -148,7 +148,7 @@ def test7():
     """
     audio = 0.0
     video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
+    descr = f"{inspect.currentframe().f_code.co_name}"
     # In 60 fps number scheme
     black_frames = [*range(15, 20), *range(70, 74)]
     settings = {
@@ -169,7 +169,7 @@ def test8():
     """
     audio = 0.0
     video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
+    descr = f"{inspect.currentframe().f_code.co_name}"
     # In 60 fps number scheme
     frames = [*range(160, 190)]
     settings = {
@@ -190,7 +190,7 @@ def test9():
     """
     audio = 0.0
     video = 0.200
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
+    descr = f"{inspect.currentframe().f_code.co_name}"
     # In 60 fps number scheme
     frames = [*range(160, 190)]
     settings = {
@@ -211,7 +211,7 @@ def test10():
     """
     audio = 0.0
     video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
+    descr = f"{inspect.currentframe().f_code.co_name}"
     # In 60 fps number scheme
     frames = [*range(160, 190)]
     settings = {
@@ -232,7 +232,7 @@ def test11():
     """
     audio = 0.0
     video = 0.200
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
+    descr = f"{inspect.currentframe().f_code.co_name}"
     # In 60 fps number scheme
     frames = [*range(160, 190)]
     settings = {
