@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+
 metiq_path = "../src"
 sys.path.append(metiq_path)
 
@@ -9,6 +10,13 @@ import audio_generate
 import audio_common
 import video_common
 import vft
+import numpy as np
+import tempfile
+import cv2
+import graycode
+import math
+import scipy
+import os
 
 BEEP_PERIOD_SEC = 3.0
 WIDTH = 720
@@ -21,8 +29,6 @@ DURATION_SEC = 12
 NUM_FRAMES = int(DURATION_SEC * FPS)
 SAMPLE_RATE = 16000
 DEBUG = 0
-PREC = 0.01  # sec
-KEEP_FILES = False
 
 
 def audio_generate(duration_sec, output_filename, **settings):
@@ -59,7 +65,9 @@ def audio_generate(duration_sec, output_filename, **settings):
     )
 
 
-def write_frame(rawstream, frame, frame_num, freeze_frames, black_frames, old_frame, black_frame):
+def write_frame(
+    rawstream, frame, frame_num, freeze_frames, black_frames, old_frame, black_frame
+):
     if frame_num in freeze_frames:
         frame = old_frame
     elif frame_num in black_frames:
@@ -67,6 +75,7 @@ def write_frame(rawstream, frame, frame_num, freeze_frames, black_frames, old_fr
 
     rawstream.write(frame)
     return frame
+
 
 def generate_test_file(**settings):
     audio_delay = settings.get("audio_delay", 0)
@@ -130,12 +139,26 @@ def generate_test_file(**settings):
                 vft_id,
                 DEBUG,
             )
-            old_frame = write_frame(rawstream, img, output_frame_num, freeze_frames, black_frames, old_frame, black_frame)
+            old_frame = write_frame(
+                rawstream,
+                img,
+                output_frame_num,
+                freeze_frames,
+                black_frames,
+                old_frame,
+                black_frame,
+            )
             output_frame_num += 1
             # We are generating at 30fps
             for i in range(int(extra_frames)):
-                write_frame(
-                    rawstream, img, output_frame_num, freeze_frames, black_frames
+                old_frame = write_frame(
+                    rawstream,
+                    img,
+                    output_frame_num,
+                    freeze_frames,
+                    black_frames,
+                    old_frame,
+                    black_frame,
                 )
                 output_frame_num += 1
 
@@ -172,5 +195,3 @@ def generate_test_file(**settings):
     # clean up raw files
     os.remove(video_filename)
     os.remove(audio_filename)
-
-

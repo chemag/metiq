@@ -2,38 +2,29 @@
 
 """Generate and run test content"""
 import sys
+
 metiq_path = "../src"
 sys.path.append(metiq_path)
 
+import os
 import common
-import video_generate
-import audio_generate
-import audio_common
-import video_common
-import vft
 import pandas as pd
 import argparse
-import tempfile
-import cv2
 import numpy as np
-import graycode
-import math
-import os
-import scipy
 import inspect
 import glob
 import re
-import verify_tests
-from video_generate import generate_test_file
+import verify_unittests
+import verify_config as config
+from verify_generate import generate_test_file
 
 
 def run_metiq_cli(**settings):
     filename = settings.get("outfile", "")
     audio_offset = settings.get("audio_offset", 0)
     command = f"python3 {metiq_path}/metiq.py -i {filename} --audio-offset {audio_offset} --calc-all analyze --no-cache"
-    ret, stdout, stderr = common.run(command, debug=DEBUG)
+    ret, stdout, stderr = common.run(command, debug=config.DEBUG)
     assert ret == 0, f"error: {stderr}"
-
 
 
 def verify_metiq_cli(**settings):
@@ -55,21 +46,25 @@ def verify_metiq_cli(**settings):
     if video_delay > 0:
         videolat = pd.read_csv(f"{filename}.video.latency.csv")
         meanval = videolat["video_latency_sec"].mean()
-        result = meanval < PREC + video_delay and meanval > video_delay - PREC
+        result = (
+            meanval < config.PREC + video_delay and meanval > video_delay - config.PREC
+        )
         if not result:
             failed = True
             print(f"Video delay measurement failed: video delay: {meanval}")
 
         audiolat = pd.read_csv(f"{filename}.audio.latency.csv")
         meanval = audiolat["audio_latency_sec"].mean()
-        result = meanval < PREC + audio_delay and meanval > audio_delay - PREC
+        result = (
+            meanval < config.PREC + audio_delay and meanval > audio_delay - config.PREC
+        )
         if not result:
             failed = True
             print(f"Audio delay measurement failed: audio delay: {meanval}")
 
     avsync = pd.read_csv(f"{filename}.avsync.csv")
     meanval = avsync["av_sync_sec"].mean()
-    result = meanval < PREC + av_sync and meanval > av_sync - PREC
+    result = meanval < config.PREC + av_sync and meanval > av_sync - config.PREC
     if not result:
         failed = True
         print(f"Audio/video synchronization measurement failed: audio delay: {meanval}")
@@ -82,7 +77,7 @@ def verify_metiq_cli(**settings):
     else:
         print(f"PASS\n{'-'*20}\n")
         # remove all test files
-        if not KEEP_FILES:
+        if not config.KEEP_FILES:
             for file in glob.glob(f"{filename}*"):
                 os.remove(file)
 
@@ -125,7 +120,7 @@ def run_all_tests():
 
 
 def list_all_tests():
-    module = sys.modules["verify_tests"]
+    module = sys.modules["verify_unittests"]
     functions = inspect.getmembers(module, inspect.isfunction)
     tests = [
         (int(re.search(r"[0-9]+", str(f))[0]), f)
@@ -186,11 +181,10 @@ def get_options(argv):
 
 
 def main(argv):
-    global KEEP_FILES
     # parse options
     options = get_options(argv)
 
-    KEEP_FILES = options.keep
+    config.KEEP_FILES = options.keep
     if options.list:
         print_all_tests()
         exit(0)

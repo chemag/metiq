@@ -3,6 +3,7 @@
 """Test definitions"""
 from verify import run_test
 import inspect
+import verify_config
 
 # Tests are created by varying audio and video delay.
 # Generally both audio and video delay transltes to audio delay and
