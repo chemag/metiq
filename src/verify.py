@@ -20,6 +20,8 @@ import os
 import scipy
 import inspect
 import glob
+import re
+import verify_tests
 
 
 BEEP_PERIOD_SEC = 3.0
@@ -180,11 +182,14 @@ def generate_test_file(**settings):
         debug=debug,
     )
 
+    # speed up
+    ws = int(width / 4)
+    hs = int(height / 4)
     # put them together
     command = "ffmpeg -y "
     command += f"-y -f rawvideo -pixel_format rgb24 -s {width}x{height} -r {output_fps} -i {video_filename} "
     command += f"-i {audio_filename} "
-    command += f"-c:v libx264 -pix_fmt yuv420p -c:a pcm_s16le {outfile}"
+    command += f"-c:v libx264 -pix_fmt yuv420p -c:a pcm_s16le -s {ws}x{hs} {outfile}"
 
     ret, stdout, stderr = common.run(command, debug=debug)
     assert ret == 0, f"error: {stderr}"
@@ -193,14 +198,28 @@ def generate_test_file(**settings):
     os.remove(audio_filename)
 
 
-def run_metiq_cli(filename, audio_offset=0.0):
+def run_metiq_cli(**settings):
+    filename = settings.get("outfile", "")
+    audio_offset = settings.get("audio_offset", 0)
     command = f"python3 metiq.py -i {filename} --audio-offset {audio_offset} --calc-all analyze --no-cache"
     ret, stdout, stderr = common.run(command, debug=DEBUG)
 
 
-def verify_metiq_cli(filename, label, audio_delay=0, video_delay=0, av_sync=0):
+def verify_metiq_cli(**settings):
     failed = False
-    print(f"\n-----\n{label}\n")
+    doc = settings.get("doc", "")
+    filename = settings.get("outfile")
+    audio_offset = settings.get("audio_offset", 0.0)
+    av_sync = -settings.get("audio_delay", 0) + audio_offset
+    video_delay = settings.get("video_delay", 0)
+    audio_delay = video_delay - av_sync
+
+    print(f"\n{'-'*20}\n{filename}\n")
+    print(f"{doc}")
+    print("Audio delay: ", audio_delay)
+    print("Video delay: ", video_delay)
+    print("A/V sync: ", av_sync)
+    print("Audio offset: ", audio_offset)
     # read the files and compare
     if video_delay > 0:
         videolat = pd.read_csv(f"{filename}.video.latency.csv")
@@ -228,261 +247,78 @@ def verify_metiq_cli(filename, label, audio_delay=0, video_delay=0, av_sync=0):
         print(f"{filename}")
         print(f"!!! FAILED\n---\n")
         # Keep files if broken test
+        return False
     else:
-        print(f"PASS\n---\n")
+        print(f"PASS\n{'-'*20}\n")
         # remove all test files
         if not KEEP_FILES:
             for file in glob.glob(f"{filename}*"):
                 os.remove(file)
 
+    return True
 
-def test1():
-    # -------------------------------------------------------
-    # avsync of perfect file @ 60fps
-    audio = 0.0
-    video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
-    label = f"Video delay:{video}s, Audio delay:{audio}s"
-    settings = {
-        "outfile": f"{descr}.mov",
-        "descr": f"{descr}",
-        "output_fps": 60,
-        "video_delay": video,
-        "audio_delay": audio,
-    }
 
+def run_test(**settings):
+    settings["doc"] = get_caller_doc()[1]
     generate_test_file(**settings)
-    run_metiq_cli(settings["outfile"])
-    verify_metiq_cli(settings["outfile"], label)
+    run_metiq_cli(**settings)
+
+    return verify_metiq_cli(**settings)
 
 
-def test2():
-    # -------------------------------------------------------
-    # audio delay 30 ms
-    # positive delay is audio leading, negative audio is late
-    audio = -0.030
-    video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
-    label = f"Video delay:{video}s, Audio delay:{audio}s"
-    settings = {
-        "outfile": f"{descr}.mov",
-        "descr": f"{descr}",
-        "output_fps": 60,
-        "video_delay": video,
-        "audio_delay": -audio,
-    }
-    generate_test_file(**settings)
-    run_metiq_cli(settings["outfile"])
-    verify_metiq_cli(settings["outfile"], label, 0, 0, audio)
+def get_caller_doc():
+    outerframe = inspect.currentframe().f_back.f_back
+    name = outerframe.f_code.co_name
+    doc = outerframe.f_globals[name].__doc__
+    return name, doc
 
 
-def test3():
-    # -------------------------------------------------------
-    # compensate the delay of 30 ms
-    audio = -0.030
-    video = 0.0
-    offset = -audio
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
-    label = f"Video delay:{video}s, Audio delay:{audio}s, compensate 30ms playback/recording offset"
-    settings = {
-        "outfile": f"{descr}.mov",
-        "descr": f"{descr}",
-        "output_fps": 60,
-        "video_delay": video,
-        "audio_delay": -audio,
-    }
-    generate_test_file(**settings)
-    run_metiq_cli(settings["outfile"], offset)
-    verify_metiq_cli(settings["outfile"], label)
+def run_all_tests():
+    tests = list_all_tests()
+    failed = []
+    testcount = len(tests)
+    print(f"Total number of tests to run: {testcount}")
+    for test in tests:
+        result = test[1]()
+        if not result:
+            print(f"{test[1]} failed, append to failed tests")
+            failed.append(test[1])
+
+    passcount = len(tests) - len(failed)
+    print(f"Done: {passcount}/{testcount}")
+
+    if len(failed) > 0:
+        print("Failed tests:")
+        for test in failed:
+            print(f"\t{test.__name__}")
 
 
-def test4():
+def list_all_tests():
+    module = sys.modules["verify_tests"]
+    functions = inspect.getmembers(module, inspect.isfunction)
+    tests = [
+        (int(re.search(r"[0-9]+", str(f))[0]), f)
+        for f in functions
+        if f[0].startswith("test")
+    ]
 
-    # -------------------------------------------------------
-    # audio early 30 ms
-    audio = 0.030
-    video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
-    label = f"Audio early, Video delay:{video}s, Audio delay:{audio}s"
-    settings = {
-        "outfile": f"{descr}.mov",
-        "descr": f"{descr}",
-        "output_fps": 60,
-        "video_delay": video,
-        "audio_delay": -audio,
-    }
-    generate_test_file(**settings)
-    run_metiq_cli(settings["outfile"])
-    verify_metiq_cli(settings["outfile"], label, 0, 0, audio)
+    tests_sorted = sorted(tests, key=lambda x: int(x[0]))
+    return [x[1] for x in tests_sorted]
 
 
-def test5():
-
-    # -------------------------------------------------------
-    # audio sync perfect, video delay 100ms
-    audio = 0.0
-    video = 0.600
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
-    label = f"Video delay:{video}s, Audio delay:{audio}s"
-
-    settings = {
-        "outfile": f"{descr}.mov",
-        "descr": "vd.100ms",
-        "output_fps": 60,
-        "video_delay": video,
-        "audio_delay": -audio,
-    }
-    generate_test_file(**settings)
-    run_metiq_cli(settings["outfile"])
-    verify_metiq_cli(settings["outfile"], label, video - audio, video, audio)
+def print_all_tests():
+    tests = list_all_tests()
+    for test in tests:
+        print(f"{test[0]}: {test[1].__doc__}")
 
 
-def test6():
-    # -------------------------------------------------------
-    # audio late 60ms, video delay 100ms
-    audio = -0.060
-    video = 0.100
-    descr = f"v{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
-    label = f"Video delay:{video}s, Audio delay:{audio}s"
-    settings = {
-        "outfile": f"{descr}.mov",
-        "descr": f"{descr}",
-        "output_fps": 60,
-        "video_delay": video,
-        "audio_delay": -audio,
-    }
-    generate_test_file(**settings)
-    run_metiq_cli(settings["outfile"])
-    verify_metiq_cli(settings["outfile"], label, video - audio, video, audio)
+def find_test(testname):
+    tests = list_all_tests()
+    for test in tests:
+        if re.search(f"{testname}$", test[0]):
+            return test[1]
 
-
-def test7():
-    #
-    # Test black frames outside of sync position
-    audio = 0.0
-    video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
-    label = f"Video delay:{video}s, Audio delay:{audio}s"
-    # In 60 fps number scheme
-    black_frames = [*range(15, 20), *range(70, 74)]
-    settings = {
-        "outfile": f"{descr}.mov",
-        "descr": f"{descr}",
-        "output_fps": 60,
-        "video_delay": video,
-        "audio_delay": audio,
-        "black_frames": black_frames,
-    }
-
-    generate_test_file(**settings)
-    run_metiq_cli(settings["outfile"])
-    verify_metiq_cli(settings["outfile"], label)
-
-
-def test8():
-    #
-    # Test black frames at sync position
-    audio = 0.0
-    video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
-    label = f"Video delay:{video}s, Audio delay:{audio}s"
-    # In 60 fps number scheme
-    frames = [*range(160, 190)]
-    settings = {
-        "outfile": f"{descr}.mov",
-        "descr": f"{descr}",
-        "output_fps": 60,
-        "video_delay": video,
-        "audio_delay": audio,
-        "black_frames": frames,
-    }
-
-    generate_test_file(**settings)
-    run_metiq_cli(settings["outfile"])
-    verify_metiq_cli(settings["outfile"], label)
-
-
-def test9():
-    #
-    # Test black frames at sync position with video delay
-    audio = 0.0
-    video = 0.200
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
-    label = f"Video delay:{video}s, Audio delay:{audio}s"
-    # In 60 fps number scheme
-    frames = [*range(160, 190)]
-    settings = {
-        "outfile": f"{descr}.mov",
-        "descr": f"{descr}",
-        "output_fps": 60,
-        "video_delay": video,
-        "audio_delay": audio,
-        "black_frames": frames,
-    }
-
-    generate_test_file(**settings)
-    run_metiq_cli(settings["outfile"])
-    verify_metiq_cli(settings["outfile"], label)
-
-
-def test10():
-    #
-    # Test frozen frames at sync position
-    audio = 0.0
-    video = 0.0
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
-    label = f"Video delay:{video}s, Audio delay:{audio}s"
-    # In 60 fps number scheme
-    frames = [*range(160, 190)]
-    settings = {
-        "outfile": f"{descr}.mov",
-        "descr": f"{descr}",
-        "output_fps": 60,
-        "video_delay": video,
-        "audio_delay": audio,
-        "freeze_frames": frames,
-    }
-
-    generate_test_file(**settings)
-    run_metiq_cli(settings["outfile"])
-    verify_metiq_cli(settings["outfile"], label)
-
-
-def test11():
-    #
-    # Test frozen frames at sync position with video delay
-    audio = 0.0
-    video = 0.200
-    descr = f"{inspect.currentframe().f_code.co_name}_vd.{video}s.ad.{audio}s"
-    label = f"Video delay:{video}s, Audio delay:{audio}s"
-    # In 60 fps number scheme
-    frames = [*range(160, 190)]
-    settings = {
-        "outfile": f"{descr}.mov",
-        "descr": f"{descr}",
-        "output_fps": 60,
-        "video_delay": video,
-        "audio_delay": audio,
-        "freeze_frames": frames,
-    }
-
-    generate_test_file(**settings)
-    run_metiq_cli(settings["outfile"])
-    verify_metiq_cli(settings["outfile"], label)
-
-
-def test():
-    test1()
-    test2()
-    test3()
-    test4()
-    test5()
-    test6()
-    test7()
-    test8()
-    test9()
-    test10()
-    test11()
+    return None
 
 
 def get_options(argv):
@@ -505,6 +341,12 @@ def get_options(argv):
         action="store_true",
         help="keep all files after a run",
     )
+    parser.add_argument(
+        "-l",
+        "--list",
+        action="store_true",
+        help="list all tests",
+    )
     parser.add_argument("--run", type=str, help="Run a specific test number")
 
     options = parser.parse_args(argv[1:])
@@ -518,14 +360,16 @@ def main(argv):
     options = get_options(argv)
 
     KEEP_FILES = options.keep
-    if options.run:
-        print(f"Running {options.run}")
-        if options.run.isdigit():
-            globals()[f"test{options.run}"]()
-        else:
-            globals()[options.run]()
+    if options.list:
+        print_all_tests()
         exit(0)
-    test()
+
+    if options.run:
+        test = find_test(options.run)
+        if test:
+            test()
+        exit(0)
+    run_all_tests()
 
 
 if __name__ == "__main__":
