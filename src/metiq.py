@@ -827,8 +827,9 @@ def get_options(argv):
         help=("use NUM_FRAMES frames (default: %i)" % default_values["num_frames"]),
     )
     parser.add_argument(
-        "--audio_sample",
+        "--audio-sample",
         type=str,
+        dest = "audio_sample",
         default=default_values["audio_sample"],
         help="use a sample as source for signal",
     )
