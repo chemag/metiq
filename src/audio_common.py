@@ -146,8 +146,6 @@ def generate_sample_based(duration_sec, **kwargs):
         cur_sample += num_samples_silence
     return aud
 
-    return aud
-
 
 def main():
     aud = generate_chirp(
