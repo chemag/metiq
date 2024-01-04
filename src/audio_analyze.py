@@ -22,6 +22,7 @@ default_values = {
     "debug": 0,
     "infile": None,
     "outfile": None,
+    "audio_sample": None,
 }
 
 
@@ -237,6 +238,12 @@ def get_options(argv):
         metavar="output-file",
         help="output file [csv]",
     )
+    parser.add_argument(
+        "--audio-sample",
+        type=str,
+        dest="audio_sample",
+        default=default_values["audio_sample"],
+    )
     # do the parsing
     options = parser.parse_args(argv[1:])
     if options.version:
@@ -272,6 +279,7 @@ def main(argv):
         debug=options.debug,
         min_separation_msec=options.min_separation_msec,
         min_match_threshold=options.min_match_threshold,
+        audio_sample = options.audio_sample
     )
     dump_audio_results(audio_results, options.outfile, options.debug)
     # get audio duration
