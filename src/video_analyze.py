@@ -133,7 +133,6 @@ def estimate_video_smoothness(video_results, fps):
     return video_speed_list
 
 
-
 def video_parse(
     infile,
     width,
@@ -145,7 +144,17 @@ def video_parse(
 ):
     # If we do ot know the source fps we can still do the parsing.
     # Ignore delta calculations and guessing frames, i.e. the analysis
-    return video_analyze(infile, width, height, -1, pixel_format, luma_threshold, lock_layout, debug=debug)
+    return video_analyze(
+        infile,
+        width,
+        height,
+        -1,
+        pixel_format,
+        luma_threshold,
+        lock_layout,
+        debug=debug,
+    )
+
 
 # Returns a list with one tuple per frame in the distorted video
 # stream. Each tuple consists of the following elements:

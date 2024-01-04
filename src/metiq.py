@@ -63,7 +63,6 @@ default_values = {
 
 
 def media_generate(outfile, **kwarg):
-
     width = kwarg.get("width", default_values["width"])
     height = kwarg.get("height", default_values["height"])
     fps = kwarg.get("fps", default_values["fps"])
@@ -590,12 +589,16 @@ def calculate_video_relation(
             closest=closest_reference,
         )
 
-        if vmatch is not None and (vmatch[4] >= 0 or closest_reference): # avsync can be negative
+        if vmatch is not None and (
+            vmatch[4] >= 0 or closest_reference
+        ):  # avsync can be negative
             # fix the latency using the audio_offset
             vmatch[4] = vmatch[4] + audio_offset
             video_latencies.loc[len(video_latencies.index)] = vmatch
         else:
-            print(f"ERROR: negative video latency - period length needs to be increased, {vmatch}")
+            print(
+                f"ERROR: negative video latency - period length needs to be increased, {vmatch}"
+            )
 
     return video_latencies
 
