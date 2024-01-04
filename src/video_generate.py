@@ -35,7 +35,15 @@ default_values = {
 
 
 def image_generate(
-    image_info, frame_num, text1, text2, beep_color, font, vft_id, debug
+    image_info,
+    frame_num,
+    text1,
+    text2,
+    beep_color,
+    font,
+    vft_id,
+    fontscale=1.0,
+    debug=0,
 ):
     # 0. start with an empty image
     img = np.zeros((image_info.height, image_info.width, 3), np.uint8)
@@ -56,8 +64,8 @@ def image_generate(
     if text2:
         x0 = 32
         y0 = image_info.height - 32
-        cv2.putText(img, text2, (x0, y0), font, 1, COLOR_BLACK, 16, cv2.LINE_AA)
-        cv2.putText(img, text2, (x0, y0), font, 1, COLOR_WHITE, 2, cv2.LINE_AA)
+        cv2.putText(img, text2, (x0, y0), font, fontscale, COLOR_BLACK, 12, cv2.LINE_AA)
+        cv2.putText(img, text2, (x0, y0), font, fontscale, COLOR_WHITE, 2, cv2.LINE_AA)
     # 3. add VFT code
     x0, x1 = image_info.vft_x
     y0, y1 = image_info.vft_y
@@ -88,6 +96,16 @@ def video_generate(
     vft_layout = vft.VFTLayout(width, height, vft_id)
     with open(outfile, "wb") as rawstream:
         font = cv2.FONT_HERSHEY_SIMPLEX
+        fontscale = 1.0
+        # Need to make sure we can fit the second text not knowing the actual rem text
+        while True:
+            textwidth = cv2.getTextSize(
+                f"fps: fps:30 resolution: 123x123 {rem}", font, fontscale, 2
+            )
+            fontscale = fontscale * 0.9
+            if textwidth[0][0] <= width:
+                break
+
         # original image
         for frame_num in range(0, num_frames, 1):
             img = np.zeros((height, width, 3), np.uint8)
@@ -106,6 +124,7 @@ def video_generate(
                 beep_color,
                 font,
                 vft_id,
+                fontscale,
                 debug,
             )
             rawstream.write(img)

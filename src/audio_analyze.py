@@ -114,7 +114,7 @@ def audio_analyze_wav(infile, **kwargs):
     min_separation_msec = kwargs.get("min_separation_msec", DEFAULT_MIN_SEPARATION_MSEC)
     min_separation_samples = int(int(min_separation_msec) * int(samplerate) / 1000)
     min_match_threshold = kwargs.get("min_match_threshold")
-
+    audio_sample = kwargs.get("audio_sample", "")
     # open the input
     haystack_samplerate, inaud = scipy.io.wavfile.read(infile)
 
@@ -134,12 +134,17 @@ def audio_analyze_wav(infile, **kwargs):
             padtype="mean",
         )
     # generate a single needle (without the silence)
-    beep_duration_samples = kwargs.get(
-        "beep_duration_samples", audio_common.DEFAULT_BEEP_DURATION_SAMPLES
-    )
-    needle_target = audio_common.generate_chirp(beep_period_sec, **kwargs)[
-        0:beep_duration_samples
-    ]
+    needle_target = None
+    if len(audio_sample) > 0:
+        print(f"read audio sample: {audio_sample}")
+        needle_target = scipy.io.wavfile.read(audio_sample)[1]
+    else:
+        beep_duration_samples = kwargs.get(
+            "beep_duration_samples", audio_common.DEFAULT_BEEP_DURATION_SAMPLES
+        )
+        needle_target = audio_common.generate_chirp(beep_period_sec, **kwargs)[
+            0:beep_duration_samples
+        ]
 
     audio_results = pd.DataFrame(columns=["audio_sample", "timestamp", "correlation"])
 

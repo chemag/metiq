@@ -58,24 +58,28 @@ default_values = {
     "outfile": None,
     "audio_offset": 0,
     "lock_layout": False,
+    "audio_sample": "",
 }
 
 
-def media_generate(
-    width,
-    height,
-    fps,
-    num_frames,
-    vft_id,
-    pre_samples,
-    samplerate,
-    beep_freq,
-    beep_duration_samples,
-    beep_period_sec,
-    scale,
-    outfile,
-    debug,
-):
+def media_generate(outfile, **kwarg):
+
+    width = kwarg.get("width", default_values["width"])
+    height = kwarg.get("height", default_values["height"])
+    fps = kwarg.get("fps", default_values["fps"])
+    num_frames = kwarg.get("num_frames", default_values["num_frames"])
+    vft_id = kwarg.get("vft_id", default_values["vft_id"])
+    pre_samples = kwarg.get("pre_samples", default_values["pre_samples"])
+    samplerate = kwarg.get("samplerate", default_values["samplerate"])
+    beep_freq = kwarg.get("beep_freq", default_values["beep_freq"])
+    beep_duration_samples = kwarg.get(
+        "beep_duration_samples", default_values["beep_duration_samples"]
+    )
+    beep_period_sec = kwarg.get("beep_period_sec", default_values["beep_period_sec"])
+    scale = kwarg.get("scale", default_values["scale"])
+    debug = kwarg.get("debug", default_values["debug"])
+    audio_sample = kwarg.get("audio_sample", default_values["audio_sample"])
+
     # calculate the frame period
     beep_period_frames = beep_period_sec * fps
     vft_layout = vft.VFTLayout(width, height, vft_id)
@@ -84,6 +88,9 @@ def media_generate(
     # generate the (raw) video input
     video_filename = tempfile.NamedTemporaryFile().name + ".rgb24"
     rem = f"period: {beep_period_sec} freq_hz: {beep_freq} samples: {beep_duration_samples}"
+    if len(audio_sample) > 0:
+        rem = f"period: {beep_period_sec} signal: {audio_sample}"
+
     video_generate.video_generate(
         width,
         height,
@@ -109,6 +116,7 @@ def media_generate(
         beep_duration_samples=beep_duration_samples,
         beep_period_sec=beep_period_sec,
         scale=scale,
+        audio_sample=audio_sample,
         debug=debug,
     )
     # put them together
@@ -144,6 +152,7 @@ def media_analyze(
     lock_layout = kwargs.get("lock_layout", False)
     cache_video = kwargs.get("cache_video", True)
     cache_audio = kwargs.get("cache_audio", True)
+    audio_sample = kwargs.get("audio_sample", "")
 
     # 1. analyze the audio stream
     path_audio = f"{infile}.audio.csv"
@@ -161,6 +170,7 @@ def media_analyze(
             scale=scale,
             min_separation_msec=kwargs.get("min_separation_msec", 50),
             min_match_threshold=kwargs.get("min_match_threshold", 10),
+            audio_sample=audio_sample,
             debug=debug,
         )
         if audio_results is None or len(audio_results) == 0:
@@ -814,6 +824,12 @@ def get_options(argv):
         help=("use NUM_FRAMES frames (default: %i)" % default_values["num_frames"]),
     )
     parser.add_argument(
+        "--audio_sample",
+        type=str,
+        default=default_values["audio_sample"],
+        help="use a sample as source for signal",
+    )
+    parser.add_argument(
         "--pixel-format",
         action="store",
         type=str,
@@ -1054,7 +1070,7 @@ def main(argv):
 
     files = []
     # if options.infile.endswith("]") and options.infile.startswith("["):
-    if "\n" in options.infile:
+    if options.infile is not None and "\n" in options.infile:
         tmp = options.infile.split("\n")
         files = [fil for fil in tmp if fil != ""]
     else:
@@ -1080,21 +1096,21 @@ def main(argv):
             if options.outfile == "-":
                 outfile = "/dev/fd/1"
             # do something
-            # do something
             media_generate(
-                options.width,
-                options.height,
-                options.fps,
-                options.num_frames,
-                options.vft_id,
-                options.pre_samples,
-                options.samplerate,
-                options.beep_freq,
-                options.beep_duration_samples,
-                options.beep_period_sec,
-                options.scale,
-                outfile,
-                options.debug,
+                width=options.width,
+                height=options.height,
+                fps=options.fps,
+                num_frames=options.num_frames,
+                vft_id=options.vft_id,
+                pre_samples=options.pre_samples,
+                samplerate=options.samplerate,
+                beep_freq=options.beep_freq,
+                beep_duration_samples=options.beep_duration_samples,
+                beep_period_sec=options.beep_period_sec,
+                scale=options.scale,
+                outfile=outfile,
+                debug=options.debug,
+                audio_sample=options.audio_sample,
             )
         elif options.func == "analyze":
             # get infile
@@ -1127,6 +1143,7 @@ def main(argv):
                     audio_offset=options.audio_offset,
                     cache_audio=cache_audio,
                     cache_video=cache_video,
+                    audio_sample=options.audio_sample,
                 )
             except Exception as ex:
                 print(f"ERROR: {ex} {infile}")

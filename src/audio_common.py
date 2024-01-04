@@ -105,6 +105,50 @@ def generate_beep(duration_sec, **kwargs):
     return aud
 
 
+def generate_sample_based(duration_sec, **kwargs):
+    pre_samples = kwargs.get("pre_samples", DEFAULT_PRE_SAMPLES)
+    period_sec = kwargs.get("period_sec", DEFAULT_BEEP_PERIOD_SEC)
+    samplerate = kwargs.get("samplerate", DEFAULT_SAMPLERATE)
+    scale = kwargs.get("scale", DEFAULT_SCALE)
+    num_samples = int(duration_sec * samplerate)
+    sample = kwargs.get("audio_sample", None)
+    if sample is None:
+        # throw error
+        return None
+
+    source_samplerate, aud = scipy.io.wavfile.read(sample)
+    # TODO: handle samplerate
+    array = (aud * scale).astype(np.int16)
+    duration_samples = len(array)  # TODO: mono or stereo?
+    # array = (array * (2**15) * scale).astype(np.int16)
+    ramp = np.arange(0, 1, 0.01)
+    array[:100] = array[:100] * ramp
+    array[-100:] = array[-100:] * ramp[::-1]
+    # compose the final signal of beeps and silences
+    aud = np.zeros(pre_samples, dtype=np.int16)
+    cur_sample = 0
+    total_samples = duration_sec * samplerate
+    while cur_sample < total_samples:
+        # add a beep
+        aud = np.append(aud, array)
+        cur_sample += duration_samples
+        if cur_sample >= total_samples:
+            break
+        # add silence
+        num_samples_silence = int(
+            min(
+                (samplerate * period_sec) - duration_samples,
+                total_samples - cur_sample,
+            )
+        )
+        zero_array = np.zeros(num_samples_silence, dtype=np.int16)
+        aud = np.append(aud, zero_array)
+        cur_sample += num_samples_silence
+    return aud
+
+    return aud
+
+
 def main():
     aud = generate_chirp(
         1,
