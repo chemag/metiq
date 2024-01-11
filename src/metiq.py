@@ -459,7 +459,25 @@ def match_video_to_time(
         if latest_value_read == None or np.isnan(latest_value_read):
             if debug > 0:
                 print("read is nan")
-            return None
+            # look for the previous frame with a valid value_read
+            # TODO: maybe interpolate
+            # limit the list to half the frame time
+            for i in reversed(candidate_list[:-1]):
+                if not np.isnan(video_results.iloc[i]["value_read"]):
+                    latest_iloc = i
+                    latest_frame_num = video_results.iloc[latest_iloc]["frame_num"]
+                    latest_value_read = video_results.iloc[latest_iloc]["value_read"]
+                    break
+                if ts - video_results.iloc[i]["timestamp"] > frame_time / 2:
+                    print(f"Could not match {ts} with a frame, too many broken frames")
+                    break
+
+            if latest_value_read == None or np.isnan(latest_value_read):
+                return None
+            if debug > 0:
+                print(
+                    f"Used previous frame {latest_frame_num} with value {latest_value_read}, {latest_iloc - candidate_list[-1]} frames before"
+                )
         # estimate the frame for the next beep based on the frequency
         next_beep_frame = (
             int(latest_value_read / beep_period_frames) + 1
@@ -485,6 +503,8 @@ def match_video_to_time(
                 latency,
             ]
             return vlat
+    else:
+        print(f"{ts=} not found in video_results")
     return None
 
 
@@ -595,6 +615,8 @@ def calculate_video_relation(
             # fix the latency using the audio_offset
             vmatch[4] = vmatch[4] + audio_offset
             video_latencies.loc[len(video_latencies.index)] = vmatch
+        elif vmatch is None:
+            print(f"ERROR: no match found for video latency calculation")
         else:
             print(
                 f"ERROR: negative video latency - period length needs to be increased, {vmatch}"
