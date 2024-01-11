@@ -22,7 +22,7 @@ from verify_generate import generate_test_file
 def run_metiq_cli(**settings):
     filename = settings.get("outfile", "")
     audio_offset = settings.get("audio_offset", 0)
-    command = f"python3 {metiq_path}/metiq.py -i {filename} --audio-offset {audio_offset} --calc-all analyze --no-cache"
+    command = f"python3 {metiq_path}/metiq.py -i {filename} --audio-offset {audio_offset} --calc-all analyze --no-cache -d"
     ret, stdout, stderr = common.run(command, debug=config.DEBUG)
     assert ret == 0, f"error: {stderr}"
 
