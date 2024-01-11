@@ -19,7 +19,7 @@ import video_common
 import video_generate
 import video_analyze
 import common
-
+import time
 
 from _version import __version__
 
@@ -829,7 +829,7 @@ def get_options(argv):
     parser.add_argument(
         "--audio-sample",
         type=str,
-        dest = "audio_sample",
+        dest="audio_sample",
         default=default_values["audio_sample"],
         help="use a sample as source for signal",
     )
@@ -1090,8 +1090,22 @@ def main(argv):
 
     all_frame_duration = pd.DataFrame()
 
+    nbr_files = len(files)
+    file_cnt = 0
+    start = time.monotonic_ns()
     for infile in files:
         # do something
+        time_left_sec = np.inf
+        estimation = ""
+        if file_cnt > 0:
+            current_time = time.monotonic_ns()
+            time_per_file = (current_time - start) / file_cnt
+            print(f"{time_per_file/1000000000.0} sec")
+            time_left_sec = time_per_file * (nbr_files - file_cnt) / 1000000000.0
+            estimation = f" estimated time left: {time_left_sec:.1f} sec"
+
+        file_cnt += 1
+        print(f"---\n({file_cnt}/{nbr_files}) -- {infile} {estimation}")
         outfile = None
         if options.outfile is not None:
             outfile = options.outfile.split(".csv")[0]
