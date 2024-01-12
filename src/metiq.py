@@ -147,7 +147,6 @@ def media_analyze(
     debug,
     **kwargs,
 ):
-    audio_offset = kwargs.get("audio_offset", 0)
     lock_layout = kwargs.get("lock_layout", False)
     cache_video = kwargs.get("cache_video", True)
     cache_audio = kwargs.get("cache_audio", True)
@@ -512,7 +511,6 @@ def calculate_audio_latency(
     audio_results,
     video_results,
     beep_period_sec,
-    audio_offset=0,
     fps=30,
     ignore_match_order=True,
     debug=False,
@@ -573,7 +571,6 @@ def calculate_video_relation(
     audio_anchor,
     closest_reference,
     beep_period_sec,
-    audio_offset=0,
     fps=30,
     ignore_match_order=True,
     debug=False,
@@ -612,8 +609,6 @@ def calculate_video_relation(
         if vmatch is not None and (
             vmatch[4] >= 0 or closest_reference
         ):  # avsync can be negative
-            # fix the latency using the audio_offset
-            vmatch[4] = vmatch[4] + audio_offset
             video_latencies.loc[len(video_latencies.index)] = vmatch
         elif vmatch is None:
             print(f"ERROR: no match found for video latency calculation")
@@ -629,7 +624,6 @@ def calculate_video_latency(
     audio_latency,
     video_result,
     beep_period_sec,
-    audio_offset=0,
     fps=30,
     ignore_match_order=True,
     debug=False,
@@ -641,7 +635,6 @@ def calculate_video_latency(
         "timestamp1",
         False,
         beep_period_sec=beep_period_sec,
-        audio_offset=audio_offset,
         fps=fps,
         ignore_match_order=ignore_match_order,
         debug=debug,
@@ -652,7 +645,6 @@ def calculate_av_sync(
     audio_data,
     video_result,
     beep_period_sec,
-    audio_offset=0,
     fps=30,
     ignore_match_order=True,
     debug=False,
@@ -668,7 +660,6 @@ def calculate_av_sync(
         timefield,
         True,
         beep_period_sec=beep_period_sec,
-        audio_offset=audio_offset,
         fps=fps,
         ignore_match_order=ignore_match_order,
         debug=debug,
@@ -1185,7 +1176,6 @@ def main(argv):
                     options.debug,
                     min_separation_msec=options.min_separation_msec,
                     min_match_threshold=options.min_match_threshold,
-                    audio_offset=options.audio_offset,
                     cache_audio=cache_audio,
                     cache_video=cache_video,
                     audio_sample=options.audio_sample,
@@ -1201,13 +1191,14 @@ def main(argv):
             if options.force_fps > 0:
                 ref_fps = options.force_fps
 
+            # Adjust for the audio offset early
+            video_result["timestamp"] += options.audio_offset
             if options.audio_latency or options.video_latency or options.calc_all:
                 audio_latency = calculate_audio_latency(
                     audio_result,
                     video_result,
                     fps=ref_fps,
                     beep_period_sec=options.beep_period_sec,
-                    audio_offset=options.audio_offset,
                     debug=options.debug,
                 )
             if options.calc_all or options.audio_latency:
@@ -1222,7 +1213,6 @@ def main(argv):
                     video_result,
                     fps=ref_fps,
                     beep_period_sec=options.beep_period_sec,
-                    audio_offset=options.audio_offset,
                     debug=options.debug,
                 )
                 if len(video_latency) > 0:
@@ -1240,7 +1230,6 @@ def main(argv):
                     video_result,
                     fps=ref_fps,
                     beep_period_sec=options.beep_period_sec,
-                    audio_offset=options.audio_offset,
                     debug=options.debug,
                 )
                 if len(av_sync) > 0:

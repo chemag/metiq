@@ -24,9 +24,12 @@ import verify_config
 # This simulates sending irregularities and quality/parsing issues respectively.
 #
 # Verification is done by observing:
-# 1) Audio delay will be the audio delay + video delay (audio delay with opposite sign -> video_delay - audio_delay)
+# 1) Audio delay will be the audio delay
 # 2) Video delay will be the video delay set directly
-# 3) a/v sync will be the audio delay
+# 3) Audio offset will be the video delay - audio delay
+#
+# Please not that the delays going into the generator are all in the same direction which for audio is the opposite sign
+# compared to avync standard
 
 
 def test1():
@@ -52,7 +55,7 @@ def test2():
     """
     Audio late 30 ms
     """
-    audio = -0.030
+    audio = 0.030
     video = 0.0
     descr = f"{inspect.currentframe().f_code.co_name}"
     settings = {
@@ -60,7 +63,7 @@ def test2():
         "descr": f"{descr}",
         "output_fps": 60,
         "video_delay": video,
-        "audio_delay": -audio,
+        "audio_delay": audio,
     }
 
     return run_test(**settings)
@@ -70,16 +73,16 @@ def test3():
     """
     Audio late 30 ms, compensate the delay with audio offset.
     """
-    audio = -0.030
+    audio = 0.030
     video = 0.0
-    offset = -audio
+    offset = 0.030
     descr = f"{inspect.currentframe().f_code.co_name}"
     settings = {
         "outfile": f"{descr}.mov",
         "descr": f"{descr}",
         "output_fps": 60,
         "video_delay": video,
-        "audio_delay": -audio,
+        "audio_delay": audio,
         "audio_offset": offset,
     }
 
@@ -90,7 +93,7 @@ def test4():
     """
     audio early 30 ms
     """
-    audio = 0.030
+    audio = -0.030
     video = 0.0
     descr = f"{inspect.currentframe().f_code.co_name}"
     settings = {
@@ -98,7 +101,7 @@ def test4():
         "descr": f"{descr}",
         "output_fps": 60,
         "video_delay": video,
-        "audio_delay": -audio,
+        "audio_delay": audio,
     }
 
     return run_test(**settings)
@@ -109,8 +112,9 @@ def test5():
     """
     Video delay 100ms, a/v sync perfect
     """
-    audio = 0.0
-    video = 0.600
+    audio = 0.200
+    video = 0.200
+    offset = 0.0
     descr = f"{inspect.currentframe().f_code.co_name}"
 
     settings = {
@@ -118,7 +122,8 @@ def test5():
         "descr": "vd.100ms",
         "output_fps": 60,
         "video_delay": video,
-        "audio_delay": -audio,
+        "audio_delay": audio,
+        "audio_offset": offset,
     }
 
     return run_test(**settings)
@@ -126,9 +131,9 @@ def test5():
 
 def test6():
     """
-    Audio late 60ms, video delay 100ms
+    Audio late 200ms, video delay 100ms
     """
-    audio = -0.060
+    audio = 0.200
     video = 0.100
     descr = f"{inspect.currentframe().f_code.co_name}"
     settings = {
@@ -136,7 +141,7 @@ def test6():
         "descr": f"{descr}",
         "output_fps": 60,
         "video_delay": video,
-        "audio_delay": -audio,
+        "audio_delay": audio,
     }
 
     return run_test(**settings)
@@ -186,9 +191,9 @@ def test8():
 
 def test9():
     """
-    Black frames at sync position with 200 ms video delay
+    Black frames at sync position with 200 ms video delay. Pefect sync.
     """
-    audio = 0.0
+    audio = 0.200
     video = 0.200
     descr = f"{inspect.currentframe().f_code.co_name}"
     # In 60 fps number scheme
@@ -228,10 +233,10 @@ def test10():
 
 def test11():
     """
-    Frozen frames at sync position with 200 ms video delay
+    Frozen frames at sync position with 500 ms video delay. Audio 300ms early.
     """
-    audio = 0.0
-    video = 0.200
+    audio = 0.200
+    video = 0.500
     descr = f"{inspect.currentframe().f_code.co_name}"
     # In 60 fps number scheme
     frames = [*range(160, 190)]
@@ -242,6 +247,26 @@ def test11():
         "video_delay": video,
         "audio_delay": audio,
         "freeze_frames": frames,
+    }
+
+    return run_test(**settings)
+
+
+def test12():
+    """
+    Offset is close to the video delay.
+    """
+    audio = 0.5
+    video = 0.5
+    offset = 0.5
+    descr = f"{inspect.currentframe().f_code.co_name}"
+    settings = {
+        "outfile": f"{descr}.mov",
+        "descr": f"{descr}",
+        "output_fps": 60,
+        "video_delay": video,
+        "audio_delay": audio,
+        "audio_offset": offset,
     }
 
     return run_test(**settings)
