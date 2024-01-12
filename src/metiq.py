@@ -1154,8 +1154,13 @@ def main(argv):
             )
         elif options.func == "analyze":
             # get infile
+            video_ending = ".video.csv"
             if infile == "-":
                 infile = "/dev/fd/0"
+            elif infile[-len(video_ending) :] == video_ending:
+                # assume the file is using standard naming scheme
+                # i.e. *.[mov|mp4].video.csv
+                infile = infile[: -len(video_ending)]
             assert infile is not None, "error: need a valid in file"
             # get outfile
             if options.outfile == "-":
