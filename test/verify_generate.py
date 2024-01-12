@@ -31,34 +31,48 @@ SAMPLE_RATE = 16000
 DEBUG = 0
 
 
+def add_delay(audio, delay, samplerate):
+    if delay > 0:
+        ddata = [0.0] * int(delay * samplerate)
+        audio_signal = np.concatenate((ddata, audio))[: len(audio)]
+    elif delay < 0:
+        ddata = [0.0] * int(-delay * samplerate)
+        audio_signal = np.concatenate((audio[-int(delay * samplerate) :], ddata))[
+            : len(audio)
+        ]
+    else:
+        audio_signal = audio
+    return audio_signal
+
+
 def audio_generate(duration_sec, output_filename, **settings):
     audio_delay = settings.get("audio_delay", 0)
     video_delay = settings.get("video_delay", 0)
+    audio_offset = settings.get("audio_offset", 0)
     samplerate = settings.get("samplerate", SAMPLE_RATE)
+
+    # audio_delay += video_delay
 
     # normal default signal
     aud = audio_common.generate_chirp(duration_sec, **settings)
 
     audio_signal = None
-    auddio_filtered = None
-    if audio_delay > 0:
-        delay = [0.0] * int(audio_delay * samplerate)
-        audio_filtered = np.concatenate((delay, aud))[: len(aud)]
-    elif audio_delay < 0:
-        audio_filtered = aud[-int(audio_delay * samplerate) :]
-    else:
-        audio_filtered = aud
+    audio_filtered = None
+    # first add audio offset to mimic the recording path delay
+    audio_signal = add_delay(aud, audio_offset, samplerate)
 
     # video delay cannot be negative...
     if video_delay > 0:
-        delay = [0.0] * int(video_delay * samplerate)
-        tmp = aud.copy()[int(video_delay * samplerate) :]
-        audio_filtered = audio_filtered // 4
-        audio_signal = np.concatenate((tmp, delay))[: len(aud)]
+        if audio_delay < 0:
+            print(
+                "WARNING! Audio delay cannot be negative when video delay is positive"
+            )
 
-        aud = (audio_filtered + audio_signal) // 2
+        audio_signal = add_delay(audio_signal, -video_delay, samplerate)
+        echo = add_delay(audio_signal, audio_delay, samplerate) // 4
+        aud = (audio_signal + echo) // 2
     else:
-        aud = audio_filtered
+        aud = add_delay(audio_signal, audio_delay, samplerate)
 
     scipy.io.wavfile.write(
         output_filename, audio_common.DEFAULT_SAMPLERATE, aud.astype(np.int16)
@@ -80,6 +94,9 @@ def write_frame(
 def generate_test_file(**settings):
     audio_delay = settings.get("audio_delay", 0)
     video_delay = settings.get("video_delay", 0)
+
+    # capture path offset, positive value for delayed audio
+    audio_offset = settings.get("audio_offset", 0)
 
     outfile = settings.get("outfile", f"test.mov")
     descr = settings.get("descr", "test")
@@ -166,7 +183,6 @@ def generate_test_file(**settings):
     # generate the (raw) audio input
     audio_filename = tempfile.NamedTemporaryFile().name + ".wav"
     pre_samples = 0
-
     audio_generate(
         duration_sec,
         audio_filename,
@@ -178,6 +194,7 @@ def generate_test_file(**settings):
         scale=1,
         audio_delay=audio_delay,
         video_delay=video_delay,
+        audio_offset=audio_offset,
         debug=debug,
     )
 

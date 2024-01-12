@@ -28,19 +28,20 @@ def run_metiq_cli(**settings):
 
 
 def verify_metiq_cli(**settings):
+    global DEBUG
     failed = False
     doc = settings.get("doc", "")
     filename = settings.get("outfile")
     audio_offset = settings.get("audio_offset", 0.0)
-    av_sync = -settings.get("audio_delay", 0) + audio_offset
     video_delay = settings.get("video_delay", 0)
-    audio_delay = video_delay - av_sync
+    audio_delay = settings.get("audio_delay", 0)
+    av_sync = round(video_delay - audio_delay, 2)
 
     print(f"\n{'-'*20}\n{filename}\n")
     print(f"{doc}")
     print("Audio delay: ", audio_delay)
     print("Video delay: ", video_delay)
-    print("A/V sync: ", av_sync)
+    print("A/V sync (calculated): ", av_sync)
     print("Audio offset: ", audio_offset)
     # read the files and compare
     if video_delay > 0:
@@ -67,12 +68,15 @@ def verify_metiq_cli(**settings):
     result = meanval < config.PREC + av_sync and meanval > av_sync - config.PREC
     if not result:
         failed = True
-        print(f"Audio/video synchronization measurement failed: audio delay: {meanval}")
+        print(f"Audio/video synchronization measurement failed: a/v sync: {meanval}")
 
     if failed:
         print(f"{filename}")
         print(f"!!! FAILED\n---\n")
         # Keep files if broken test
+        print(f"Video latency:\n{videolat}")
+        print(f"Audio latency:\n{audiolat}")
+        print(f"A/V sync:\n{avsync}")
         return False
     else:
         print(f"PASS\n{'-'*20}\n")
