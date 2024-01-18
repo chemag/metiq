@@ -136,7 +136,7 @@ def audio_analyze_wav(infile, **kwargs):
         )
     # generate a single needle (without the silence)
     needle_target = None
-    if len(audio_sample) > 0:
+    if audio_sample and len(audio_sample) > 0:
         print(f"read audio sample: {audio_sample}")
         needle_target = scipy.io.wavfile.read(audio_sample)[1]
     else:
