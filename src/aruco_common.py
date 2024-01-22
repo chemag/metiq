@@ -12,6 +12,8 @@ ARUCO_DICT_ID = cv2.aruco.DICT_4X4_50
 
 COLOR_WHITE = (255, 255, 255)
 
+CV_VERSION = [int(n) for n in cv2.__version__.split(".")]
+
 
 def generate_aruco_tag(tag_size, aruco_id, border_size=0, aruco_dict_id=ARUCO_DICT_ID):
     # create the aruco tag
@@ -57,13 +59,13 @@ def detect_aruco_tags(img, aruco_dict_id=ARUCO_DICT_ID):
     # convert input to grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # locate the aruco markers
-    try:
+    if CV_VERSION[0] <= 4 and CV_VERSION[1] < 7:
         aruco_dict = cv2.aruco.Dictionary_get(aruco_dict_id)
         parameters = cv2.aruco.DetectorParameters_create()
         corners, ids, _rejectedImgPoints = cv2.aruco.detectMarkers(
             gray, aruco_dict, parameters=parameters
         )
-    except AttributeError:
+    else:
         # API changed for 4.7.x
         # https://stackoverflow.com/a/74975523
         aruco_dict = cv2.aruco.getPredefinedDictionary(aruco_dict_id)
