@@ -42,13 +42,14 @@ VFT_IDS = ("9x8", "9x6", "7x5", "5x4")
 DEFAULT_VFT_ID = "7x5"
 DEFAULT_TAG_BORDER_SIZE = 2
 DEFAULT_LUMA_THRESHOLD = 20
+DEFAULT_TAG_NUMBER = 4
 
 VFT_LAYOUT = {
     # "vft_id": [numcols, numrows, (aruco_tag_0, aruco_tag_1, aruco_tag_2)],
-    "7x5": [7, 5, (0, 1, 2)],  # 16 bits
-    "5x4": [5, 4, (0, 1, 3)],  # 8 bits
-    "9x8": [9, 8, (0, 1, 4)],  # 34 bits
-    "9x6": [9, 6, (0, 1, 5)],  # 25 bits
+    "7x5": [7, 5, (0, 1, 2, 7)],  # 16 bits
+    "5x4": [5, 4, (0, 1, 3, 8)],  # 8 bits
+    "9x8": [9, 8, (0, 1, 4, 9)],  # 34 bits
+    "9x6": [9, 6, (0, 1, 5, 10)],  # 25 bits
 }
 
 
@@ -91,9 +92,18 @@ def generate_graycode(width, height, vft_id, tag_border_size, value, debug):
 
 
 def analyze_graycode(img, luma_threshold, lock_layout=False, debug=0):
-    bit_stream, vft_id = analyze(img, luma_threshold, lock_layout, debug)
+    global vft_id
+    bit_stream, vft_id = analyze(
+        img, luma_threshold, lock_layout=lock_layout, debug=debug
+    )
     # convert gray code in bit_stream to a number
-    num_read = gray_bitstream_to_num(bit_stream)
+    try:
+        num_read = gray_bitstream_to_num(bit_stream)
+    except (InvalidGrayCode, SingleGraycodeBitError, NoValidTag) as e:
+        print(f"{type(e).__name__}: {e}")
+        if lock_layout and vft_id:
+            # Rerun without locking the layout
+            return analyze_graycode(img, luma_threshold, lock_layout=False, debug=debug)
     return num_read, vft_id
 
 
@@ -120,7 +130,6 @@ def analyze_file(infile, luma_threshold, width=0, height=0, lock_layout=False, d
         gmean = int(np.mean(gray))
         gstd = int(np.std(gray))
         print(f"min/max luminance: {gmin}/{gmax}, mean: {gmean} +/- {gstd}")
-    bit_stream, vft_id = analyze(img, luma_threshold, debug)
     return analyze_graycode(img, luma_threshold, lock_layout, debug)
 
 
@@ -134,7 +143,7 @@ def generate(width, height, vft_id, tag_border_size, value, debug):
     vft_layout = VFTLayout(width, height, vft_id, tag_border_size)
     # 2. add fiduciary markers (tags) in the top-left, top-right,
     # and bottom-left corners
-    for tag_number in range(3):
+    for tag_number in range(DEFAULT_TAG_NUMBER):
         img = generate_add_tag(img, vft_layout, tag_number, debug)
     # 3. add number code
     # we print <value> starting with the LSB
@@ -170,27 +179,55 @@ vft_id = None
 
 def analyze(img, luma_threshold, lock_layout=False, debug=0):
     global vft_layout, tag_center_locations, vft_id
-    if (
-        vft_layout is None
-        or tag_center_locations is None
-        or (vft_id is None and lock_layout)
-    ):
+    ids = None
+    if vft_id is not None and lock_layout:
+        pass
+    else:
         # 1. get VFT id and tag locations
-        vft_id, tag_center_locations, borders = detect_tags(img, debug)
+        vft_id, tag_center_locations, borders, ids = detect_tags(img, debug=debug)
         if tag_center_locations is None:
+            if debug > 0:
+                print(f"{vft_id=} {tag_center_locations=} {borders=}")
+
             # could not read the 3x tags properly: stop here
             raise NoValidTag()
             return None, None
         # 2. set the layout
         height, width, _ = img.shape
         vft_layout = VFTLayout(width, height, vft_id)
+    if debug > 2:
+        for tag in tag_center_locations:
+            cv2.circle(img, (int(tag[0]), int(tag[1])), 5, (0, 255, 0), 2)
+        cv2.imshow("Source", img)
+        k = cv2.waitKey(-1)
+
     # 3. apply affine transformation to source image
     tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
-    img_affine = affine_transformation(
-        img, tag_center_locations, tag_expected_center_locations, debug
-    )
+    if len(tag_center_locations) == 3 and ids is not None:
+        tag_order = [nbr for nbr, id_ in enumerate(vft_layout.tag_ids) if id_ in ids]
+        tag_expected_center_locations = [
+            tag_expected_center_locations[i] for i in tag_order
+        ]
+
+        img_transformed = affine_transformation(
+            img, tag_center_locations, tag_expected_center_locations, debug=debug
+        )
+
+    elif len(tag_center_locations) == 4:
+        img_transformed = perspective_transformation(
+            img, tag_center_locations, tag_expected_center_locations, debug=debug
+        )
+    else:
+        # throw error
+        return None, None
+
+    if debug > 2:
+        cv2.imshow("Transformed", img_transformed)
+        k = cv2.waitKey(-1)
     # 4. read the bits
-    bit_stream = analyze_read_bits(img_affine, vft_layout, luma_threshold, debug)
+    bit_stream = analyze_read_bits(
+        img_transformed, vft_layout, luma_threshold, debug=debug
+    )
     return bit_stream, vft_id
 
 
@@ -216,7 +253,12 @@ class VFTLayout:
         self.numcols, self.numrows, self.tag_ids = VFT_LAYOUT[vft_id]
         # fiduciary markers (tags) located in the top-left, top-right,
         # and bottom-left corners
-        self.tag_block_ids = (0, self.numcols - 1, (self.numrows - 1) * self.numcols)
+        self.tag_block_ids = (
+            0,
+            self.numcols - 1,
+            (self.numrows - 1) * self.numcols,
+            (self.numrows - 1) * self.numcols + self.numcols - 1,
+        )  # why minus -1
         self.numbits = (self.numcols * self.numrows - 3) // 2
         usable_width = (width // self.numcols) * self.numcols
         usable_height = (height // self.numrows) * self.numrows
@@ -247,10 +289,13 @@ class VFTLayout:
         # bottom-left
         x2 = self.x[0] + self.block_width / 2
         y2 = self.y[-1] + self.block_height / 2
-        return [(x0, y0), (x1, y1), (x2, y2)]
+        # bottom-right
+        x3 = self.x[-1] + self.block_width / 2
+        y3 = self.y[-1] + self.block_height / 2
+        return [(x0, y0), (x1, y1), (x2, y2), (x3, y3)]
 
 
-def generate_add_tag(img, vft_layout, tag_number, debug):
+def generate_add_tag(img, vft_layout, tag_number, debug=1):
     tag_id = vft_layout.tag_ids[tag_number]
     img_tag = aruco_common.generate_aruco_tag(
         vft_layout.tag_size, tag_id, vft_layout.tag_border_size
@@ -258,10 +303,12 @@ def generate_add_tag(img, vft_layout, tag_number, debug):
     block_id = vft_layout.tag_block_ids[tag_number]
     # get the coordinates
     col, row = vft_layout.get_colrow(block_id)
+
     x0 = vft_layout.x[col]
     x1 = x0 + vft_layout.tag_size
     y0 = vft_layout.y[row]
     y1 = y0 + vft_layout.tag_size
+
     # center the coordinates
     # XXX: sure you don't want to move them to the extremes?
     if vft_layout.tag_size < vft_layout.block_width:
@@ -302,7 +349,7 @@ def generate_add_block(img, vft_layout, block_id, color_white, debug):
 def get_vft_id(ids):
     for vft_id, value in VFT_LAYOUT.items():
         tag_ids = set(value[2])
-        if tag_ids == set(ids):
+        if set(ids).issubset(tag_ids):
             return vft_id
     return None
 
@@ -310,32 +357,29 @@ def get_vft_id(ids):
 def detect_tags(img, debug):
     # 1. detect tags
     corners, ids = aruco_common.detect_aruco_tags(img)
+    if debug > 2:
+        print(f"{corners=} {ids=}")
+
     if ids is None:
         if debug > 2:
             print("error: cannot detect any tags in image")
-        return None, None, None
+        return None, None, None, None
     if len(ids) < 3:
         if debug > 2:
             print(f"error: image has {len(ids)} tag(s) (should have 3)")
-        return None, None, None
-    if len(ids) > 3:
+        return None, None, None, None
+    if len(ids) >= 3:
         if debug > 2:
             print(f"error: image has {len(ids)} tag(s) (should have 3)")
         # check tag list last number VFT_LAYOUT last number 2-5
-        ids = [id for id in ids if id in [0, 1, 2, 3, 4, 5]]
-
-        if len(ids) > 3:
-            if debug > 2:
-                print(f"error: image has wrong tag {ids =}")
-            return None, None, None
+        ids = [id[0] for id in ids if id in [0, 1, 2, 3, 4, 5, 6, 7]]
 
     # 2. make sure they are a valid set
-    ids.shape = 3
     vft_id = get_vft_id(list(ids))
     if vft_id is None:
         if debug > 0:
             print(f"error: image has invalid tag ids: {set(ids)}")
-        return None, None, None
+        return None, None, None, None
     # 3. get the locations
     tag_center_locations = []
     expected_corner_shape = (1, 4, 2)
@@ -367,7 +411,23 @@ def detect_tags(img, debug):
             if y1 is None or y1 < y:
                 y1 = y
     borders = ((x0, y0), (x1, y1))
-    return vft_id, tag_center_locations, borders
+
+    return vft_id, tag_center_locations, borders, ids
+
+
+def perspective_transformation(
+    img, tag_center_locations, tag_expected_locations, debug
+):
+    # process the image
+    s0, s1, s2, s3 = tag_center_locations
+    d0, d1, d2, d3 = tag_expected_locations
+    src_locs = np.array([s0, s1, s2, s3]).astype(np.float32)
+    dst_locs = np.array([d0, d1, d2, d3]).astype(np.float32)
+    transform_matrix = cv2.getPerspectiveTransform(src_locs, dst_locs)
+    if debug > 3:
+        print(f"  transform_matrix: [{transform_matrix[0]} {transform_matrix[1]}]")
+    outimg = cv2.warpPerspective(img, transform_matrix, (img.shape[1], img.shape[0]))
+    return outimg
 
 
 def affine_transformation(img, tag_center_locations, tag_expected_locations, debug):
@@ -619,6 +679,7 @@ def get_options(argv):
         metavar="output-file",
         help="output file",
     )
+
     # do the parsing
     options = parser.parse_args(argv[1:])
     if options.version:
@@ -651,7 +712,7 @@ def main(argv):
             options.tag_border_size,
             options.value,
             options.outfile,
-            options.debug,
+            debug=options.debug,
         )
 
     elif options.func == "analyze":
@@ -664,7 +725,7 @@ def main(argv):
             options.luma_threshold,
             options.width,
             options.height,
-            options.debug,
+            debug=options.debug,
         )
         print(f"read: {num_read = } ({vft_id = })")
 
