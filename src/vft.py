@@ -98,13 +98,8 @@ def analyze_graycode(img, luma_threshold, lock_layout=False, debug=0):
         img, luma_threshold, lock_layout=lock_layout, debug=debug
     )
     # convert gray code in bit_stream to a number
-    try:
-        num_read = gray_bitstream_to_num(bit_stream)
-    except (InvalidGrayCode, SingleGraycodeBitError, NoValidTag) as e:
-        print(f"{type(e).__name__}: {e}")
-        if lock_layout and vft_id:
-            # Rerun without locking the layout
-            return analyze_graycode(img, luma_threshold, lock_layout=False, debug=debug)
+    num_read = gray_bitstream_to_num(bit_stream)
+
     return num_read, vft_id
 
 
