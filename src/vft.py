@@ -19,6 +19,7 @@ import numpy as np
 
 import aruco_common
 import time
+import copy
 
 __version__ = "0.1"
 
@@ -354,33 +355,7 @@ def get_vft_id(ids):
     return None
 
 
-def detect_tags(img, debug):
-    # 1. detect tags
-    corners, ids = aruco_common.detect_aruco_tags(img)
-    if debug > 2:
-        print(f"{corners=} {ids=}")
-
-    if ids is None:
-        if debug > 2:
-            print("error: cannot detect any tags in image")
-        return None, None, None, None
-    if len(ids) < 3:
-        if debug > 2:
-            print(f"error: image has {len(ids)} tag(s) (should have 3)")
-        return None, None, None, None
-    if len(ids) >= 3:
-        if debug > 2:
-            print(f"error: image has {len(ids)} tag(s) (should have 3)")
-        # check tag list last number VFT_LAYOUT last number 2-5
-        ids = [id[0] for id in ids if id in [0, 1, 2, 3, 4, 5, 6, 7]]
-
-    # 2. make sure they are a valid set
-    vft_id = get_vft_id(list(ids))
-    if vft_id is None:
-        if debug > 0:
-            print(f"error: image has invalid tag ids: {set(ids)}")
-        return None, None, None, None
-    # 3. get the locations
+def get_tag_center_locations(ids, corners, debug=0):
     tag_center_locations = []
     expected_corner_shape = (1, 4, 2)
     for tag_id in sorted(ids):
@@ -398,6 +373,43 @@ def detect_tags(img, debug):
         xt /= 4
         yt /= 4
         tag_center_locations.append((xt, yt))
+    return tag_center_locations
+
+
+def detect_tags(img, debug):
+    # 1. detect tags
+    corners, ids = aruco_common.detect_aruco_tags(img)
+    if debug > 2:
+        print(f"{corners=} {ids=}")
+
+    if ids is None:
+        if debug > 2:
+            print("error: cannot detect any tags in image")
+        return None, None, None, None
+    if len(ids) < 3:
+        if debug > 2:
+            print(f"error: image has {len(ids)} tag(s) (should have 3)")
+        if debug > 2:
+            tag_center_locations = get_tag_center_locations(ids, corners, debug)
+            for tag in tag_center_locations:
+                cv2.circle(img, (int(tag[0]), int(tag[1])), 5, (0, 255, 0), 2)
+                cv2.imshow("Failed identification, showing succesful ids", img)
+                k = cv2.waitKey(-1)
+        return None, None, None, None
+    if len(ids) >= 3:
+        if debug > 2:
+            print(f"error: image has {len(ids)} tag(s) (should have 3)")
+        # check tag list last number VFT_LAYOUT last number 2-5
+        ids = [id[0] for id in ids if id in [0, 1, 2, 3, 4, 5, 6, 7]]
+
+    # 2. make sure they are a valid set
+    vft_id = get_vft_id(list(ids))
+    if vft_id is None:
+        if debug > 0:
+            print(f"error: image has invalid tag ids: {set(ids)}")
+        return None, None, None, None
+    # 3. get the locations
+    tag_center_locations = get_tag_center_locations(ids, corners, debug)
     # 4. get the borders
     x0 = x1 = y0 = y1 = None
     for corner in corners:
