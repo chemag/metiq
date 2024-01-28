@@ -219,7 +219,6 @@ def video_analyze(
         except vft.InvalidGrayCode as ex:
             status = ERROR_INVALID_GRAYCODE
         except vft.SingleGraycodeBitError as ex:
-            print("Single gray,3")
             status = ERROR_SINGLE_GRAYCODE_BIT
         except Exception as ex:
             if debug > 0:
