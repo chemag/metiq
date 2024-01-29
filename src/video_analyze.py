@@ -217,7 +217,9 @@ def video_analyze(
                 dim = (width, height)
                 img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
 
-            value_read = image_analyze(img, luma_threshold, lock_layout = lock_layout, debug = debug)
+            value_read = image_analyze(
+                img, luma_threshold, lock_layout=lock_layout, debug=debug
+            )
             status = 0
         except vft.NoValidTag as ex:
             status = ERROR_NO_VALID_TAG
@@ -305,7 +307,9 @@ def video_analyze_delta_info(video_results):
 
 
 def image_analyze(img, luma_threshold, lock_layout=False, debug=0):
-    num_read, vft_id = vft.analyze_graycode(img, luma_threshold, lock_layout = lock_layout, debug = debug)
+    num_read, vft_id = vft.analyze_graycode(
+        img, luma_threshold, lock_layout=lock_layout, debug=debug
+    )
     return num_read
 
 

@@ -279,7 +279,7 @@ def main(argv):
         debug=options.debug,
         min_separation_msec=options.min_separation_msec,
         min_match_threshold=options.min_match_threshold,
-        audio_sample = options.audio_sample
+        audio_sample=options.audio_sample,
     )
     dump_audio_results(audio_results, options.outfile, options.debug)
     # get audio duration

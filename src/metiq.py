@@ -1179,7 +1179,7 @@ def main(argv):
                     cache_audio=cache_audio,
                     cache_video=cache_video,
                     audio_sample=options.audio_sample,
-                    lock_layout = options.lock_layout,
+                    lock_layout=options.lock_layout,
                 )
             except Exception as ex:
                 print(f"ERROR: {ex} {infile}")
