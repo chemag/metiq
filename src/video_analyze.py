@@ -179,6 +179,11 @@ def video_analyze(
     lock_layout=False,
     debug=0,
 ):
+    # If running multiple files where there may be minor realignments
+    # reset and latch onto a fresh layout config
+    if lock_layout:
+        vft.reset()
+
     video_capture = get_video_capture(infile, width, height, pixel_format)
     if not video_capture.isOpened():
         print(f"error: {infile = } is not open")

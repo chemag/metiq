@@ -172,6 +172,11 @@ vft_layout = None
 tag_center_locations = None
 vft_id = None
 
+def reset():
+    global vft_layout, tag_center_locations, vft_id
+    vft_layout = None
+    tag_center_locations = None
+    vft_id = None
 
 def analyze(img, luma_threshold, lock_layout=False, debug=0):
     global vft_layout, tag_center_locations, vft_id
