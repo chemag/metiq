@@ -92,6 +92,20 @@ def generate_graycode(width, height, vft_id, tag_border_size, value, debug):
     return generate(width, height, vft_id, tag_border_size, graycode_value, debug)
 
 
+def draw_tags(img, vft_id, tag_border_size, debug):
+    global vft_layout
+    width = img.shape[1]
+    height = img.shape[0]
+    if vft_layout is None:
+        vft_layout = VFTLayout(width, height, vft_id, tag_border_size)
+    # 2. add fiduciary markers (tags) in the top-left, top-right,
+    # and bottom-left corners
+    for tag_number in range(DEFAULT_TAG_NUMBER):
+        img = generate_add_tag(img, vft_layout, tag_number, debug)
+
+    return img
+
+
 def analyze_graycode(img, luma_threshold, lock_layout=False, debug=0):
     global vft_id
     bit_stream, vft_id = analyze(

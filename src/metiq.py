@@ -62,6 +62,34 @@ default_values = {
 }
 
 
+def media_generate_noise_video(outfile, **kwarg):
+    width = kwarg.get("width", default_values["width"])
+    height = kwarg.get("height", default_values["height"])
+    fps = kwarg.get("fps", default_values["fps"])
+    num_frames = kwarg.get("num_frames", default_values["num_frames"])
+    vft_id = kwarg.get("vft_id", default_values["vft_id"])
+    pre_samples = kwarg.get("pre_samples", default_values["pre_samples"])
+    debug = kwarg.get("debug", default_values["debug"])
+
+    video_filename = tempfile.NamedTemporaryFile().name + ".rgb24"
+    video_generate.video_generate_noise(
+        width, height, fps, num_frames, video_filename, vft_id, debug
+    )
+    duration_sec = num_frames / fps
+
+    if outfile[-3:] != "y4m":
+        print(
+            f"Warning! {outfile[-3:]} should be y4m for an uncompressed original. Noise is hard to encode."
+        )
+    command = "ffmpeg -y "
+    command += f"-f rawvideo -pixel_format rgb24 -s {width}x{height} -r {fps} -i {video_filename} "
+    command += f" -pix_fmt yuv420p {outfile}"
+    ret, stdout, stderr = common.run(command, debug=debug)
+    assert ret == 0, f"error: {stderr}"
+    # clean up raw files
+    os.remove(video_filename)
+
+
 def media_generate(outfile, **kwarg):
     width = kwarg.get("width", default_values["width"])
     height = kwarg.get("height", default_values["height"])
@@ -128,6 +156,22 @@ def media_generate(outfile, **kwarg):
     # clean up raw files
     os.remove(video_filename)
     os.remove(audio_filename)
+
+
+def media_analyze_noise_video(
+    infile,
+    outfile,
+    **kwarg,
+):
+    video_analyze.calc_alignment(
+        infile,
+        outfile,
+        width=kwarg.get("width", 0),
+        height=kwarg.get("height", 0),
+        pixel_format=kwarg.get("pixel_format"),
+        debug=kwarg.get("debug", False),
+    )
+    return
 
 
 def media_analyze(
@@ -1062,6 +1106,18 @@ def get_options(argv):
         dest="calculate_frame_durations",
         help="Calculate source frame durations.",
     )
+    parser.add_argument(
+        "--noise-video",
+        action="store_true",
+        dest="noise_video",
+        help="For 'generate', create a noise video with tags but without audio. For 'analyze', calculate percentage of identified video.",
+    )
+    parser.add_argument(
+        "--calc-coverage",
+        action="store_true",
+        dest="calc_coverage",
+        help="Calculate coverage of the contained tags video.",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -1118,7 +1174,8 @@ def main(argv):
             estimation = f" estimated time left: {time_left_sec:.1f} sec"
 
         file_cnt += 1
-        print(f"---\n({file_cnt}/{nbr_files}) -- {infile} {estimation}")
+        if infile:
+            print(f"---\n({file_cnt}/{nbr_files}) -- {infile} {estimation}")
         outfile = None
         if options.outfile is not None:
             outfile = options.outfile.split(".csv")[0]
@@ -1127,23 +1184,44 @@ def main(argv):
             if options.outfile == "-":
                 outfile = "/dev/fd/1"
             # do something
-            media_generate(
-                width=options.width,
-                height=options.height,
-                fps=options.fps,
-                num_frames=options.num_frames,
-                vft_id=options.vft_id,
-                pre_samples=options.pre_samples,
-                samplerate=options.samplerate,
-                beep_freq=options.beep_freq,
-                beep_duration_samples=options.beep_duration_samples,
-                beep_period_sec=options.beep_period_sec,
-                scale=options.scale,
-                outfile=outfile,
-                debug=options.debug,
-                audio_sample=options.audio_sample,
-            )
+            if options.noise_video:
+                media_generate_noise_video(
+                    outfile=outfile,
+                    width=options.width,
+                    height=options.height,
+                    fps=options.fps,
+                    num_frames=options.num_frames,
+                    vft_id=options.vft_id,
+                    debug=options.debug,
+                )
+
+            else:
+                media_generate(
+                    width=options.width,
+                    height=options.height,
+                    fps=options.fps,
+                    num_frames=options.num_frames,
+                    vft_id=options.vft_id,
+                    pre_samples=options.pre_samples,
+                    samplerate=options.samplerate,
+                    beep_freq=options.beep_freq,
+                    beep_duration_samples=options.beep_duration_samples,
+                    beep_period_sec=options.beep_period_sec,
+                    scale=options.scale,
+                    outfile=outfile,
+                    debug=options.debug,
+                    audio_sample=options.audio_sample,
+                )
         elif options.func == "analyze":
+            if options.calc_coverage:
+                media_analyze_noise_video(
+                    infile=infile,
+                    outfile=outfile,
+                    vft_id=options.vft_id,
+                    debug=options.debug,
+                )
+                return
+
             # get infile
             video_ending = ".video.csv"
             if infile == "-":

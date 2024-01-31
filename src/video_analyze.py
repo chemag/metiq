@@ -12,6 +12,7 @@ import scipy
 import pandas as pd
 import video_common
 import vft
+from shapely.geometry import Polygon
 from _version import __version__
 
 
@@ -321,6 +322,86 @@ def dump_video_results(video_results, outfile, debug):
     video_results.to_csv(outfile, index=False)
 
 
+def calc_alignment(infile, outfile, width, height, pixel_format, debug):
+    # With 'lock--layout' we only need one sample, for now let us asume this is the case always...
+    video_capture = get_video_capture(infile, width, height, pixel_format)
+    width = int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    if not video_capture.isOpened():
+        print(f"error: {infile = } is not open")
+        sys.exit(-1)
+
+    tag_center_locations = None
+    while tag_center_locations is None:
+        status, img = video_capture.read()
+
+        if not status:
+            print(f"error: {infile = } could not read frame")
+            sys.exit(-1)
+
+        # analyze image
+        vft_id, tag_center_locations, borders, ids = vft.detect_tags(img, debug=0)
+
+    # transform
+    vft_layout = vft.VFTLayout(width, height, vft_id)
+    tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
+
+    measured_area = 0
+    if len(tag_center_locations) == 3 and ids is not None:
+        tag_order = [nbr for nbr, id_ in enumerate(vft_layout.tag_ids) if id_ in ids]
+        tag_expected_center_locations = [
+            tag_expected_center_locations[i] for i in tag_order
+        ]
+
+        # assume we are in the plane and no angle (not much we can do if not)
+        triangle = Polygon(tag_center_locations)
+        measured_area = triangle.area * 2
+        expected_triangle = Polygon(tag_expected_center_locations)
+        expected_area = expected_triangle.area
+    else:
+        # the order is wrong for shapely
+        tag_center_locations = [tag_center_locations[i] for i in [0, 1, 3, 2]]
+        rectangle = Polygon(tag_center_locations)
+        measured_area = rectangle.area
+        tag_expected_center_locations = [
+            tag_expected_center_locations[i] for i in [0, 1, 3, 2]
+        ]
+        expected = Polygon(tag_expected_center_locations)
+        expected_area = expected.area
+
+    ratio = measured_area / expected_area
+    perc = ratio * 100
+    print(f"Coverage: {round(perc,2)} %")
+
+    if debug > 2:
+        lastpoint = None
+        for location in tag_center_locations:
+            cv2.circle(img, (int(location[0]), int(location[1])), 10, (0, 0, 255), 10)
+            if lastpoint:
+                cv2.line(
+                    img,
+                    (int(location[0]), int(location[1])),
+                    (int(lastpoint[0]), int(lastpoint[1])),
+                    (0, 0, 255),
+                    10,
+                )
+            lastpoint = location
+        lastpoint = None
+        for location in tag_expected_center_locations:
+            cv2.circle(img, (int(location[0]), int(location[1])), 10, (0, 255, 0), 10)
+            if lastpoint:
+                cv2.line(
+                    img,
+                    (int(location[0]), int(location[1])),
+                    (int(lastpoint[0]), int(lastpoint[1])),
+                    (0, 255, 0),
+                    10,
+                )
+            lastpoint = location
+        cv2.imshow("img", img)
+        cv2.waitKey(0)
+
+
 def get_options(argv):
     """Generic option parser.
 
@@ -433,6 +514,13 @@ def get_options(argv):
         metavar="output-file",
         help="output file",
     )
+    parser.add_argument(
+        "--calc-alignment",
+        action="store_true",
+        dest="calc_alignment",
+        default=False,
+        help="Calculate alignment",
+    )
     # do the parsing
     options = parser.parse_args(argv[1:])
     if options.version:
@@ -455,6 +543,16 @@ def main(argv):
     if options.debug > 0:
         print(options)
     # do something
+    if options.calc_alignment:
+        calc_alignment(
+            options.infile,
+            options.outfile,
+            options.width,
+            options.height,
+            options.pixel_format,
+            options.debug,
+        )
+        return
     video_results = video_analyze(
         options.infile,
         options.width,

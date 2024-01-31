@@ -79,6 +79,31 @@ def image_generate(
     return img
 
 
+def video_generate_noise(width, height, fps, num_frames, outfile, vft_id, debug):
+    image_info = video_common.ImageInfo(width, height)
+    vft_layout = vft.VFTLayout(width, height, vft_id)
+
+    m = (160, 160, 160)
+    s = (80, 80, 80)
+
+    with open(outfile, "wb") as rawstream:
+
+        # original image
+        for frame_num in range(0, num_frames, 1):
+            img = np.zeros((height, width, 3), np.uint8)
+            time = (frame_num // fps) + (frame_num % fps) / fps
+            img = cv2.randn(img, m, s)
+            # 3. add VFT code
+            x0, x1 = image_info.vft_x
+            y0, y1 = image_info.vft_y
+            vft_width = x1 - x0
+            vft_height = y1 - y0
+            img = vft.draw_tags(img, vft_id, image_info.vft_border_size, debug)
+
+            # write the image
+            rawstream.write(img.tobytes())
+
+
 def video_generate(
     width,
     height,
@@ -230,6 +255,13 @@ def get_options(argv):
         ),
     )
     parser.add_argument(
+        "--noise",
+        action="store_true",
+        dest="noise",
+        default=False,
+        help="Special mode where noise images are generated with tags.",
+    )
+    parser.add_argument(
         "outfile",
         type=str,
         default=default_values["outfile"],
@@ -257,19 +289,30 @@ def main(argv):
     if options.debug > 0:
         print(options)
     # do something
-    video_generate(
-        options.width,
-        options.height,
-        options.fps,
-        options.num_frames,
-        options.beep_frame_period,
-        options.num_frames,
-        options.outfile,
-        "default",
-        VFT_ID,
-        "",
-        options.debug,
-    )
+    if options.noise:
+        video_generate_noise(
+            options.width,
+            options.height,
+            options.fps,
+            options.num_frames,
+            options.outfile,
+            VFT_ID,
+            options.debug,
+        )
+    else:
+        video_generate(
+            options.width,
+            options.height,
+            options.fps,
+            options.num_frames,
+            options.beep_frame_period,
+            options.num_frames,
+            options.outfile,
+            "default",
+            VFT_ID,
+            "",
+            options.debug,
+        )
     if options.debug > 0:
         print(
             f"run: ffmpeg -y -f rawvideo -pixel_format rgb24 -s {options.width}x{options.height} -r {options.fps} -i {options.outfile} {options.outfile}.mp4"
