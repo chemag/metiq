@@ -236,7 +236,10 @@ def analyze(img, luma_threshold, lock_layout=False, debug=0):
         )
     else:
         # throw error
-        return None, None
+        if lock_layout:
+            return None, vft_id
+        else:
+            return None, None
 
     if debug > 2:
         cv2.imshow("Transformed", img_transformed)
