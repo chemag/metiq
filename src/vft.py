@@ -220,11 +220,17 @@ def analyze(img, luma_threshold, lock_layout=False, debug=0):
 
     # 3. apply affine transformation to source image
     tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
-    if len(tag_center_locations) == 3 and ids is not None:
-        tag_order = [nbr for nbr, id_ in enumerate(vft_layout.tag_ids) if id_ in ids]
-        tag_expected_center_locations = [
-            tag_expected_center_locations[i] for i in tag_order
-        ]
+    if len(tag_center_locations) == 3:
+        # if we do not have ids tags at this point but we have had them earlier
+        # let us just assume all is well.
+        # If we have ids points by all means sort them...
+        if ids is not None:
+            tag_order = [
+                nbr for nbr, id_ in enumerate(vft_layout.tag_ids) if id_ in ids
+            ]
+            tag_expected_center_locations = [
+                tag_expected_center_locations[i] for i in tag_order
+            ]
 
         img_transformed = affine_transformation(
             img, tag_center_locations, tag_expected_center_locations, debug=debug
@@ -237,6 +243,7 @@ def analyze(img, luma_threshold, lock_layout=False, debug=0):
     else:
         # throw error
         if lock_layout:
+            print(f"General error: {ids=}, {vft_id=}, {len(tag_center_locations) =}")
             return None, vft_id
         else:
             return None, None
