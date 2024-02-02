@@ -106,11 +106,34 @@ def draw_tags(img, vft_id, tag_border_size, debug):
     return img
 
 
-def analyze_graycode(img, luma_threshold, lock_layout=False, debug=0):
-    global vft_id
-    bit_stream, vft_id = analyze(
-        img, luma_threshold, lock_layout=lock_layout, debug=debug
-    )
+vft_layout = None
+
+
+def analyze_graycode(
+    img,
+    luma_threshold,
+    vft_id=None,
+    tag_center_locations=None,
+    tag_expected_center_locations=None,
+    debug=0,
+):
+    global vft_layout
+    bit_stream = None
+    if vft_id:
+        if vft_layout is None:
+            vft_layout = VFTLayout(img.shape[1], img.shape[0], vft_id)
+
+        bit_stream = locked_analyze(
+            img,
+            luma_threshold,
+            vft_id,
+            vft_layout,
+            tag_center_locations,
+            tag_expected_center_locations,
+            debug,
+        )
+    else:
+        bit_stream, vft_id = analyze(img, luma_threshold, debug=debug)
     # convert gray code in bit_stream to a number
     num_read = gray_bitstream_to_num(bit_stream)
 
@@ -127,7 +150,7 @@ def generate_file(width, height, vft_id, tag_border_size, value, outfile, debug)
     cv2.imwrite(outfile, img)
 
 
-def analyze_file(infile, luma_threshold, width=0, height=0, lock_layout=False, debug=0):
+def analyze_file(infile, luma_threshold, width=0, height=0, debug=0):
     img = cv2.imread(cv2.samples.findFile(infile))
     if width > 0 and height > 0:
         dim = (width, height)
@@ -140,7 +163,7 @@ def analyze_file(infile, luma_threshold, width=0, height=0, lock_layout=False, d
         gmean = int(np.mean(gray))
         gstd = int(np.std(gray))
         print(f"min/max luminance: {gmin}/{gmax}, mean: {gmean} +/- {gstd}")
-    return analyze_graycode(img, luma_threshold, lock_layout, debug)
+    return analyze_graycode(img, luma_threshold, debug)
 
 
 # Generic Number-based API
@@ -182,36 +205,54 @@ def generate(width, height, vft_id, tag_border_size, value, debug):
     return img
 
 
-vft_layout = None
-tag_center_locations = None
-vft_id = None
+def locked_analyze(
+    img,
+    luma_threshold,
+    vft_id=None,
+    vft_layout=None,
+    tag_center_locations=None,
+    tag_expected_center_locations=None,
+    debug=0,
+):
+    img_transformed = None
+    if len(tag_center_locations) == 3:
+        img_transformed = affine_transformation(
+            img, tag_center_locations, tag_expected_center_locations, debug=debug
+        )
 
-
-def reset():
-    global vft_layout, tag_center_locations, vft_id
-    vft_layout = None
-    tag_center_locations = None
-    vft_id = None
-
-
-def analyze(img, luma_threshold, lock_layout=False, debug=0):
-    global vft_layout, tag_center_locations, vft_id
-    ids = None
-    if vft_id is not None and lock_layout:
-        pass
+    elif len(tag_center_locations) == 4:
+        img_transformed = perspective_transformation(
+            img, tag_center_locations, tag_expected_center_locations, debug=debug
+        )
     else:
-        # 1. get VFT id and tag locations
-        vft_id, tag_center_locations, borders, ids = detect_tags(img, debug=debug)
-        if tag_center_locations is None:
-            if debug > 0:
-                print(f"{vft_id=} {tag_center_locations=} {borders=}")
+        return None, vft_id
 
-            # could not read the 3x tags properly: stop here
-            raise NoValidTag()
-            return None, None
-        # 2. set the layout
-        height, width, _ = img.shape
-        vft_layout = VFTLayout(width, height, vft_id)
+    if debug > 2:
+        cv2.imshow("img", img)
+        cv2.imshow("Transformed", img_transformed)
+        k = cv2.waitKey(-1)
+
+    bit_stream = analyze_read_bits(
+        img_transformed, vft_layout, luma_threshold, debug=debug
+    )
+    return bit_stream
+
+
+def analyze(img, luma_threshold, debug=0):
+    ids = None
+
+    # 1. get VFT id and tag locations
+    vft_id, tag_center_locations, borders, ids = detect_tags(img, debug=debug)
+    if tag_center_locations is None:
+        if debug > 0:
+            print(f"{vft_id=} {tag_center_locations=} {borders=}")
+
+        # could not read the 3x tags properly: stop here
+        raise NoValidTag()
+        return None, None
+    # 2. set the layout
+    height, width, _ = img.shape
+    vft_layout = VFTLayout(width, height, vft_id)
     if debug > 2:
         for tag in tag_center_locations:
             cv2.circle(img, (int(tag[0]), int(tag[1])), 5, (0, 255, 0), 2)
@@ -241,12 +282,7 @@ def analyze(img, luma_threshold, lock_layout=False, debug=0):
             img, tag_center_locations, tag_expected_center_locations, debug=debug
         )
     else:
-        # throw error
-        if lock_layout:
-            print(f"General error: {ids=}, {vft_id=}, {len(tag_center_locations) =}")
-            return None, vft_id
-        else:
-            return None, None
+        return None, None
 
     if debug > 2:
         cv2.imshow("Transformed", img_transformed)
@@ -481,7 +517,11 @@ def affine_transformation(img, tag_center_locations, tag_expected_locations, deb
     return outimg
 
 
+last_min_diff = -1
+
+
 def analyze_read_bits(img, vft_layout, luma_threshold, debug):
+    global last_min_diff
     # 1. extract the luma
     img_luma = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # 2. read the per-block luma average value
@@ -525,7 +565,9 @@ def analyze_read_bits(img, vft_layout, luma_threshold, debug):
     if debug > 1:
         # 4. write annotated image to file
         outfile = "/tmp/vft_debug." + "".join(str(bit) for bit in bit_stream) + ".png"
-        print(f"minimum diff was {diff}")
+        if diff != last_min_diff:
+            print(f"minimum diff was {diff}")
+            last_min_diff = diff
         write_annotated_tag(img, vft_layout, outfile)
     return bit_stream
 
