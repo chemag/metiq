@@ -105,6 +105,7 @@ def get_video_capture(input_file, width, height, pixel_format):
         # video_capture = cv2.VideoCapture(input_file, cv2.CAP_FFMPEG)
         # video_capture = cv2.VideoCapture(input_file, cv2.CAP_GSTREAMER)
         video_capture = cv2.VideoCapture(input_file)
+        # throw error
     return video_capture
 
 
@@ -182,9 +183,18 @@ def video_analyze(
 ):
     # If running multiple files where there may be minor realignments
     # reset and latch onto a fresh layout config
-    if lock_layout:
-        vft.reset()
+    vft_id = None
+    tag_center_locations = None
+    tag_expected_center_locations = None
 
+    # With lock_layout go through the file until valid tags has been identified.
+    # Save settings and use those for tranformation and gray code analysis.
+    if lock_layout:
+        (
+            vft_id,
+            tag_center_locations,
+            tag_expected_center_locations,
+        ) = find_first_valid_tag(infile, width, height, pixel_format, debug)
     video_capture = get_video_capture(infile, width, height, pixel_format)
     if not video_capture.isOpened():
         print(f"error: {infile = } is not open")
@@ -219,7 +229,12 @@ def video_analyze(
                 img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
 
             value_read = image_analyze(
-                img, luma_threshold, lock_layout=lock_layout, debug=debug
+                img,
+                luma_threshold,
+                vft_id=vft_id,
+                tag_center_locations=tag_center_locations,
+                tag_expected_center_locations=tag_expected_center_locations,
+                debug=debug,
             )
             status = 0
         except vft.NoValidTag as ex:
@@ -307,9 +322,21 @@ def video_analyze_delta_info(video_results):
     return video_delta_info
 
 
-def image_analyze(img, luma_threshold, lock_layout=False, debug=0):
+def image_analyze(
+    img,
+    luma_threshold,
+    vft_id=None,
+    tag_center_locations=None,
+    tag_expected_center_locations=None,
+    debug=0,
+):
     num_read, vft_id = vft.analyze_graycode(
-        img, luma_threshold, lock_layout=lock_layout, debug=debug
+        img,
+        luma_threshold,
+        vft_id=vft_id,
+        tag_center_locations=tag_center_locations,
+        tag_expected_center_locations=tag_expected_center_locations,
+        debug=debug,
     )
     return num_read
 
@@ -400,7 +427,49 @@ def calc_alignment(infile, width, height, pixel_format, debug):
             lastpoint = location
         cv2.imshow("img", img)
         cv2.waitKey(0)
+    return perc
 
+
+def find_first_valid_tag(infile, width, height, pixel_format, debug):
+    video_capture = get_video_capture(infile, width, height, pixel_format)
+    if not video_capture.isOpened():
+        print(f"error: {infile = } is not open")
+        sys.exit(-1)
+
+    tag_center_locations = None
+    tag_expected_center_locations = None
+    ids = None
+    vft_id = None
+    while tag_center_locations is None or len(tag_center_locations) < 4:
+        status, img = video_capture.read()
+
+        dim = (width, height)
+        img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+        if not status:
+            print(f"error: {infile = } could not read frame")
+            sys.exit(-1)
+
+        # analyze image
+        vft_id, tag_center_locations, borders, ids = vft.detect_tags(img, debug=0)
+    vft_layout = vft.VFTLayout(width, height, vft_id)
+    tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
+
+    if len(tag_center_locations) == 3 and ids is not None:
+        tag_order = [nbr for nbr, id_ in enumerate(vft_layout.tag_ids) if id_ in ids]
+        tag_expected_center_locations = [
+            tag_expected_center_locations[i] for i in tag_order
+        ]
+
+    try:
+        video_capture.release()
+    except Exception as exc:
+        print(f"error: {exc = }")
+        pass
+
+    if tag_center_locations is None:
+        raise vft.NoValidTagFoundError()
+
+    return vft_id, tag_center_locations, tag_expected_center_locations
 
 def get_options(argv):
     """Generic option parser.
