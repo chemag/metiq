@@ -322,7 +322,7 @@ def dump_video_results(video_results, outfile, debug):
     video_results.to_csv(outfile, index=False)
 
 
-def calc_alignment(infile, outfile, width, height, pixel_format, debug):
+def calc_alignment(infile, width, height, pixel_format, debug):
     # With 'lock--layout' we only need one sample, for now let us asume this is the case always...
     video_capture = get_video_capture(infile, width, height, pixel_format)
     width = int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -546,7 +546,6 @@ def main(argv):
     if options.calc_alignment:
         calc_alignment(
             options.infile,
-            options.outfile,
             options.width,
             options.height,
             options.pixel_format,
