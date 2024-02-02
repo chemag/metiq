@@ -1053,6 +1053,13 @@ def get_options(argv):
         help="Recalculate video analysis",
     )
     parser.add_argument(
+        "--no-hw-decode",
+        action="store_true",
+        dest="no_hw_decode",
+        default=False,
+        help="Do not try to enable hardware decoding",
+    )
+    parser.add_argument(
         "--audio-offset",
         type=float,
         dest="audio_offset",
@@ -1137,6 +1144,9 @@ def main(argv):
     # print results
     if options.debug > 2:
         print(options)
+
+    if options.no_hw_decode:
+        video_analyze.config_decoder(HW_DECODER_ENABLE=False)
 
     files = []
     # if options.infile.endswith("]") and options.infile.startswith("["):

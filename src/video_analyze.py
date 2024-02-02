@@ -25,6 +25,8 @@ ERROR_INVALID_GRAYCODE = 2
 ERROR_SINGLE_GRAYCODE_BIT = 3
 ERROR_UNKNOWN = 100
 
+HW_DECODER_ENABLE = True
+
 ERROR_TYPES = {
     # error_id: ("short message", "long message"),
     ERROR_NO_VALID_TAG: ("no_valid_tag", "Frame has no valid set of tags"),
@@ -100,11 +102,15 @@ def get_video_capture(input_file, width, height, pixel_format):
     if pixel_format is not None:
         video_capture = VideoCaptureYUV(input_file, width, height, pixel_format)
     else:
-        # TODO(chema): fix CAP_FFMPEG open mode
-        # right now it does not open the file
-        # video_capture = cv2.VideoCapture(input_file, cv2.CAP_FFMPEG)
-        # video_capture = cv2.VideoCapture(input_file, cv2.CAP_GSTREAMER)
-        video_capture = cv2.VideoCapture(input_file)
+        # Auto detect API and try to open hw acceleration
+        if HW_DECODER_ENABLE:
+            video_capture = cv2.VideoCapture(
+                input_file,
+                0,
+                (cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_ANY),
+            )
+        else:
+            video_capture = cv2.VideoCapture(input_file)
         # throw error
     return video_capture
 
@@ -471,6 +477,12 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
 
     return vft_id, tag_center_locations, tag_expected_center_locations
 
+
+def config_decoder(**options):
+    global HW_DECODER_ENABLE
+    HW_DECODER_ENABLE = options.get("HW_DECODER_ENABLE", False)
+
+
 def get_options(argv):
     """Generic option parser.
 
@@ -590,6 +602,13 @@ def get_options(argv):
         default=False,
         help="Calculate alignment",
     )
+    parser.add_argument(
+        "--no-hw-decode",
+        action="store_true",
+        dest="no_hw_decode",
+        default=False,
+        help="Do not try to enable hardware decoding",
+    )
     # do the parsing
     options = parser.parse_args(argv[1:])
     if options.version:
@@ -598,6 +617,7 @@ def get_options(argv):
 
 
 def main(argv):
+    global HW_DECODER_ENABLE
     # parse options
     options = get_options(argv)
     if options.version:
@@ -611,6 +631,9 @@ def main(argv):
     # print results
     if options.debug > 0:
         print(options)
+
+    if options.no_hw_decode:
+        HW_DECODER_ENABLE = False
     # do something
     if options.calc_alignment:
         calc_alignment(
