@@ -158,20 +158,17 @@ def media_generate(outfile, **kwarg):
     os.remove(audio_filename)
 
 
-def media_analyze_noise_video(
+def media_analyze_coverage_video(
     infile,
-    outfile,
     **kwarg,
 ):
-    video_analyze.calc_alignment(
+    return video_analyze.calc_coverage(
         infile,
-        outfile,
         width=kwarg.get("width", 0),
         height=kwarg.get("height", 0),
         pixel_format=kwarg.get("pixel_format"),
         debug=kwarg.get("debug", False),
     )
-    return
 
 
 def media_analyze(
