@@ -87,7 +87,6 @@ def video_generate_noise(width, height, fps, num_frames, outfile, vft_id, debug)
     s = (80, 80, 80)
 
     with open(outfile, "wb") as rawstream:
-
         # original image
         for frame_num in range(0, num_frames, 1):
             img = np.zeros((height, width, 3), np.uint8)
