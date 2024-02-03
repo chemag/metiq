@@ -446,7 +446,7 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
     tag_expected_center_locations = None
     ids = None
     vft_id = None
-    while tag_center_locations is None or len(tag_center_locations) < 4:
+    while tag_center_locations is None:
         status, img = video_capture.read()
 
         dim = (width, height)
@@ -475,6 +475,8 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
     if tag_center_locations is None:
         raise vft.NoValidTagFoundError()
 
+    if debug > 0:
+        print(f"Found tags: {len(tag_center_locations) = }")
     return vft_id, tag_center_locations, tag_expected_center_locations
 
 
