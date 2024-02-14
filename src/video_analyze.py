@@ -611,6 +611,13 @@ def get_options(argv):
         default=False,
         help="Do not try to enable hardware decoding",
     )
+    parser.add_argument(
+        "--lock-layout",
+        action="store_true",
+        dest="lock_layout",
+        help="Reuse video frame layout location from the first frame to subsequent frames. This reduces the complexity of the analysis when the camera and DUT are set in a fixed setup",
+    )
+
     # do the parsing
     options = parser.parse_args(argv[1:])
     if options.version:
@@ -653,6 +660,7 @@ def main(argv):
         30,
         options.pixel_format,
         options.luma_threshold,
+        options.lock_layout,
         options.debug,
     )
     dump_video_results(video_results, options.outfile, options.debug)
