@@ -543,7 +543,7 @@ def match_video_to_time(
                 latency,
             ]
             return vlat
-    else:
+    elif debug > 0:
         print(f"{ts=} not found in video_results")
     return None
 
@@ -603,6 +603,14 @@ def calculate_audio_latency(
                 match["correlation"],
             ]
         prev = audio_results.iloc[index]
+    # Remove echoes.
+    audio_latencies["diff"] = audio_latencies["timestamp1"].diff()
+    too_close = len(audio_latencies.loc[audio_latencies["diff"] < beep_period_sec * 0.5])
+    if too_close > 0:
+        print(f"WARNING. Potential echoes detected - {too_close} counts")
+    audio_latencies.fillna(beep_period_sec, inplace=True)
+    audio_latencies = audio_latencies.loc[audio_latencies["diff"] > beep_period_sec * 0.5]
+    audio_latencies = audio_latencies.drop(columns=["diff"])
     return audio_latencies
 
 
