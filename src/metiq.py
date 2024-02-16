@@ -605,11 +605,15 @@ def calculate_audio_latency(
         prev = audio_results.iloc[index]
     # Remove echoes.
     audio_latencies["diff"] = audio_latencies["timestamp1"].diff()
-    too_close = len(audio_latencies.loc[audio_latencies["diff"] < beep_period_sec * 0.5])
+    too_close = len(
+        audio_latencies.loc[audio_latencies["diff"] < beep_period_sec * 0.5]
+    )
     if too_close > 0:
         print(f"WARNING. Potential echoes detected - {too_close} counts")
     audio_latencies.fillna(beep_period_sec, inplace=True)
-    audio_latencies = audio_latencies.loc[audio_latencies["diff"] > beep_period_sec * 0.5]
+    audio_latencies = audio_latencies.loc[
+        audio_latencies["diff"] > beep_period_sec * 0.5
+    ]
     audio_latencies = audio_latencies.drop(columns=["diff"])
     return audio_latencies
 
@@ -780,9 +784,9 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
                     audio_timestamp,
                     audio_correlation,
                 ) = audio_results.iloc[aindex]
-                video_frame_num = (
-                    video_frame_num_expected
-                ) = video_status = video_frame_num_read = video_delta_frames = ""
+                video_frame_num = video_frame_num_expected = video_status = (
+                    video_frame_num_read
+                ) = video_delta_frames = ""
                 aindex += 1
                 timestamp = audio_timestamp
             fd.write(
