@@ -11,6 +11,7 @@ import numpy as np
 import scipy
 import pandas as pd
 import video_common
+import video_tag_coordinates as vtc
 import vft
 from shapely.geometry import Polygon
 from _version import __version__
@@ -185,6 +186,7 @@ def video_analyze(
     pixel_format,
     luma_threshold,
     lock_layout=False,
+    tag_manual=False,
     debug=0,
 ):
     # If running multiple files where there may be minor realignments
@@ -193,9 +195,16 @@ def video_analyze(
     tag_center_locations = None
     tag_expected_center_locations = None
 
+    # Open a window and mouse click coordinates?
+    if tag_manual:
+        vft_id = vft.DEFAULT_VFT_ID
+        tag_center_locations = vtc.tag_video(infile)
+        vft_layout = vft.VFTLayout(width, height, vft_id)
+        tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
+        lock_layout = True
     # With lock_layout go through the file until valid tags has been identified.
     # Save settings and use those for tranformation and gray code analysis.
-    if lock_layout:
+    if lock_layout and vft_id is None:
         (
             vft_id,
             tag_center_locations,
@@ -243,6 +252,7 @@ def video_analyze(
                 debug=debug,
             )
             status = 0
+
         except vft.NoValidTag as ex:
             status = ERROR_NO_VALID_TAG
         except vft.InvalidGrayCode as ex:
@@ -617,6 +627,13 @@ def get_options(argv):
         dest="lock_layout",
         help="Reuse video frame layout location from the first frame to subsequent frames. This reduces the complexity of the analysis when the camera and DUT are set in a fixed setup",
     )
+    parser.add_argument(
+        "--tag-manual",
+        action="store_true",
+        dest="tag_manual",
+        default=False,
+        help="Mous click tag positions",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -661,7 +678,8 @@ def main(argv):
         options.pixel_format,
         options.luma_threshold,
         options.lock_layout,
-        options.debug,
+        tag_manual=options.tag_manual,
+        debug=options.debug,
     )
     dump_video_results(video_results, options.outfile, options.debug)
     # print the delta info
