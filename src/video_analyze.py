@@ -149,6 +149,7 @@ def video_parse(
     pixel_format,
     luma_threshold,
     lock_layout=False,
+    tag_manual=False,
     debug=0,
 ):
     # If we do ot know the source fps we can still do the parsing.
@@ -161,6 +162,7 @@ def video_parse(
         pixel_format,
         luma_threshold,
         lock_layout,
+        tag_manual,
         debug=debug,
     )
 
@@ -198,7 +200,7 @@ def video_analyze(
     # Open a window and mouse click coordinates?
     if tag_manual:
         vft_id = vft.DEFAULT_VFT_ID
-        tag_center_locations = vtc.tag_video(infile)
+        tag_center_locations = vtc.tag_video(infile, width, height)
         vft_layout = vft.VFTLayout(width, height, vft_id)
         tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
         lock_layout = True
