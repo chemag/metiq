@@ -192,6 +192,7 @@ def media_analyze(
     cache_video = kwargs.get("cache_video", True)
     cache_audio = kwargs.get("cache_audio", True)
     audio_sample = kwargs.get("audio_sample", "")
+    tag_manual = kwargs.get("tag_manual", False)
 
     # 1. analyze the audio stream
     path_audio = f"{infile}.audio.csv"
@@ -233,6 +234,7 @@ def media_analyze(
             pixel_format,
             luma_threshold,
             lock_layout=lock_layout,
+            tag_manual=tag_manual,
             debug=debug,
         )
     # write up the results to disk
@@ -1134,6 +1136,13 @@ def get_options(argv):
         dest="calc_coverage",
         help="Calculate coverage of the contained tags video.",
     )
+    parser.add_argument(
+        "--tag-manual",
+        action="store_true",
+        dest="tag_manual",
+        default=False,
+        help="Mouse click tag positions",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -1277,6 +1286,7 @@ def main(argv):
                     cache_video=cache_video,
                     audio_sample=options.audio_sample,
                     lock_layout=options.lock_layout,
+                    tag_manual=options.tag_manual,
                 )
             except Exception as ex:
                 print(f"ERROR: {ex} {infile}")
