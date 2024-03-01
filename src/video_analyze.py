@@ -13,6 +13,7 @@ import pandas as pd
 import video_common
 import video_tag_coordinates as vtc
 import vft
+import time
 from shapely.geometry import Polygon
 from _version import __version__
 
@@ -24,9 +25,11 @@ COLOR_WHITE = (255, 255, 255)
 ERROR_NO_VALID_TAG = 1
 ERROR_INVALID_GRAYCODE = 2
 ERROR_SINGLE_GRAYCODE_BIT = 3
+ERROR_LARGE_DELTA = 4
 ERROR_UNKNOWN = 100
 
 HW_DECODER_ENABLE = True
+TEN_TO_NINE = 1000000000.0
 
 ERROR_TYPES = {
     # error_id: ("short message", "long message"),
@@ -147,24 +150,57 @@ def video_parse(
     width,
     height,
     pixel_format,
-    luma_threshold,
+    ref_fps=-1,
+    luma_threshold=vft.DEFAULT_LUMA_THRESHOLD,
     lock_layout=False,
     tag_manual=False,
     debug=0,
 ):
-    # If we do ot know the source fps we can still do the parsing.
+    # If we do not know the source fps we can still do the parsing.
     # Ignore delta calculations and guessing frames, i.e. the analysis
     return video_analyze(
         infile,
         width,
         height,
-        -1,
+        ref_fps,
         pixel_format,
         luma_threshold,
         lock_layout,
         tag_manual,
         debug=debug,
     )
+
+
+def parse_image(
+    img,
+    luma_threshold,
+    vft_id,
+    tag_center_locations,
+    tag_expected_center_locations,
+    debug,
+):
+    status = 0
+    value_read = None
+    try:
+        value_read = image_analyze(
+            img,
+            luma_threshold,
+            vft_id=vft_id,
+            tag_center_locations=tag_center_locations,
+            tag_expected_center_locations=tag_expected_center_locations,
+            debug=debug,
+        )
+    except vft.NoValidTag as ex:
+        status = ERROR_NO_VALID_TAG
+    except vft.InvalidGrayCode as ex:
+        status = ERROR_INVALID_GRAYCODE
+    except vft.SingleGraycodeBitError as ex:
+        status = ERROR_SINGLE_GRAYCODE_BIT
+    except Exception as ex:
+        if debug > 0:
+            print(f"{frame_num = } {str(ex)}")
+        status = ERROR_UNKNOWN
+    return status, value_read
 
 
 # Returns a list with one tuple per frame in the distorted video
@@ -222,6 +258,10 @@ def video_analyze(
     video_results = pd.DataFrame(
         columns=("frame_num", "timestamp", "frame_num_expected", "status", "value_read")
     )
+    previous_value = -1
+    total_nbr_of_frames = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
+
+    start = time.monotonic_ns()
     while True:
         # get image
         status, img = video_capture.read()
@@ -240,32 +280,75 @@ def video_analyze(
             )
         # analyze image
         value_read = None
-        try:
-            if width > 0 and height > 0:
-                dim = (width, height)
-                img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+        if width > 0 and height > 0:
+            dim = (width, height)
+            img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
 
-            value_read = image_analyze(
+            status, value_read = parse_image(
                 img,
                 luma_threshold,
-                vft_id=vft_id,
-                tag_center_locations=tag_center_locations,
-                tag_expected_center_locations=tag_expected_center_locations,
-                debug=debug,
+                vft_id,
+                tag_center_locations,
+                tag_expected_center_locations,
+                debug,
             )
-            status = 0
 
-        except vft.NoValidTag as ex:
-            status = ERROR_NO_VALID_TAG
-        except vft.InvalidGrayCode as ex:
-            status = ERROR_INVALID_GRAYCODE
-        except vft.SingleGraycodeBitError as ex:
-            status = ERROR_SINGLE_GRAYCODE_BIT
-        except Exception as ex:
-            if debug > 0:
-                print(f"{frame_num = } {str(ex)}")
-            status = ERROR_UNKNOWN
-            continue
+        current_time = time.monotonic_ns()
+        time_per_iteration = (current_time - start) / (frame_num + 1)
+        time_left_sec = (
+            time_per_iteration * (total_nbr_of_frames - frame_num) / TEN_TO_NINE
+        )
+        estimation = f" estimated time left: {time_left_sec:.1f} sec"
+        print(
+            f"-- {round(100 * frame_num/total_nbr_of_frames, 2)} %, {estimation}",
+            end="\r",
+        )
+        if status != 0:
+            if status != ERROR_SINGLE_GRAYCODE_BIT:
+                # analyze image
+                _vft_id = None
+                if not tag_manual:
+                    _vft_id, _tag_center_locations, _borders, _ids = vft.detect_tags(
+                        img, debug=0
+                    )
+                if _vft_id:
+                    vft_layout = vft.VFTLayout(width, height, _vft_id)
+                    vft_id = _vft_id
+                    tag_center_locations = _tag_center_locations
+                else:
+                    tag_center_locations = vtc.tag_frame(img)
+                status, value_read = parse_image(
+                    img,
+                    luma_threshold,
+                    vft_id,
+                    tag_center_locations,
+                    tag_expected_center_locations,
+                    debug,
+                )
+
+        if status != 0:
+            print(f"failed parsing frame {frame_num=}")
+            if status == ERROR_UNKNOWN:
+                continue
+
+        # Filter huge leaps (indicating erronous parsing)
+        leap_max = 20  # secs
+        if (
+            value_read is not None
+            and value_read >= 0
+            and previous_value >= 0
+            and ref_fps > 0
+        ):
+            # OK we had something before, compare the diff
+            if abs(value_read - previous_value) > ref_fps * leap_max:
+                print(
+                    f"Big leap. {previous_value=}, {value_read=}, {abs(value_read - previous_value)}, {ref_fps=}"
+                )
+                value_read = None
+                status = ERROR_LARGE_DELTA
+        if value_read is not None:
+            previous_value = value_read
+
         if debug > 2:
             print(f"video_analyze: read image value: {value_read}")
             if value_read is None:

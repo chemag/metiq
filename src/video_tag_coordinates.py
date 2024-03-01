@@ -13,34 +13,47 @@ def mouse_callback(event, x, y, flags, param):
     global coords
     if event == cv2.EVENT_LBUTTONDOWN:
         coords.append((x, y))
+    elif event == cv2.EVENT_RBUTTONDOWN:
+        coords = []
 
 
 def tag_frame(frame):
     global coords
+    name = "Tag coordinates"
+    old_coords = coords
 
+    coords = []
     font = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.namedWindow("frame")
-    cv2.imshow("frame", frame)
-
-    cv2.setMouseCallback("frame", mouse_callback)
+    cv2.startWindowThread()
+    cv2.namedWindow(name)
+    cv2.imshow(name, frame)
+    cv2.setMouseCallback(name, mouse_callback)
 
     while len(coords) < 4:
         key = cv2.waitKey(1)
 
-        if key & 0xFF == ord("q"):
+        if key & 0xFF == ord("c"):
+            coords = old_coords
             break
 
         framecopy = frame.copy()
+        for coord in old_coords:
+            cv2.circle(framecopy, coord, 5, (0, 0, 255), -1)
         for coord in coords:
             cv2.circle(framecopy, coord, 5, (0, 255, 0), -1)
-        text = f"Click on tag centers, tags left: {4-len(coords)}"
+
+        text = (
+            f"Click on tag centers, tags left: {4-len(coords)}, press 'c' to continue"
+        )
+        if len(old_coords) > 0:
+            text = f"Click on tag centers, tags left: {4-len(coords)}, press 'c' to use previous values"
         cv2.putText(framecopy, text, (10, 30), font, 1, (255, 255, 255), 2, cv2.LINE_AA)
         cv2.putText(framecopy, text, (11, 31), font, 1, (0, 0, 0), 2, cv2.LINE_AA)
-        cv2.imshow("frame", framecopy)
+        cv2.imshow(name, framecopy)
 
-    cv2.destroyWindow("frame")
-    cv2.destroyAllWindows()
+    cv2.destroyWindow(name)
 
+    cv2.waitKey(1)
     # vft needs to have the order matching the order of source points
     # tl, tr, bl, br
     coords = sorted(coords, key=lambda x: x[0] + x[1])
