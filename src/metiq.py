@@ -193,6 +193,7 @@ def media_analyze(
     cache_audio = kwargs.get("cache_audio", True)
     audio_sample = kwargs.get("audio_sample", "")
     tag_manual = kwargs.get("tag_manual", False)
+    ref_fps = kwargs.get("ref_fps", -1)
 
     # 1. analyze the audio stream
     path_audio = f"{infile}.audio.csv"
@@ -232,6 +233,7 @@ def media_analyze(
             width,
             height,
             pixel_format,
+            ref_fps,
             luma_threshold,
             lock_layout=lock_layout,
             tag_manual=tag_manual,
@@ -1287,6 +1289,7 @@ def main(argv):
                     audio_sample=options.audio_sample,
                     lock_layout=options.lock_layout,
                     tag_manual=options.tag_manual,
+                    ref_fps=options.force_fps,
                 )
             except Exception as ex:
                 print(f"ERROR: {ex} {infile}")
