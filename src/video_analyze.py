@@ -16,7 +16,7 @@ import vft
 import time
 from shapely.geometry import Polygon
 from _version import __version__
-
+import timeit
 
 COLOR_BLACK = (0, 0, 0)
 COLOR_BACKGROUND = (128, 128, 128)
@@ -262,12 +262,15 @@ def video_analyze(
     total_nbr_of_frames = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
 
     start = time.monotonic_ns()
+    accumulated_decode_time = 0
     while True:
         # get image
+        decstart = time.monotonic_ns()
         status, img = video_capture.read()
         if not status:
             break
         frame_num += 1
+        accumulated_decode_time += time.monotonic_ns() - decstart
         # this (wrongly) assumes frames are perfectly separated
         timestamp_alt = frame_num / in_fps
         # cv2.CAP_PROP_POS_MSEC returns the right timestamp
@@ -283,24 +286,33 @@ def video_analyze(
         if width > 0 and height > 0:
             dim = (width, height)
             img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-
-            status, value_read = parse_image(
-                img,
-                luma_threshold,
-                vft_id,
-                tag_center_locations,
-                tag_expected_center_locations,
-                debug,
-            )
+            status = -1
+            retry = 0
+            threshold = luma_threshold
+            while status != 0 and retry < 2:
+                # the slow part is the decode so let us spend som emore time on failures
+                status, value_read = parse_image(
+                    img,
+                    threshold,
+                    vft_id,
+                    tag_center_locations,
+                    tag_expected_center_locations,
+                    debug,
+                )
+                if status != 0:
+                    print(f"Retry {retry} {status = }")
+                    threshold = threshold // 2 + 1
+                    retry += 1
 
         current_time = time.monotonic_ns()
         time_per_iteration = (current_time - start) / (frame_num + 1)
         time_left_sec = (
             time_per_iteration * (total_nbr_of_frames - frame_num) / TEN_TO_NINE
         )
-        estimation = f" estimated time left: {time_left_sec:.1f} sec"
+        decode_time_per_iteration = accumulated_decode_time / (frame_num + 1)
+        estimation = f" estimated time left: {time_left_sec:6.1f} sec"
         print(
-            f"-- {round(100 * frame_num/total_nbr_of_frames, 2)} %, {estimation}",
+            f"-- {round(100 * frame_num/total_nbr_of_frames, 2):5.2f} %, {estimation}, dec. time:{decode_time_per_iteration/1000000:=5.2f} ms, calc, time: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms",
             end="\r",
         )
         if status != 0:
