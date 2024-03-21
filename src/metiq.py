@@ -194,7 +194,7 @@ def media_analyze(
     audio_sample = kwargs.get("audio_sample", "")
     tag_manual = kwargs.get("tag_manual", False)
     ref_fps = kwargs.get("ref_fps", -1)
-
+    threaded = kwargs.get("threaded", False)
     # 1. analyze the audio stream
     path_audio = f"{infile}.audio.csv"
     if cache_audio and os.path.exists(path_audio):
@@ -237,11 +237,14 @@ def media_analyze(
             luma_threshold,
             lock_layout=lock_layout,
             tag_manual=tag_manual,
+            threaded=threaded,
             debug=debug,
         )
-    # write up the results to disk
-    video_results.to_csv(path_video, index=False)
 
+        print(f"Done analyzing, write csv, size: {len(video_results)} to {path_video}")
+        # write up the results to disk
+        video_results.to_csv(path_video, index=False)
+    print("Return video results")
     return video_results, audio_results
 
 
@@ -1145,6 +1148,10 @@ def get_options(argv):
         default=False,
         help="Mouse click tag positions",
     )
+    parser.add_argument(
+        "--threaded",
+        action="store_true",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -1290,6 +1297,7 @@ def main(argv):
                     lock_layout=options.lock_layout,
                     tag_manual=options.tag_manual,
                     ref_fps=options.force_fps,
+                    threaded=options.threaded,
                 )
             except Exception as ex:
                 print(f"ERROR: {ex} {infile}")
@@ -1298,6 +1306,7 @@ def main(argv):
             video_latency = None
             av_sync = None
 
+            # TODO: capture fps shoud be available
             ref_fps, capture_fps = estimate_fps(video_result)
             if options.force_fps > 0:
                 ref_fps = options.force_fps

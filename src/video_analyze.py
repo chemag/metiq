@@ -17,6 +17,9 @@ import time
 from shapely.geometry import Polygon
 from _version import __version__
 import timeit
+import threading
+import queue
+import time
 
 COLOR_BLACK = (0, 0, 0)
 COLOR_BACKGROUND = (128, 128, 128)
@@ -51,6 +54,63 @@ default_values = {
     "infile": None,
     "outfile": None,
 }
+
+# OpenCV have memory issues when used with threads causing a crash on deallocation
+# If we keep the name global in the file we can release it just fine without a crash
+video_capture = None
+
+
+# Wrap the VideoCapture
+# Use a threaded decode to parallelize the work
+class VideoCaptureWrapper(cv2.VideoCapture):
+    decode = True
+    frames = None
+    thread = None
+    # Max numbers of decoded frames in the queue
+    frameLimit = threading.Semaphore(5)
+    current_time = 0
+
+    def __init__(self, filename, api=0, flags=0):
+        super(VideoCaptureWrapper, self).__init__(filename, api, flags)
+        self.frames = queue.Queue(maxsize=5)
+        self.thread = threading.Thread(target=self.decode_video)
+        self.thread.start()
+
+    # Override
+    def read(self):
+        if self.decode or self.frames.qsize() > 0:
+            frame, timestamp = self.frames.get()
+            self.current_time = timestamp
+        else:
+            return False, None
+
+        self.frameLimit.release()
+        return True, frame
+
+    # Override
+    def get(self, propId):
+        if propId == cv2.CAP_PROP_POS_MSEC:
+            return self.current_time
+        else:
+            return super(VideoCaptureWrapper, self).get(propId)
+
+    def decode_video(self):
+        while self.decode:
+            ret, frame = super(VideoCaptureWrapper, self).read()
+            current_time = super(VideoCaptureWrapper, self).get(cv2.CAP_PROP_POS_MSEC)
+            if not ret:
+                self.decode = False
+                break
+            self.frameLimit.acquire()
+            self.frames.put((frame, current_time))
+
+    def release(self):
+        self.decode = False
+        if self.frames.qsize() > 0:
+            self.frames.join()
+        self.thread.join()
+
+        super(VideoCaptureWrapper, self).release()
 
 
 # VideoCapture-compatible raw (yuv) reader
@@ -101,21 +161,32 @@ class VideoCaptureYUV:
         raise AssertionError(f"error: invalid {pix_fmt = }")
 
 
-def get_video_capture(input_file, width, height, pixel_format):
+def get_video_capture(input_file, width, height, pixel_format, threaded=False):
     video_capture = None
     if pixel_format is not None:
         video_capture = VideoCaptureYUV(input_file, width, height, pixel_format)
     else:
         # Auto detect API and try to open hw acceleration
         if HW_DECODER_ENABLE:
-            video_capture = cv2.VideoCapture(
-                input_file,
-                0,
-                (cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_ANY),
-            )
+            if threaded:
+                video_capture = VideoCaptureWrapper(
+                    input_file,
+                    0,
+                    (cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_ANY),
+                )
+            else:
+                video_capture = cv2.VideoCapture(
+                    input_file,
+                    0,
+                    (cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_ANY),
+                )
         else:
-            video_capture = cv2.VideoCapture(input_file)
+            if threaded:
+                video_capture = VideoCaptureWrapper(input_file)
+            else:
+                video_capture = cv2.VideoCapture(input_file)
         # throw error
+
     return video_capture
 
 
@@ -154,8 +225,10 @@ def video_parse(
     luma_threshold=vft.DEFAULT_LUMA_THRESHOLD,
     lock_layout=False,
     tag_manual=False,
+    threaded=False,
     debug=0,
 ):
+
     # If we do not know the source fps we can still do the parsing.
     # Ignore delta calculations and guessing frames, i.e. the analysis
     return video_analyze(
@@ -167,6 +240,7 @@ def video_parse(
         luma_threshold,
         lock_layout,
         tag_manual,
+        threaded,
         debug=debug,
     )
 
@@ -225,8 +299,10 @@ def video_analyze(
     luma_threshold,
     lock_layout=False,
     tag_manual=False,
+    threaded=False,
     debug=0,
 ):
+    global video_capture
     # If running multiple files where there may be minor realignments
     # reset and latch onto a fresh layout config
     vft_id = None
@@ -248,7 +324,7 @@ def video_analyze(
             tag_center_locations,
             tag_expected_center_locations,
         ) = find_first_valid_tag(infile, width, height, pixel_format, debug)
-    video_capture = get_video_capture(infile, width, height, pixel_format)
+    video_capture = get_video_capture(infile, width, height, pixel_format, threaded)
     if not video_capture.isOpened():
         print(f"error: {infile = } is not open")
         sys.exit(-1)
@@ -300,7 +376,6 @@ def video_analyze(
                     debug,
                 )
                 if status != 0:
-                    print(f"Retry {retry} {status = }")
                     threshold = threshold // 2 + 1
                     retry += 1
 
@@ -309,10 +384,14 @@ def video_analyze(
         time_left_sec = (
             time_per_iteration * (total_nbr_of_frames - frame_num) / TEN_TO_NINE
         )
-        decode_time_per_iteration = accumulated_decode_time / (frame_num + 1)
         estimation = f" estimated time left: {time_left_sec:6.1f} sec"
+        speed_text = f", processing {1/(time_per_iteration/TEN_TO_NINE):.2f} fps"
+        if debug > 0:
+            decode_time_per_iteration = accumulated_decode_time / (frame_num + 1)
+            speed_text = f"{speed_text}, dec. time:{decode_time_per_iteration/1000000:=5.2f} ms, calc, time: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms"
+
         print(
-            f"-- {round(100 * frame_num/total_nbr_of_frames, 2):5.2f} %, {estimation}, dec. time:{decode_time_per_iteration/1000000:=5.2f} ms, calc, time: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms",
+            f"-- {round(100 * frame_num/total_nbr_of_frames, 2):5.2f} %, {estimation}{speed_text}{' ' * 20}",
             end="\r",
         )
         if status != 0:
@@ -395,6 +474,27 @@ def video_analyze(
     video_results["delta_frame"] = round_to_nearest_half(
         video_results["value_read"] - video_results["frame_num_expected"] - delta_mode
     )
+
+    current_time = time.monotonic_ns()
+    total_time = current_time - start
+    calc_time = total_time - accumulated_decode_time
+
+    if debug > 0:
+        decode_time_per_iteration = accumulated_decode_time / (frame_num + 1)
+        print(f"{' ' * 120}")
+        print(
+            f"Total time: {total_time/1000000000:.2f} sec, total decoding time: {accumulated_decode_time/1000000000:.2f} sec"
+        )
+        print(
+            f"Processing  {total_nbr_of_frames/total_time*1000000000:.2f} fps, per frame: {decode_time_per_iteration/1000000:=5.2f} ms,"
+            f"calc: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms"
+        )
+    else:
+        print(f"{' ' * 120}")
+        print(
+            f"Total time: {total_time/1000000000:.2f} sec, processing {total_nbr_of_frames/total_time*1000000000:.2f} fps {' '*30}"
+        )
+
     return video_results
 
 
@@ -578,6 +678,7 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
     except Exception as exc:
         print(f"error: {exc = }")
         pass
+    video_capture = None
 
     if tag_center_locations is None:
         raise vft.NoValidTagFoundError()
@@ -731,6 +832,10 @@ def get_options(argv):
         default=False,
         help="Mous click tag positions",
     )
+    parser.add_argument(
+        "--threaded",
+        action="store_true",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -776,6 +881,7 @@ def main(argv):
         options.luma_threshold,
         options.lock_layout,
         tag_manual=options.tag_manual,
+        threaded=options.threaded,
         debug=options.debug,
     )
     dump_video_results(video_results, options.outfile, options.debug)
