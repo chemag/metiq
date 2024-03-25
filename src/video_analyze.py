@@ -406,7 +406,7 @@ def video_analyze(
                     vft_layout = vft.VFTLayout(width, height, _vft_id)
                     vft_id = _vft_id
                     tag_center_locations = _tag_center_locations
-                else:
+                elif not vtc.are_tags_frozen():
                     tag_center_locations = vtc.tag_frame(img)
                 status, value_read = parse_image(
                     img,
