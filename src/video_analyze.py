@@ -330,6 +330,14 @@ def video_analyze(
         sys.exit(-1)
     # 1. analyze the video image-by-image
     in_fps = video_capture.get(cv2.CAP_PROP_FPS)
+    in_width = video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)
+    in_height = video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
+
+    if in_width < width:
+        width = 0
+    if in_height < height:
+        height = 0
+
     frame_num = -1
     video_results = pd.DataFrame(
         columns=("frame_num", "timestamp", "frame_num_expected", "status", "value_read")
