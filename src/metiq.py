@@ -803,11 +803,11 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
             )
 
 
-def z_filter(data, field, z_val):
+def z_filter_outliers(data, field, max_z_val):
     mean = data[field].mean()
     std = data[field].std()
-    return data.drop(data[data[field] > mean + z_val * std].index)
-
+    # Instead of removing values at or more than max_z_val we keep the other ones.
+    return data[((data[field] - mean)/std).abs() <  max_z_val]
 
 def get_options(argv):
     """Generic option parser.
@@ -1163,7 +1163,7 @@ def get_options(argv):
     parser.add_argument(
         "-z",
         "--z-filter",
-        dest="z_filter",
+        dest="z_filter_outliers",
         type=float,
         default=0,
         help="Filter latency outliers by calculating z-scores and filter above this value. Typical value is 3.`",
@@ -1345,9 +1345,9 @@ def main(argv):
                     debug=options.debug,
                 )
             if options.calc_all or options.audio_latency:
-                if options.z_filter > 0:
-                    video_latency = z_filter(
-                        audio_latency, "audio_latency_sec", options.z_filter
+                if options.z_filter_outliers > 0:
+                    video_latency = z_filter_outliers(
+                        audio_latency, "audio_latency_sec", options.z_filter_outliers
                     )
                 path = f"{infile}.audio.latency.csv"
                 if outfile is not None and len(outfile) > 0 and len(files) == 1:
@@ -1363,9 +1363,9 @@ def main(argv):
                     debug=options.debug,
                 )
                 if len(video_latency) > 0:
-                    if options.z_filter > 0:
-                        video_latency = z_filter(
-                            video_latency, "video_latency_sec", options.z_filter
+                    if options.z_filter_outliers > 0:
+                        video_latency = z_filter_outliers(
+                            video_latency, "video_latency_sec", options.z_filter_outliers
                         )
                     path = f"{infile}.video.latency.csv"
                     if outfile is not None and len(outfile) > 0 and len(files) == 1:
@@ -1384,8 +1384,8 @@ def main(argv):
                     debug=options.debug,
                 )
                 if len(av_sync) > 0:
-                    if options.z_filter > 0:
-                        av_sync = z_filter(av_sync, "av_sync_sec", options.z_filter)
+                    if options.z_filter_outliers > 0:
+                        av_sync = z_filter_outliers(av_sync, "av_sync_sec", options.z_filter_outliers)
                     path = f"{infile}.avsync.csv"
                     if outfile is not None and len(outfile) > 0 and len(files) == 1:
                         path = f"{outfile}.avsync.csv"
