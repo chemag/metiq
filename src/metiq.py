@@ -804,7 +804,7 @@ def dump_results(video_results, video_delta_info, audio_results, outfile, debug)
 def z_filter(data, field, z_val):
     mean = data[field].mean()
     std = data[field].std()
-    return data.drop(data[data[field] > mean + z_val * std].index)
+    return data.drop(data[data[field].abs() > abs(mean + z_val * std)].index)
 
 
 def get_options(argv):
