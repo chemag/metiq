@@ -226,6 +226,7 @@ def video_parse(
     lock_layout=False,
     tag_manual=False,
     threaded=False,
+    ignore_errors=False,
     debug=0,
 ):
 
@@ -241,6 +242,7 @@ def video_parse(
         lock_layout,
         tag_manual,
         threaded,
+        ignore_errors,
         debug=debug,
     )
 
@@ -300,6 +302,7 @@ def video_analyze(
     lock_layout=False,
     tag_manual=False,
     threaded=False,
+    ignore_errors=False,
     debug=0,
 ):
     global video_capture
@@ -414,7 +417,7 @@ def video_analyze(
                     vft_layout = vft.VFTLayout(width, height, _vft_id)
                     vft_id = _vft_id
                     tag_center_locations = _tag_center_locations
-                elif not vtc.are_tags_frozen():
+                elif not vtc.are_tags_frozen() and not ignore_errors:
                     if not tag_manual and vft_id:
                         tag_center_locations = vtc.tag_frame(img, tag_center_locations)
                     else:
@@ -847,6 +850,12 @@ def get_options(argv):
         "--threaded",
         action="store_true",
     )
+    parser.add_argument(
+        "--ignore-errors",
+        action="store_true",
+        dest="ignore_errors",
+        help="Just keep parsing and do not allow any manual input.",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -893,6 +902,7 @@ def main(argv):
         options.lock_layout,
         tag_manual=options.tag_manual,
         threaded=options.threaded,
+        ignore_errors=options.ignore_errors,
         debug=options.debug,
     )
     dump_video_results(video_results, options.outfile, options.debug)
