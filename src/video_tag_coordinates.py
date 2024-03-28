@@ -25,8 +25,10 @@ def mouse_callback(event, x, y, flags, param):
         clicked_coords = []
 
 
-def tag_frame(frame):
+def tag_frame(frame, current_coords=None):
     global coords, clicked_coords, freeze_tags
+    if current_coords is not None:
+        coords = [(int(x), int(y)) for x, y in current_coords]
     name = "Tag coordinates"
 
     clicked_coords = []
@@ -67,8 +69,10 @@ def tag_frame(frame):
     cv2.waitKey(1)
     # vft needs to have the order matching the order of source points
     # tl, tr, bl, br
-    coords = sorted(coords, key=lambda x: x[0] + x[1])
-    coords = [coords[0], coords[2], coords[1], coords[3]]
+    if len(coords) == 4:
+        coords = sorted(coords, key=lambda x: x[0] + x[1])
+        coords = [coords[0], coords[2], coords[1], coords[3]]
+    # this means that it is possible to continue with only three tags
     return coords
 
 
