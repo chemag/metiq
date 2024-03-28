@@ -195,6 +195,7 @@ def media_analyze(
     tag_manual = kwargs.get("tag_manual", False)
     ref_fps = kwargs.get("ref_fps", -1)
     threaded = kwargs.get("threaded", False)
+    manual_on_error = kwargs.get("manual_on_error", False)
     # 1. analyze the audio stream
     path_audio = f"{infile}.audio.csv"
     if cache_audio and os.path.exists(path_audio):
@@ -238,6 +239,7 @@ def media_analyze(
             lock_layout=lock_layout,
             tag_manual=tag_manual,
             threaded=threaded,
+            manual_on_error=manual_on_error,
             debug=debug,
         )
 
@@ -1166,6 +1168,12 @@ def get_options(argv):
         default=0,
         help="Filter latency outliers by calculating z-scores and filter above this value. Typical value is 3.`",
     )
+    parser.add_argument(
+        "--manual-on-error",
+        action="store_true",
+        dest="manual_on_error",
+        help="Just keep parsing and do not allow any manual input.",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -1312,6 +1320,7 @@ def main(argv):
                     tag_manual=options.tag_manual,
                     ref_fps=options.force_fps,
                     threaded=options.threaded,
+                    manual_on_error=options.manual_on_error,
                 )
             except Exception as ex:
                 print(f"ERROR: {ex} {infile}")
