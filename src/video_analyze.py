@@ -226,6 +226,7 @@ def video_parse(
     lock_layout=False,
     tag_manual=False,
     threaded=False,
+    manual_on_error=False,
     debug=0,
 ):
 
@@ -241,6 +242,7 @@ def video_parse(
         lock_layout,
         tag_manual,
         threaded,
+        manual_on_error,
         debug=debug,
     )
 
@@ -300,6 +302,7 @@ def video_analyze(
     lock_layout=False,
     tag_manual=False,
     threaded=False,
+    manual_on_error=False,
     debug=0,
 ):
     global video_capture
@@ -414,8 +417,13 @@ def video_analyze(
                     vft_layout = vft.VFTLayout(width, height, _vft_id)
                     vft_id = _vft_id
                     tag_center_locations = _tag_center_locations
-                elif not vtc.are_tags_frozen():
-                    tag_center_locations = vtc.tag_frame(img)
+                elif not vtc.are_tags_frozen() and manual_on_error:
+                    if not tag_manual and vft_id:
+                        # Use the tags found in the previous frame(s)
+                        tag_center_locations = vtc.tag_frame(img, tag_center_locations)
+                    else:
+                        # use the frmes we tagged manually previously (if any)
+                        tag_center_locations = vtc.tag_frame(img)
                 status, value_read = parse_image(
                     img,
                     luma_threshold,
@@ -844,6 +852,12 @@ def get_options(argv):
         "--threaded",
         action="store_true",
     )
+    parser.add_argument(
+        "--manual-on-error",
+        action="store_true",
+        dest="manual_on_error",
+        help="Just keep parsing and do not allow any manual input.",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -890,6 +904,7 @@ def main(argv):
         options.lock_layout,
         tag_manual=options.tag_manual,
         threaded=options.threaded,
+        manual_on_error=options.manual_on_error,
         debug=options.debug,
     )
     dump_video_results(video_results, options.outfile, options.debug)
