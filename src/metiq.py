@@ -1192,13 +1192,13 @@ def main(argv):
     if options.no_hw_decode:
         video_analyze.config_decoder(HW_DECODER_ENABLE=False)
 
-    files = []
+    infile_list = []
     # if options.infile.endswith("]") and options.infile.startswith("["):
     if options.infile is not None and "\n" in options.infile:
         tmp = options.infile.split("\n")
-        files = [fil for fil in tmp if fil != ""]
+        infile_list = [infile for infile in tmp if infile != ""]
     else:
-        files.append(options.infile)
+        infile_list.append(options.infile)
 
     all_audio_latency = pd.DataFrame()
     all_video_latency = pd.DataFrame()
@@ -1210,10 +1210,10 @@ def main(argv):
 
     all_frame_duration = pd.DataFrame()
 
-    nbr_files = len(files)
+    nbr_files = len(infile_list)
     file_cnt = 0
     start = time.monotonic_ns()
-    for infile in files:
+    for infile in infile_list:
         # do something
         time_left_sec = np.inf
         estimation = ""
@@ -1341,7 +1341,7 @@ def main(argv):
                         audio_latency, "audio_latency_sec", options.z_filter
                     )
                 path = f"{infile}.audio.latency.csv"
-                if outfile is not None and len(outfile) > 0 and len(files) == 1:
+                if outfile is not None and len(outfile) > 0 and len(infile_list) == 1:
                     path = f"{outfile}.audio.latency.csv"
                 audio_latency.to_csv(path, index=False)
 
@@ -1359,7 +1359,7 @@ def main(argv):
                             video_latency, "video_latency_sec", options.z_filter
                         )
                     path = f"{infile}.video.latency.csv"
-                    if outfile is not None and len(outfile) > 0 and len(files) == 1:
+                    if outfile is not None and len(outfile) > 0 and len(infile_list) == 1:
                         path = f"{outfile}.video.latency.csv"
                     video_latency.to_csv(path, index=False)
 
@@ -1378,7 +1378,7 @@ def main(argv):
                     if options.z_filter > 0:
                         av_sync = z_filter(av_sync, "av_sync_sec", options.z_filter)
                     path = f"{infile}.avsync.csv"
-                    if outfile is not None and len(outfile) > 0 and len(files) == 1:
+                    if outfile is not None and len(outfile) > 0 and len(infile_list) == 1:
                         path = f"{outfile}.avsync.csv"
                     av_sync.to_csv(path, index=False)
 
@@ -1422,7 +1422,7 @@ def main(argv):
 
                 if len(combined) > 0:
                     path = f"{infile}.latencies.csv"
-                    if outfile is not None and len(outfile) > 0 and len(files) == 1:
+                    if outfile is not None and len(outfile) > 0 and len(infile_list) == 1:
                         path = f"{outfile}.latencies.csv"
                     combined.to_csv(path, index=False)
 
@@ -1430,7 +1430,7 @@ def main(argv):
                 audio_result, video_result
             )
             path = f"{infile}.measurement.quality.csv"
-            if outfile is not None and len(outfile) > 0 and len(files) == 1:
+            if outfile is not None and len(outfile) > 0 and len(infile_list) == 1:
                 path = f"{outfile}.measurement.quality.csv"
             quality_stats.to_csv(path, index=False)
 
@@ -1445,11 +1445,11 @@ def main(argv):
             if options.calculate_frame_durations:
                 df = calculate_frame_durations(video_result)
                 df.to_csv(f"{infile}.video.frame_durations.csv")
-                if len(files) > 1:
+                if len(infile_list) > 1:
                     df["file"] = infile
                     all_frame_duration = pd.concat([all_frame_duration, df])
 
-            if len(files) > 1:
+            if len(infile_list) > 1:
                 quality_stats["file"] = infile
                 all_quality_stats = pd.concat([all_quality_stats, quality_stats])
 
