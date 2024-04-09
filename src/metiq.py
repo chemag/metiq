@@ -1166,6 +1166,18 @@ def get_options(argv):
         default=0,
         help="Filter latency outliers by calculating z-scores and filter above this value. Typical value is 3.`",
     )
+    parser.add_argument(
+        "--no-parse-clean",
+        action="store_true",
+        dest="no_parse_clean",
+        help="Do not try to clean single frame parsing errors.",
+    )
+    parser.add_argument(
+        "--filter-single-frames",
+        action="store_true",
+        dest="parse_clean",
+        help="Try to clean parsing single frame errors.",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -1322,6 +1334,12 @@ def media_analyze_full(options):
         except Exception as ex:
             print(f"ERROR: {ex} {infile}")
             continue
+        if not options.no_parse_clean:
+            # check if it is alread done
+            if "value_before_clean" not in video_result.columns:
+                video_result = video_analyze.clean_video_read_errors(video_result)
+                video_result.to_csv(infile + ".video.csv", index=False)
+
         audio_latency = None
         video_latency = None
         av_sync = None
