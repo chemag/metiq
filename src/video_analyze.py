@@ -766,7 +766,7 @@ def get_options(argv):
     parser.add_argument(
         "--quiet",
         action="store_const",
-        dest="debug",
+        dest="quiet",
         const=-1,
         help="Zero verbosity",
     )
