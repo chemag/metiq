@@ -414,7 +414,7 @@ def video_analyze(
                     vft_layout = vft.VFTLayout(width, height, _vft_id)
                     vft_id = _vft_id
                     tag_center_locations = _tag_center_locations
-                elif not vtc.are_tags_frozen():
+                elif not vtc.are_tags_frozen() and tag_manual:
                     tag_center_locations = vtc.tag_frame(img)
                 status, value_read = parse_image(
                     img,
@@ -696,6 +696,37 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
     return vft_id, tag_center_locations, tag_expected_center_locations
 
 
+def clean_video_read_errors(data):
+    # one frame cannot have a different value than two adjacent frames.
+    # this is only true if the capture fps is at least twice the draw frame rate (i.e. 240fps at 120Hz display).
+    # Use next value
+
+    # no holes please
+    data["value_read"].fillna(method="ffill", inplace=True)
+    # Maybe some values in the beginning are bad as well.
+    data["value_read"].fillna(method="bfill", inplace=True)
+    data["value_clean"] = data["value_read"].astype(int)
+    data["val_m1"] = data["value_clean"].shift(-1)
+    data["val_p1"] = data["value_clean"].shift(1)
+    data["val_m1"].fillna(method="ffill", inplace=True)
+    data["val_p1"].fillna(method="bfill", inplace=True)
+
+    data["singles"] = (data["value_clean"] != data["val_m1"]) & (
+        data["value_clean"] != data["val_p1"]
+    )
+    data.loc[data["singles"], "value_clean"] = np.NaN
+    data["value_clean"].fillna(method="ffill", inplace=True)
+    data["value_clean"] = data["value_clean"].astype(int)
+    data["value_before_clean"] = data["value_read"]
+
+    # use the new values in subsequent analysis
+    data["value_read"] = data["value_clean"]
+    data.drop(columns=["val_m1", "val_p1", "singles", "value_clean"], inplace=True)
+
+    print(data)
+    return data
+
+
 def config_decoder(**options):
     global HW_DECODER_ENABLE
     HW_DECODER_ENABLE = options.get("HW_DECODER_ENABLE", False)
@@ -735,7 +766,7 @@ def get_options(argv):
     parser.add_argument(
         "--quiet",
         action="store_const",
-        dest="debug",
+        dest="quiet",
         const=-1,
         help="Zero verbosity",
     )
@@ -844,6 +875,12 @@ def get_options(argv):
         "--threaded",
         action="store_true",
     )
+    parser.add_argument(
+        "--no-parse-clean",
+        action="store_true",
+        dest="no_parse_clean",
+        help="Do not try to clean single frame parsing errors.",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -892,6 +929,11 @@ def main(argv):
         threaded=options.threaded,
         debug=options.debug,
     )
+    if not options.no_parse_clean:
+        if not options.quiet:
+            print(
+                "Filtering parsing error. Make sure capturing frequency > twice the display frequency"
+            )
     dump_video_results(video_results, options.outfile, options.debug)
     # print the delta info
     video_delta_info = video_analyze_delta_info(video_results)
