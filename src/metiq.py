@@ -13,11 +13,11 @@ import tempfile
 
 import audio_common
 import audio_generate
-import audio_analyze
+import audio_parse
 import vft
 import video_common
 import video_generate
-import video_analyze
+import video_parse
 import common
 import time
 
@@ -26,7 +26,7 @@ from _version import __version__
 FUNC_CHOICES = {
     "help": "show help options",
     "generate": "generate reference video",
-    "analyze": "analyze distorted video",
+    "parse": "parse distorted video",
 }
 
 DEFAULT_NUM_FRAMES = 1800
@@ -50,8 +50,8 @@ default_values = {
     "beep_duration_samples": audio_common.DEFAULT_BEEP_DURATION_SAMPLES,
     "beep_period_sec": audio_common.DEFAULT_BEEP_PERIOD_SEC,
     "scale": audio_common.DEFAULT_SCALE,
-    "min_separation_msec": audio_analyze.DEFAULT_MIN_SEPARATION_MSEC,
-    "min_match_threshold": audio_analyze.DEFAULT_MIN_MATCH_THRESHOLD,
+    "min_separation_msec": audio_parse.DEFAULT_MIN_SEPARATION_MSEC,
+    "min_match_threshold": audio_parse.DEFAULT_MIN_MATCH_THRESHOLD,
     # common parameters
     "func": "help",
     "infile": None,
@@ -158,11 +158,11 @@ def media_generate(outfile, **kwarg):
     os.remove(audio_filename)
 
 
-def media_analyze_coverage_video(
+def media_parse_coverage_video(
     infile,
     **kwarg,
 ):
-    return video_analyze.calc_coverage(
+    return video_parse.calc_coverage(
         infile,
         width=kwarg.get("width", 0),
         height=kwarg.get("height", 0),
@@ -171,7 +171,7 @@ def media_analyze_coverage_video(
     )
 
 
-def media_analyze(
+def media_parse(
     width,
     height,
     num_frames,
@@ -195,13 +195,13 @@ def media_analyze(
     tag_manual = kwargs.get("tag_manual", False)
     ref_fps = kwargs.get("ref_fps", -1)
     threaded = kwargs.get("threaded", False)
-    # 1. analyze the audio stream
+    # 1. parse the audio stream
     path_audio = f"{infile}.audio.csv"
     if cache_audio and os.path.exists(path_audio):
         audio_results = pd.read_csv(path_audio)
     else:
         # recalculate the audio results
-        audio_results = audio_analyze.audio_analyze(
+        audio_results = audio_parse.audio_parse(
             infile,
             pre_samples=pre_samples,
             samplerate=samplerate,
@@ -215,20 +215,20 @@ def media_analyze(
             debug=debug,
         )
         if audio_results is None or len(audio_results) == 0:
-            # without audio there is not point in running the video analysis
+            # without audio there is not point in running the video parsing
             raise Exception(
                 "ERROR: audio calculation failed. Verify that there are signals in audio stream."
             )
         # write up the results to disk
         audio_results.to_csv(path_audio, index=False)
 
-    # 2. analyze the video stream
+    # 2. parse the video stream
     path_video = f"{infile}.video.csv"
     if cache_video and os.path.exists(path_video):
         video_results = pd.read_csv(path_video)
     else:
         # recalculate the video results
-        video_results = video_analyze.video_parse(
+        video_results = video_parse.video_parse(
             infile,
             width,
             height,
@@ -241,7 +241,7 @@ def media_analyze(
             debug=debug,
         )
 
-        print(f"Done analyzing, write csv, size: {len(video_results)} to {path_video}")
+        print(f"Done parsing, write csv, size: {len(video_results)} to {path_video}")
         # write up the results to disk
         video_results.to_csv(path_video, index=False)
     print("Return video results")
@@ -361,7 +361,7 @@ def calculate_measurement_quality_stats(audio_result, video_result):
     )
 
     # video metiq errors
-    for error, (short, _) in video_analyze.ERROR_TYPES.items():
+    for error, (short, _) in video_parse.ERROR_TYPES.items():
         stats["video_frames_metiq_error." + short] = len(
             video_result.loc[video_result["status"] == error]
         )
@@ -467,7 +467,7 @@ def calculate_stats(
     #    100 * video_frames_metiq_errors / video_frames_capture_total, 2
     # )
     # video metiq errors
-    # for error, (short, _) in video_analyze.ERROR_TYPES.items():
+    # for error, (short, _) in video_parse.ERROR_TYPES.items():
     #     stats["video_frames_metiq_error." + short] = len(
     #         video_metiq_errors.loc[video_metiq_errors["error_type"] == error]
     #     )
@@ -1061,21 +1061,21 @@ def get_options(argv):
         action="store_false",
         dest="cache_both",
         default=True,
-        help="Recalculate both audio and video analysis",
+        help="Recalculate both audio and video parsing",
     )
     parser.add_argument(
         "--no-cache-audio",
         action="store_false",
         dest="cache_audio",
         default=True,
-        help="Recalculate audio analysis",
+        help="Recalculate audio parsing",
     )
     parser.add_argument(
         "--no-cache-video",
         action="store_false",
         dest="cache_video",
         default=True,
-        help="Recalculate video analysis",
+        help="Recalculate video parsing",
     )
     parser.add_argument(
         "--no-hw-decode",
@@ -1096,7 +1096,7 @@ def get_options(argv):
         "--lock-layout",
         action="store_true",
         dest="lock_layout",
-        help="Reuse video frame layout location from the first frame to subsequent frames. This reduces the complexity of the analysis when the camera and DUT are set in a fixed setup",
+        help="Reuse video frame layout location from the first frame to subsequent frames. This reduces the complexity of the parsing when the camera and DUT are set in a fixed setup",
     )
     parser.add_argument(
         "--calc-all",
@@ -1139,7 +1139,7 @@ def get_options(argv):
         "--noise-video",
         action="store_true",
         dest="noise_video",
-        help="For 'generate', create a noise video with tags but without audio. For 'analyze', calculate percentage of identified video.",
+        help="For 'generate', create a noise video with tags but without audio. For 'parse', calculate percentage of identified video.",
     )
     parser.add_argument(
         "--calc-coverage",
@@ -1223,13 +1223,13 @@ def main(argv):
                 audio_sample=options.audio_sample,
             )
 
-    elif options.func == "analyze":
-        media_analyze_full(options)
+    elif options.func == "parse":
+        media_parse_full(options)
 
 
-def media_analyze_full(options):
+def media_parse_full(options):
     if options.no_hw_decode:
-        video_analyze.config_decoder(HW_DECODER_ENABLE=False)
+        video_parse.config_decoder(HW_DECODER_ENABLE=False)
 
     infile_list = []
     # if options.infile.endswith("]") and options.infile.startswith("["):
@@ -1271,7 +1271,7 @@ def media_analyze_full(options):
             outfile = options.outfile.split(".csv")[0]
 
         if options.calc_coverage:
-            media_analyze_noise_video(
+            media_parse_noise_video(
                 infile=infile,
                 outfile=outfile,
                 vft_id=options.vft_id,
@@ -1294,7 +1294,7 @@ def media_analyze_full(options):
         cache_video = options.cache_video and options.cache_both
         cache_audio = options.cache_audio and options.cache_both
         try:
-            video_result, audio_result = media_analyze(
+            video_result, audio_result = media_parse(
                 options.width,
                 options.height,
                 options.num_frames,

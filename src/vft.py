@@ -68,7 +68,7 @@ MIN_SIZE = 64
 FUNC_CHOICES = {
     "help": "show help options",
     "generate": "generate VFT tag",
-    "analyze": "analyze VFT tag in image",
+    "parse": "parse VFT tag in image",
 }
 
 default_values = {
@@ -109,7 +109,7 @@ def draw_tags(img, vft_id, tag_border_size, debug):
 vft_layout = None
 
 
-def analyze_graycode(
+def graycode_parse(
     img,
     luma_threshold,
     vft_id=None,
@@ -123,7 +123,7 @@ def analyze_graycode(
         if vft_layout is None:
             vft_layout = VFTLayout(img.shape[1], img.shape[0], vft_id)
 
-        bit_stream = locked_analyze(
+        bit_stream = locked_parse(
             img,
             luma_threshold,
             vft_id,
@@ -133,7 +133,7 @@ def analyze_graycode(
             debug,
         )
     else:
-        bit_stream, vft_id = analyze(img, luma_threshold, debug=debug)
+        bit_stream, vft_id = do_parse(img, luma_threshold, debug=debug)
     # convert gray code in bit_stream to a number
     num_read = gray_bitstream_to_num(bit_stream)
 
@@ -150,7 +150,7 @@ def generate_file(width, height, vft_id, tag_border_size, value, outfile, debug)
     cv2.imwrite(outfile, img)
 
 
-def analyze_file(infile, luma_threshold, width=0, height=0, debug=0):
+def parse_file(infile, luma_threshold, width=0, height=0, debug=0):
     img = cv2.imread(cv2.samples.findFile(infile))
     if width > 0 and height > 0:
         dim = (width, height)
@@ -163,7 +163,7 @@ def analyze_file(infile, luma_threshold, width=0, height=0, debug=0):
         gmean = int(np.mean(gray))
         gstd = int(np.std(gray))
         print(f"min/max luminance: {gmin}/{gmax}, mean: {gmean} +/- {gstd}")
-    return analyze_graycode(img, luma_threshold, debug)
+    return graycode_parse(img, luma_threshold, debug)
 
 
 # Generic Number-based API
@@ -205,7 +205,7 @@ def generate(width, height, vft_id, tag_border_size, value, debug):
     return img
 
 
-def locked_analyze(
+def locked_parse(
     img,
     luma_threshold,
     vft_id=None,
@@ -232,13 +232,13 @@ def locked_analyze(
         cv2.imshow("Transformed", img_transformed)
         k = cv2.waitKey(-1)
 
-    bit_stream = analyze_read_bits(
+    bit_stream = parse_read_bits(
         img_transformed, vft_layout, luma_threshold, debug=debug
     )
     return bit_stream
 
 
-def analyze(img, luma_threshold, debug=0):
+def do_parse(img, luma_threshold, debug=0):
     ids = None
 
     # 1. get VFT id and tag locations
@@ -250,6 +250,7 @@ def analyze(img, luma_threshold, debug=0):
         # could not read the 3x tags properly: stop here
         raise NoValidTag()
         return None, None
+
     # 2. set the layout
     height, width, _ = img.shape
     vft_layout = VFTLayout(width, height, vft_id)
@@ -287,8 +288,9 @@ def analyze(img, luma_threshold, debug=0):
     if debug > 2:
         cv2.imshow("Transformed", img_transformed)
         k = cv2.waitKey(-1)
+
     # 4. read the bits
-    bit_stream = analyze_read_bits(
+    bit_stream = parse_read_bits(
         img_transformed, vft_layout, luma_threshold, debug=debug
     )
     return bit_stream, vft_id
@@ -520,7 +522,7 @@ def affine_transformation(img, tag_center_locations, tag_expected_locations, deb
 last_min_diff = -1
 
 
-def analyze_read_bits(img, vft_layout, luma_threshold, debug):
+def parse_read_bits(img, vft_layout, luma_threshold, debug):
     global last_min_diff
     # 1. extract the luma
     img_luma = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -795,12 +797,12 @@ def main(argv):
             debug=options.debug,
         )
 
-    elif options.func == "analyze":
+    elif options.func == "parse":
         # get infile
         if options.infile == "-":
             options.infile = "/dev/fd/0"
         assert options.infile is not None, "error: need a valid in file"
-        num_read, vft_id = analyze_file(
+        num_read, vft_id = parse_file(
             options.infile,
             options.luma_threshold,
             options.width,

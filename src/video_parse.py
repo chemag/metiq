@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""video_analyze.py module description."""
+"""video_parse.py module description."""
 
 
 import argparse
@@ -230,8 +230,8 @@ def video_parse(
 ):
 
     # If we do not know the source fps we can still do the parsing.
-    # Ignore delta calculations and guessing frames, i.e. the analysis
-    return video_analyze(
+    # Ignore delta calculations and guessing frames, i.e. the parsing
+    return video_parse(
         infile,
         width,
         height,
@@ -245,7 +245,7 @@ def video_parse(
     )
 
 
-def parse_image(
+def image_parse(
     img,
     luma_threshold,
     vft_id,
@@ -256,7 +256,7 @@ def parse_image(
     status = 0
     value_read = None
     try:
-        value_read = image_analyze(
+        value_read = image_parse_raw(
             img,
             luma_threshold,
             vft_id=vft_id,
@@ -290,7 +290,7 @@ def parse_image(
 #   if it cannot read it).
 # * (f) `delta_frame`: `value_read - delta_mode` (None if
 #   `value_read` is not readable).
-def video_analyze(
+def video_parse(
     infile,
     width,
     height,
@@ -317,7 +317,7 @@ def video_analyze(
         tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
         lock_layout = True
     # With lock_layout go through the file until valid tags has been identified.
-    # Save settings and use those for tranformation and gray code analysis.
+    # Save settings and use those for tranformation and gray code parsing.
     if lock_layout and vft_id is None:
         (
             vft_id,
@@ -328,7 +328,7 @@ def video_analyze(
     if not video_capture.isOpened():
         print(f"error: {infile = } is not open")
         sys.exit(-1)
-    # 1. analyze the video image-by-image
+    # 1. parse the video image-by-image
     in_fps = video_capture.get(cv2.CAP_PROP_FPS)
     in_width = video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)
     in_height = video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -363,9 +363,9 @@ def video_analyze(
         frame_num_expected = timestamp * ref_fps
         if debug > 2:
             print(
-                f"video_analyze: parsing {frame_num = } {timestamp = } {ref_fps = } {in_fps = }"
+                f"video_parse: parsing {frame_num = } {timestamp = } {ref_fps = } {in_fps = }"
             )
-        # analyze image
+        # parse image
         value_read = None
         if width > 0 and height > 0:
             dim = (width, height)
@@ -375,7 +375,7 @@ def video_analyze(
             threshold = luma_threshold
             while status != 0 and retry < 2:
                 # the slow part is the decode so let us spend som emore time on failures
-                status, value_read = parse_image(
+                status, value_read = image_parse(
                     img,
                     threshold,
                     vft_id,
@@ -404,7 +404,7 @@ def video_analyze(
         )
         if status != 0:
             if status != ERROR_SINGLE_GRAYCODE_BIT:
-                # analyze image
+                # parse image
                 _vft_id = None
                 if not tag_manual:
                     _vft_id, _tag_center_locations, _borders, _ids = vft.detect_tags(
@@ -416,7 +416,7 @@ def video_analyze(
                     tag_center_locations = _tag_center_locations
                 elif not vtc.are_tags_frozen():
                     tag_center_locations = vtc.tag_frame(img)
-                status, value_read = parse_image(
+                status, value_read = image_parse(
                     img,
                     luma_threshold,
                     vft_id,
@@ -449,7 +449,7 @@ def video_analyze(
             previous_value = value_read
 
         if debug > 2:
-            print(f"video_analyze: read image value: {value_read}")
+            print(f"video_parse: read image value: {value_read}")
             if value_read is None:
                 cv2.imwrite(f"debug/{infile}_{frame_num}.png", img)
         video_results.loc[len(video_results.index)] = (
@@ -507,7 +507,7 @@ def video_analyze(
 
 
 # distill video_delta_info from video_results
-def video_analyze_delta_info(video_results):
+def video_parse_delta_info(video_results):
     num_frames = len(video_results)
     # remove the None values in order to calculate the delta between frames
     delta_list = round_to_nearest_half(
@@ -543,7 +543,7 @@ def video_analyze_delta_info(video_results):
     return video_delta_info
 
 
-def image_analyze(
+def image_parse_raw(
     img,
     luma_threshold,
     vft_id=None,
@@ -551,7 +551,7 @@ def image_analyze(
     tag_expected_center_locations=None,
     debug=0,
 ):
-    num_read, vft_id = vft.analyze_graycode(
+    num_read, vft_id = vft.graycode_parse(
         img,
         luma_threshold,
         vft_id=vft_id,
@@ -587,7 +587,7 @@ def calc_alignment(infile, width, height, pixel_format, debug):
             print(f"error: {infile = } could not read frame")
             sys.exit(-1)
 
-        # analyze image
+        # parse image
         vft_id, tag_center_locations, borders, ids = vft.detect_tags(img, debug=0)
 
     # transform
@@ -663,15 +663,14 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
     vft_id = None
     while tag_center_locations is None:
         status, img = video_capture.read()
-
         dim = (width, height)
         img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
         if not status:
             print(f"error: {infile = } could not read frame")
             sys.exit(-1)
-
-        # analyze image
+        # parse image
         vft_id, tag_center_locations, borders, ids = vft.detect_tags(img, debug=0)
+
     vft_layout = vft.VFTLayout(width, height, vft_id)
     tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
 
@@ -831,7 +830,7 @@ def get_options(argv):
         "--lock-layout",
         action="store_true",
         dest="lock_layout",
-        help="Reuse video frame layout location from the first frame to subsequent frames. This reduces the complexity of the analysis when the camera and DUT are set in a fixed setup",
+        help="Reuse video frame layout location from the first frame to subsequent frames. This reduces the complexity of the parsing when the camera and DUT are set in a fixed setup",
     )
     parser.add_argument(
         "--tag-manual",
@@ -880,7 +879,7 @@ def main(argv):
             options.debug,
         )
         return
-    video_results = video_analyze(
+    video_results = video_parse(
         options.infile,
         options.width,
         options.height,
@@ -894,7 +893,7 @@ def main(argv):
     )
     dump_video_results(video_results, options.outfile, options.debug)
     # print the delta info
-    video_delta_info = video_analyze_delta_info(video_results)
+    video_delta_info = video_parse_delta_info(video_results)
     print(f"score for {options.infile = } {video_delta_info = }")
 
 

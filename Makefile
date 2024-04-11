@@ -12,10 +12,10 @@ all: \
     results/tate.mp4.csv \
     results/sn.evt1.mp4.csv \
     results/stella.mp4.csv \
-    analyze.5x4 \
-    analyze.7x5 \
-    analyze.9x6 \
-    analyze.9x8 \
+    parse.5x4 \
+    parse.7x5 \
+    parse.9x6 \
+    parse.9x8 \
     results/metiq.mp4.csv \
     results/metiq.20fps.mp4.csv \
     results/metiq.60fps.mp4.csv
@@ -41,7 +41,7 @@ README.pdf: README.md
 	pandoc README.md -o README.pdf
 
 results/metiq.mp4.csv: results/metiq.mp4
-	./metiq.py analyze -i $^ -o $@
+	./metiq.py parse -i $^ -o $@
 
 results/metiq.mp4:
 	./metiq.py generate -o $@
@@ -53,53 +53,53 @@ results/metiq.60fps.mp4: results/metiq.mp4
 	ffmpeg -i $^ -filter:v minterpolate=fps=60 $@
 
 results/metiq.20fps.mp4.csv: results/metiq.20fps.mp4
-	./metiq.py analyze -i $^ -o $@
+	./metiq.py parse -i $^ -o $@
 
 results/metiq.60fps.mp4.csv: results/metiq.60fps.mp4
-	./metiq.py analyze -i $^ -o $@
+	./metiq.py parse -i $^ -o $@
 
 results/linux.mp4.csv: results/linux.mp4
-	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+	./metiq.py parse -i $^ -o $@ --luma-threshold 20
 
 results/mbp.mp4.csv: results/mbp.mp4
-	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+	./metiq.py parse -i $^ -o $@ --luma-threshold 20
 
 results/pixel5.mp4.csv: results/pixel5.mp4
-	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+	./metiq.py parse -i $^ -o $@ --luma-threshold 20
 
 results/pixel6a.mp4.csv: results/pixel6a.mp4
-	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+	./metiq.py parse -i $^ -o $@ --luma-threshold 20
 
 results/pixel6a.bt.mp4.csv: results/pixel6a.bt.mp4
-	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+	./metiq.py parse -i $^ -o $@ --luma-threshold 20
 
 results/pixel6a.bt.1m.mp4.csv: results/pixel6a.bt.1m.mp4
-	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+	./metiq.py parse -i $^ -o $@ --luma-threshold 20
 
 results/pixel6a.bt.wall.mp4.csv: results/pixel6a.bt.wall.mp4
-	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+	./metiq.py parse -i $^ -o $@ --luma-threshold 20
 
 results/tate.mp4.csv: results/tate.mp4
-	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+	./metiq.py parse -i $^ -o $@ --luma-threshold 20
 
 results/sn.evt1.mp4.csv: results/sn.evt1.mp4
-	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+	./metiq.py parse -i $^ -o $@ --luma-threshold 20
 
 results/stella.mp4.csv: results/stella.mp4
-	./metiq.py analyze -i $^ -o $@ --luma-threshold 20
+	./metiq.py parse -i $^ -o $@ --luma-threshold 20
 
 
-analyze.5x4: doc/vft.5x4.${VALUE}.png
-	./vft.py analyze -i $^
+parse.5x4: doc/vft.5x4.${VALUE}.png
+	./vft.py parse -i $^
 
-analyze.7x5: doc/vft.7x5.${VALUE}.png
-	./vft.py analyze -i $^
+parse.7x5: doc/vft.7x5.${VALUE}.png
+	./vft.py parse -i $^
 
-analyze.9x6: doc/vft.9x6.${VALUE}.png
-	./vft.py analyze -i $^
+parse.9x6: doc/vft.9x6.${VALUE}.png
+	./vft.py parse -i $^
 
-analyze.9x8: doc/vft.9x8.${VALUE}.png
-	./vft.py analyze -i $^
+parse.9x8: doc/vft.9x8.${VALUE}.png
+	./vft.py parse -i $^
 
 
 doc/vft.5x4.${VALUE}.png:
@@ -120,7 +120,7 @@ write_all:
 	$(foreach var,$(NUMBERS),./vft.py generate -o /tmp/vft.5x4.$(var).png --vft-id 5x4 --value $(var);)
 
 read_all:
-	$(foreach var,$(NUMBERS),./vft.py analyze -i /tmp/vft.5x4.$(var).png;)
+	$(foreach var,$(NUMBERS),./vft.py parse -i /tmp/vft.5x4.$(var).png;)
 
 
 

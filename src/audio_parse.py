@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""audio_analyze.py module description."""
+"""audio_parse.py module description."""
 
 
 import argparse
@@ -70,7 +70,7 @@ def get_correlation_indices(haystack, needle, **kwargs):
 # * (b) `timestamp`: the exact timestamp (calculated from `sample_num`
 #   and the samplerate), and
 # * (c) `correlation`: the value of the correlation at that timestamp.
-def audio_analyze(infile, **kwargs):
+def audio_parse(infile, **kwargs):
     # get optional input parameters
     debug = kwargs.get("debug", audio_common.DEFAULT_DEBUG)
     # convert audio file to wav (mono)
@@ -81,8 +81,8 @@ def audio_analyze(infile, **kwargs):
     if ret != 0:
         print(f"warn: no audio stream in {infile}")
         return None
-    # analyze audio file
-    audio_results = audio_analyze_wav(wav_filename, **kwargs)
+    # parse audio file
+    audio_results = audio_parse_wav(wav_filename, **kwargs)
     # sort the index by timestamp
     audio_results = audio_results.sort_values(by=["audio_sample"])
     audio_results = audio_results.reset_index(drop=True)
@@ -105,7 +105,7 @@ def get_audio_duration(infile, debug):
     return audio_duration_samples, audio_duration_seconds
 
 
-def audio_analyze_wav(infile, **kwargs):
+def audio_parse_wav(infile, **kwargs):
     # get optional input parameters
     debug = kwargs.get("debug", audio_common.DEFAULT_DEBUG)
     beep_period_sec = kwargs.get(
@@ -274,7 +274,7 @@ def main(argv):
     if options.debug > 0:
         print(options)
     # do something
-    audio_results = audio_analyze(
+    audio_results = audio_parse(
         options.infile,
         debug=options.debug,
         min_separation_msec=options.min_separation_msec,

@@ -80,7 +80,7 @@ Finally, some media use cases care about the end-to-end latency. This is measure
 
 # 2. Metiq
 
-The idea behind metiq is to provide a (reference) media file that the user injects into a system. The media (audio and video) gets processed through the system, and then gets captured in another media system. The capture is called the "distorted" file. metiq then analyzes the distorted media file, and measures the timing distortions (a/v sync and video smoothness).
+The idea behind metiq is to provide a (reference) media file that the user injects into a system. The media (audio and video) gets processed through the system, and then gets captured in another media system. The capture is called the "distorted" file. metiq then parses the distorted media file, and measures the timing distortions (a/v sync and video smoothness).
 
 ![Figure 4](doc/metiq.arch.01.png)
 
@@ -108,7 +108,7 @@ For example, when using 16-bit counters, the Gray code for 11 is `0000,0000,0000
 
 Figure 5 shows an example of a VFT code. The design is as follows:
 
-* We add 3x [fiducial markers](https://en.wikipedia.org/wiki/Fiducial_marker) in the corners of the VFT code to support affine transformations on the material. The idea is to allow measuring displays and cameras where the positioning of the camera is not perfect. This allows an analyzer to understand the position of the camera (and recover the frame in the original position through an affine transformation). We use [ArUco markers](https://clover.coex.tech/en/aruco.html) as fiducials.
+* We add 3x [fiducial markers](https://en.wikipedia.org/wiki/Fiducial_marker) in the corners of the VFT code to support affine transformations on the material. The idea is to allow measuring displays and cameras where the positioning of the camera is not perfect. This allows a parser to understand the position of the camera (and recover the frame in the original position through an affine transformation). We use [ArUco markers](https://clover.coex.tech/en/aruco.html) as fiducials.
 
 * We add the value by writing its bits as square blocks containing black or white forming a [Gray code](http://en.wikipedia.org/wiki/Gray_code). This occupies the rest of the barcode. Note that we print each bit in the Gray code twice (once in black and once in white) in order to maximize the chances to read the counter reliably.
 
@@ -124,7 +124,7 @@ $ ffmpeg -i /tmp/metiq.mp4 -filter:v minterpolate=fps=60 /tmp/metiq.60fps.mp4
 
 ![Figure 7](doc/metiq.60.0002.png)
 
-Figure 7 shows an example of an odd frame (frame 1) of a 30 fps metiq file interpolated to 60 fps. Remember that while the even frames are copied one-to-one from the original frames, the odd ones are interpolated between each 2x consecuive frames. So frame 1 in the output is the results of `mix(f0,f1)` in the input. We can see how minterpolate mixed the 2x bit blocks on the top-left, just beside one of the fiducials. The VFT analyzer reads the bitstring as `0000,0000,0000,000X`. The 2x possible values are 0 (if X=0) and 1 (if X=1), which are consecutive. Therefore the output number is 0.5.
+Figure 7 shows an example of an odd frame (frame 1) of a 30 fps metiq file interpolated to 60 fps. Remember that while the even frames are copied one-to-one from the original frames, the odd ones are interpolated between each 2x consecuive frames. So frame 1 in the output is the results of `mix(f0,f1)` in the input. We can see how minterpolate mixed the 2x bit blocks on the top-left, just beside one of the fiducials. The VFT parser reads the bitstring as `0000,0000,0000,000X`. The 2x possible values are 0 (if X=0) and 1 (if X=1), which are consecutive. Therefore the output number is 0.5.
 
 
 
@@ -171,19 +171,19 @@ Any of these processes should produce a capture file, called the "distorted vide
 
 ## 3.3. Distorted Video Analysis
 
-Run the `analyze` subcommand on the distorted file.
+Run the `parse` subcommand on the distorted file.
 ```
-$ ./metiq.py analyze -i distorted.mp4 -o /tmp/distorted.csv
+$ ./metiq.py parse -i distorted.mp4 -o /tmp/distorted.csv
 ```
 
-The analysis command supports the following video parameter:
+The parse command supports the following video parameter:
 
 * `--luma-threshold LUMA_THRESHOLD`: set the luma threshold used to identify bits. This is a value between 0 and 255. The default is 100. A lower value will produce less cases of not being able to recognize the number in the VFT code, at the cost of increasing the errors on recognizing the frame numbers. A higher value would do the opposite. We recommend setting the value to 20 where there was a camera involved, and 100 when it is just video processing.
 
 
 Let's try first with the file interpolated to 60 fps.
 ```
-$ ./metiq.py analyze -i /tmp/metiq.60fps.mp4 -o /tmp/distorted.csv
+$ ./metiq.py parse -i /tmp/metiq.60fps.mp4 -o /tmp/distorted.csv
 ...
 avsync_sec average: 0.017499999999999998 stddev: 0.006400954789890507 size: 20
 video_delta_info = {'mode': -0.5, 'stddev': 0.08755989545631634, 'ok_ratio': 0.9480122324159022, 'sok_ratio': 0.9780372532666111, 'nok_ratio': 0.0, 'unknown_ratio': 0.021962746733388935}
@@ -191,15 +191,15 @@ video_delta_info = {'mode': -0.5, 'stddev': 0.08755989545631634, 'ok_ratio': 0.9
 
 The output is composed of 2 lines and a data file (CSV format):
 
-* 1. The first line shows the A/V sync, using the traditional approach (positive values if the audio is earlier than it should be, and negative values if the audio is later than it should be). In this case the A/V sync is +17 ms (positive, so the audio is slightly earlier than it should be), which is in the "very good" range. We also provide the standard deviation, and the number of correct samples that he analyzer used to calculate the statistics (20 in this case).
+* 1. The first line shows the A/V sync, using the traditional approach (positive values if the audio is earlier than it should be, and negative values if the audio is later than it should be). In this case the A/V sync is +17 ms (positive, so the audio is slightly earlier than it should be), which is in the "very good" range. We also provide the standard deviation, and the number of correct samples that the parser used to calculate the statistics (20 in this case).
 
 * 2. The second line shows the video smoothness measurement, composed of 5x statistics. The first 2x are the mode and standard deviation of the difference between the read frame number and the actual video frame number. The exact mode value is not very important, as it depends on the start of the video. If your capture starts e.g. around frame 93, the mode should be 93. The interesting number is the standard deviation. It tells you how smooth was the video. The other 3x statistics describe, from all the frames in the video file, the following ratios:
 * 2.1. `ok_ratio`: ratio of video frames that were read correctly and were matched exactly to the actual frame number in the file (`ok_ratio`, 95% in this case),
 * 2.2. `sok_ratio`: ratio of video frames that were read correctly and were matched almost exactly (with a 0.5 frame difference) to the actual frame number in the file (`sok_ratio`, 98% in this case),
 * 2.3. `nok_ratio`: ratio of video frames that were read correctly, but were not close to the expected frame number in the file (`nok_ratio`, 2% in this case), and
-* 2.4. `unknown_ratio`: ratio of video frames that were not read correctly, due to the analyzer either not recognizing the fiducial markers, or being able to undo bit block errors in the Gray code -- 2.2% in this case). The `unknown_ratio` is also a measurement of the quality of the video path (e.g. position of the camera, etc.). In this case, 95% of the video frames had the expected frame number.
+* 2.4. `unknown_ratio`: ratio of video frames that were not read correctly, due to the parser either not recognizing the fiducial markers, or being able to undo bit block errors in the Gray code -- 2.2% in this case). The `unknown_ratio` is also a measurement of the quality of the video path (e.g. position of the camera, etc.). In this case, 95% of the video frames had the expected frame number.
 
-* 3. The CSV file contains a full dump of what the analyzer saw in the video. For example, in our 30-to-60 fps minterpolate file, we see:
+* 3. The CSV file contains a full dump of what the parser saw in the video. For example, in our 30-to-60 fps minterpolate file, we see:
 
 ```
 $ csvlook /tmp/distorted.csv
@@ -235,16 +235,16 @@ Some interesting lines in this experiments are:
 
 * The media file started at time -0.5. This is caused by a minor issue on the timestamp of the first few frames. Note that there is no frame at 0.117. This seems like an ffmpeg corner case issue.
 
-* At time 0.000, the analyzer saw both a video frame (frame 0, where it read "frame 0.0"), and an audio match (sample number 0). At time 3.000, the analyzer saw again both a video frame (frame 180), where it read "frame 89.5"), and an audio match (sample number 48000, or 3x seconds at the default 16 kHz).
+* At time 0.000, the parser saw both a video frame (frame 0, where it read "frame 0.0"), and an audio match (sample number 0). At time 3.000, the parser saw again both a video frame (frame 180), where it read "frame 89.5"), and an audio match (sample number 48000, or 3x seconds at the default 16 kHz).
 
-* At time 0.033, the analyzer saw a video frame (frame 1), where it read "frame 0.5"). In other words, it saw a frame with an unknown bit, and it returned the average of the 2x possible (consecutive) readings. There was no audio match in this timestamp.
+* At time 0.033, the parser saw a video frame (frame 1), where it read "frame 0.5"). In other words, it saw a frame with an unknown bit, and it returned the average of the 2x possible (consecutive) readings. There was no audio match in this timestamp.
 
-* At time 0.133, the analyzer was not able to parse the VFT in the video frame. We checked the problem, an it is caused by minterpolate mixing modifying pixels in the video that are the same in both frames.
+* At time 0.133, the parser was not able to parse the VFT in the video frame. We checked the problem, an it is caused by minterpolate mixing modifying pixels in the video that are the same in both frames.
 
 
 ![Figure 8](doc/metiq.60.0008.png)
 
-Figure 8 shows frame 7, which metiq cannot analyze. Note the blurred corner in the top-left fiducial.
+Figure 8 shows frame 7, which metiq cannot parse. Note the blurred corner in the top-left fiducial.
 
 ![Figure 9](doc/metiq.60.0007.png)
 
@@ -297,15 +297,15 @@ What this is telling us is that (a) the MBP is a very good display device in ter
 ## 4.2. Compare Linux and MBP Rendering: Play video on a Linux host, Capture on a Pixel 7 Phone
 
 ```
-$ ./metiq.py analyze -i results/linux.mp4 -o results/linux.mp4.csv --luma-threshold 20
+$ ./metiq.py parse -i results/linux.mp4 -o results/linux.mp4.csv --luma-threshold 20
 avsync_sec average: 0.04519844689732911 stddev: 0.013888224088450946 size: 10
 video_delta_info = {'mode': 49.0, 'stddev': 0.5202005449271158, 'ok_ratio': 0.38596491228070173, 'sok_ratio': 0.8255933952528379, 'nok_ratio': 0.17027863777089783, 'unknown_ratio': 0.0041279669762641896}
 
-$ ./metiq.py analyze -i ~/Downloads/linux2.mp4 -o results/linux2.mp4.csv --luma-threshold 20
+$ ./metiq.py parse -i ~/Downloads/linux2.mp4 -o results/linux2.mp4.csv --luma-threshold 20
 avsync_sec average: 0.03786762455101281 stddev: 0.0025083974753323285 size: 9
 video_delta_info = {'mode': 38.0, 'stddev': 0.23975474855459034, 'ok_ratio': 0.7480314960629921, 'sok_ratio': 0.984251968503937, 'nok_ratio': 0.015748031496062992, 'unknown_ratio': 0.0}
 
-$ ./metiq.py analyze -i ~/Downloads/linux3.mp4 -o results/linux3.mp4.csv --luma-threshold 20
+$ ./metiq.py parse -i ~/Downloads/linux3.mp4 -o results/linux3.mp4.csv --luma-threshold 20
 avsync_sec average: 0.04051982628667408 stddev: 0.010996596907040137 size: 10
 video_delta_info = {'mode': 35.5, 'stddev': 0.3557484186346338, 'ok_ratio': 0.45211122554067973, 'sok_ratio': 0.9948506694129763, 'nok_ratio': 0.0010298661174047373, 'unknown_ratio': 0.004119464469618949}
 ```
@@ -347,7 +347,7 @@ $ csvlook results/linux.mp4.csv
 Figure 12 shows frame 4 in the distorted file.
 
 ```
-$ ./metiq.py analyze -i results/pixel5.mp4 -o results/pixel5.mp4.csv --luma-threshold 20
+$ ./metiq.py parse -i results/pixel5.mp4 -o results/pixel5.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.13457056037083256 stddev: 0.018462374917257118 size: 5
 video_delta_info = {'mode': 79.0, 'stddev': 0.4658808345619546, 'ok_ratio': 0.48303393213572854, 'sok_ratio': 0.6067864271457086, 'nok_ratio': 0.3932135728542914, 'unknown_ratio': 0.0}
@@ -396,7 +396,7 @@ This is telling us is that the pixel5 as a display device is mediocre for both A
 ## 4.4. Pixel Phones Are The Best Android Devices, Right? Play video on a Pixel 5 Phone, Capture on an Android Device
 
 ```
-$ ./metiq.py analyze -i results/android.mp4 -o results/android.mp4.csv --luma-threshold 20
+$ ./metiq.py parse -i results/android.mp4 -o results/android.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.15188550357518552 stddev: 0.03219655447949604 size: 5
 video_delta_info = {'mode': 62.0, 'stddev': 0.04719280024970085, 'ok_ratio': 0.8514285714285714, 'sok_ratio': 0.8514285714285714, 'nok_ratio': 0.0019047619047619048, 'unknown_ratio': 0.14666666666666667}
@@ -420,7 +420,7 @@ In this example, we captured video from an android device (Pixel 6a) 2x times. T
 First the results without the speaker:
 
 ```
-$ ./metiq.py analyze -i results/pixel6a.mp4 -o results/pixel6a.mp4.csv --luma-threshold 20
+$ ./metiq.py parse -i results/pixel6a.mp4 -o results/pixel6a.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.12069886031895435 stddev: 0.007473285230650919 size: 8
 video_delta_info = {'mode': 174.0, 'stddev': 0.4110203573318829, 'ok_ratio': 0.6048387096774194, 'sok_ratio': 0.7849462365591398, 'nok_ratio': 0.2110215053763441, 'unknown_ratio': 0.004032258064516129}
@@ -429,7 +429,7 @@ video_delta_info = {'mode': 174.0, 'stddev': 0.4110203573318829, 'ok_ratio': 0.6
 
 Second the results with the speaker:
 ```
-$ ./metiq.py analyze -i results/pixel6a.bt.mp4 -o results/pixel6a.bt.mp4.csv --luma-threshold 20
+$ ./metiq.py parse -i results/pixel6a.bt.mp4 -o results/pixel6a.bt.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.24893367284771728 stddev: 0.014296892894416305 size: 9
 video_delta_info = {'mode': 142.0, 'stddev': 0.32879964224067765, 'ok_ratio': 0.7104959630911188, 'sok_ratio': 0.9480968858131488, 'nok_ratio': 0.05190311418685121, 'unknown_ratio': 0.0}
@@ -440,14 +440,14 @@ Comparing the first lines in both experiments, we can see that the A/V sync is n
 
 
 ```
-$ ./metiq.py analyze -i results/pixel6a.bt.1m.mp4 -o results/pixel6a.bt.1m.mp4.csv --luma-threshold 20
+$ ./metiq.py parse -i results/pixel6a.bt.1m.mp4 -o results/pixel6a.bt.1m.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.27831445225523677 stddev: 0.014861238666310513 size: 9
 video_delta_info = {'mode': 259.0, 'stddev': 0.4177680874837188, 'ok_ratio': 0.4431554524361949, 'sok_ratio': 0.9280742459396751, 'nok_ratio': 0.06844547563805105, 'unknown_ratio': 0.0034802784222737818}
 ```
 
 ```
-$ ./metiq.py analyze -i results/pixel6a.bt.wall.mp4 -o results/pixel6a.bt.wall.mp4.csv --luma-threshold 20
+$ ./metiq.py parse -i results/pixel6a.bt.wall.mp4 -o results/pixel6a.bt.wall.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.2714650419747814 stddev: 0.013496314738270662 size: 12
 video_delta_info = {'mode': 86.0, 'stddev': 0.4418732130047532, 'ok_ratio': 0.4298642533936652, 'sok_ratio': 0.8235294117647058, 'nok_ratio': 0.16832579185520363, 'unknown_ratio': 0.008144796380090498}
