@@ -242,7 +242,9 @@ def media_parse(
         )
 
         if debug > 0:
-            print(f"Done parsing, write csv, size: {len(video_results)} to {path_video}")
+            print(
+                f"Done parsing, write csv, size: {len(video_results)} to {path_video}"
+            )
         # write up the results to disk
         video_results.to_csv(path_video, index=False)
     if debug > 0:
