@@ -26,7 +26,7 @@ from _version import __version__
 FUNC_CHOICES = {
     "help": "show help options",
     "generate": "generate reference video",
-    "parse": "parse distorted video",
+    "analyze": "analyze distorted video",
 }
 
 DEFAULT_NUM_FRAMES = 1800
@@ -171,7 +171,7 @@ def media_parse_coverage_video(
     )
 
 
-def media_parse(
+def media_parse_alt(
     width,
     height,
     num_frames,
@@ -1227,11 +1227,11 @@ def main(argv):
                 audio_sample=options.audio_sample,
             )
 
-    elif options.func == "parse":
-        media_parse_full(options)
+    elif options.func == "analyze":
+        media_analyze(options)
 
 
-def media_parse_full(options):
+def media_analyze(options):
     if options.no_hw_decode:
         video_parse.config_decoder(HW_DECODER_ENABLE=False)
 
@@ -1298,7 +1298,7 @@ def media_parse_full(options):
         cache_video = options.cache_video and options.cache_both
         cache_audio = options.cache_audio and options.cache_both
         try:
-            video_result, audio_result = media_parse(
+            video_result, audio_result = media_parse_alt(
                 options.width,
                 options.height,
                 options.num_frames,
