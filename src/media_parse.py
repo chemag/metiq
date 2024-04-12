@@ -111,12 +111,12 @@ def media_parse(
     beep_period_sec,
     scale,
     infile,
-    outfile,
+    output_audio,
+    output_video,
     debug,
     **kwargs,
 ):
     # 1. parse the audio stream
-    path_audio = f"{infile}.audio.csv"
     media_parse_audio(
         pre_samples,
         samplerate,
@@ -125,13 +125,12 @@ def media_parse(
         beep_period_sec,
         scale,
         infile,
-        path_audio,
+        output_audio,
         debug,
         **kwargs,
     )
 
     # 2. parse the video stream
-    path_video = f"{infile}.video.csv"
     media_parse_video(
         width,
         height,
@@ -145,9 +144,7 @@ def media_parse(
         beep_period_sec,
         scale,
         infile,
-        path_video,
+        output_video,
         debug,
         **kwargs,
     )
-
-    return path_audio, path_video

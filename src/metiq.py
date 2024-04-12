@@ -50,6 +50,8 @@ default_values = {
     "func": "help",
     "infile": None,
     "outfile": None,
+    "output_audio": None,
+    "output_video": None,
     "audio_offset": 0,
     "lock_layout": False,
     "audio_sample": audio_common.DEFAULT_AUDIO_SAMPLE,
@@ -305,6 +307,24 @@ def get_options(argv):
         help="output file",
     )
     parser.add_argument(
+        "--output-audio",
+        type=str,
+        required=False,
+        dest="output_audio",
+        default=default_values["output_audio"],
+        metavar="output-audio-file",
+        help="output audio file",
+    )
+    parser.add_argument(
+        "--output-video",
+        type=str,
+        required=False,
+        dest="output_video",
+        default=default_values["output_video"],
+        metavar="output-video-file",
+        help="output video file",
+    )
+    parser.add_argument(
         "--no-cache",
         action="store_false",
         dest="cache_both",
@@ -472,6 +492,10 @@ def main(argv):
             )
 
     elif options.func == "parse":
+        if options.output_audio is None:
+            options.output_audio = f"{options.infile}.audio.csv"
+        if options.output_video is None:
+            options.output_video = f"{options.infile}.video.csv"
         media_parse.media_parse(
             width=options.width,
             height=options.height,
@@ -485,7 +509,8 @@ def main(argv):
             beep_period_sec=options.beep_period_sec,
             scale=options.scale,
             infile=options.infile,
-            outfile=options.outfile,
+            output_audio=options.output_audio,
+            output_video=options.output_video,
             debug=options.debug,
         )
 
