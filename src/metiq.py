@@ -164,7 +164,6 @@ def get_options(argv):
     parser.add_argument(
         "--pixel-format",
         action="store",
-        type=str,
         dest="pixel_format",
         default=default_values["pixel_format"],
         choices=video_common.PIXEL_FORMAT_CHOICES,
@@ -473,7 +472,22 @@ def main(argv):
             )
 
     elif options.func == "parse":
-        media_parse.media_parse(options)
+        media_parse.media_parse(
+            width=options.width,
+            height=options.height,
+            num_frames=options.num_frames,
+            pixel_format=options.pixel_format,
+            luma_threshold=options.luma_threshold,
+            pre_samples=options.pre_samples,
+            samplerate=options.samplerate,
+            beep_freq=options.beep_freq,
+            beep_duration_samples=options.beep_duration_samples,
+            beep_period_sec=options.beep_period_sec,
+            scale=options.scale,
+            infile=options.infile,
+            outfile=options.outfile,
+            debug=options.debug,
+        )
 
     elif options.func == "analyze":
         media_analyze.media_analyze(options)

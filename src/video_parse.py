@@ -302,7 +302,6 @@ def video_parse(
     threaded=False,
     debug=0,
 ):
-    global video_capture
     # If running multiple files where there may be minor realignments
     # reset and latch onto a fresh layout config
     vft_id = None
