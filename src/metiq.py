@@ -515,7 +515,43 @@ def main(argv):
         )
 
     elif options.func == "analyze":
-        media_analyze.media_analyze(options)
+        media_analyze.media_analyze(
+            width=options.width,
+            height=options.height,
+            num_frames=options.num_frames,
+            pixel_format=options.pixel_format,
+            luma_threshold=options.luma_threshold,
+            pre_samples=options.pre_samples,
+            samplerate=options.samplerate,
+            beep_freq=options.beep_freq,
+            beep_duration_samples=options.beep_duration_samples,
+            beep_period_sec=options.beep_period_sec,
+            scale=options.scale,
+            infile=options.infile,
+            outfile=options.outfile,
+            calc_coverage=options.calc_coverage,
+            vft_id=options.vft_id,
+            cache_video=options.cache_video,
+            cache_audio=options.cache_audio,
+            cache_both=options.cache_both,
+            min_separation_msec=options.min_separation_msec,
+            min_match_threshold=options.min_match_threshold,
+            audio_sample=options.audio_sample,
+            lock_layout=options.lock_layout,
+            tag_manual=options.tag_manual,
+            force_fps=options.force_fps,
+            threaded=options.threaded,
+            audio_offset=options.audio_offset,
+            audio_latency=options.audio_latency,
+            video_latency=options.video_latency,
+            calc_all=options.calc_all,
+            z_filter=options.z_filter,
+            av_sync=options.av_sync,
+            windowed_stats_sec=options.windowed_stats_sec,
+            calculate_frame_durations=options.calculate_frame_durations,
+            no_hw_decode=options.no_hw_decode,
+            debug=options.debug,
+        )
 
 
 if __name__ == "__main__":
