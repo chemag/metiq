@@ -31,13 +31,13 @@ def media_parse_alt(
     debug,
     **kwargs,
 ):
-    lock_layout = kwargs.get("lock_layout", False)
-    cache_video = kwargs.get("cache_video", True)
-    cache_audio = kwargs.get("cache_audio", True)
-    audio_sample = kwargs.get("audio_sample", "")
-    tag_manual = kwargs.get("tag_manual", False)
-    ref_fps = kwargs.get("ref_fps", -1)
-    threaded = kwargs.get("threaded", False)
+    lock_layout = kwargs.get("lock_layout", False)  # TODO(johan): use default variable
+    cache_video = kwargs.get("cache_video", True)  # TODO(johan): use default variable
+    cache_audio = kwargs.get("cache_audio", True)  # TODO(johan): use default variable
+    audio_sample = kwargs.get("audio_sample", "")  # TODO(johan): use default variable
+    tag_manual = kwargs.get("tag_manual", False)  # TODO(johan): use default variable
+    ref_fps = kwargs.get("ref_fps", -1)  # TODO(johan): use default variable
+    threaded = kwargs.get("threaded", False)  # TODO(johan): use default variable
     # 1. parse the audio stream
     path_audio = f"{infile}.audio.csv"
     if cache_audio and os.path.exists(path_audio):
@@ -52,8 +52,12 @@ def media_parse_alt(
             beep_duration_samples=beep_duration_samples,
             beep_period_sec=beep_period_sec,
             scale=scale,
-            min_separation_msec=kwargs.get("min_separation_msec", 50),
-            min_match_threshold=kwargs.get("min_match_threshold", 10),
+            min_separation_msec=kwargs.get(
+                "min_separation_msec", 50
+            ),  # TODO(johan): use default variable
+            min_match_threshold=kwargs.get(
+                "min_match_threshold", 10
+            ),  # TODO(johan): use default variable
             audio_sample=audio_sample,
             debug=debug,
         )
