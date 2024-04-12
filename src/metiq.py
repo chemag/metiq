@@ -8,12 +8,12 @@ import sys
 
 import audio_common
 import audio_parse
+import common
 import media_analyze
 import media_generate
 import media_parse
 import vft
 import video_common
-import common
 
 from _version import __version__
 
@@ -24,16 +24,15 @@ FUNC_CHOICES = {
     "analyze": "analyze distorted video",
 }
 
-DEFAULT_NUM_FRAMES = 1800
 
 default_values = {
-    "debug": 0,
+    "debug": common.DEFAULT_DEBUG,
     # vft parameters
     "vft_id": vft.DEFAULT_VFT_ID,
     "vft_tag_border_size": vft.DEFAULT_TAG_BORDER_SIZE,
     "luma_threshold": vft.DEFAULT_LUMA_THRESHOLD,
     # video parameters
-    "num_frames": DEFAULT_NUM_FRAMES,
+    "num_frames": video_common.DEFAULT_NUM_FRAMES,
     "fps": video_common.DEFAULT_FPS,
     "width": video_common.DEFAULT_WIDTH,
     "height": video_common.DEFAULT_HEIGHT,
@@ -53,7 +52,7 @@ default_values = {
     "outfile": None,
     "audio_offset": 0,
     "lock_layout": False,
-    "audio_sample": "",
+    "audio_sample": audio_common.DEFAULT_AUDIO_SAMPLE,
 }
 
 
@@ -442,11 +441,11 @@ def main(argv):
     if options.func == "generate":
         # get outfile
         if options.outfile == "-":
-            outfile = "/dev/fd/1"
+            options.outfile = "/dev/fd/1"
         # do something
         if options.noise_video:
             media_generate.media_generate_noise_video(
-                outfile=outfile,
+                outfile=options.outfile,
                 width=options.width,
                 height=options.height,
                 fps=options.fps,
@@ -468,7 +467,7 @@ def main(argv):
                 beep_duration_samples=options.beep_duration_samples,
                 beep_period_sec=options.beep_period_sec,
                 scale=options.scale,
-                outfile=outfile,
+                outfile=options.outfile,
                 debug=options.debug,
                 audio_sample=options.audio_sample,
             )

@@ -5,6 +5,9 @@ import subprocess
 import sys
 
 
+DEFAULT_DEBUG = 0
+
+
 def run(command, **kwargs):
     debug = kwargs.get("debug", 0)
     dry_run = kwargs.get("dry_run", False)

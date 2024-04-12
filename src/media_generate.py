@@ -6,20 +6,23 @@
 import os
 import tempfile
 
+import audio_common
 import audio_generate
+import common
 import vft
+import video_common
 import video_generate
 import common
 
 
 def media_generate_noise_video(outfile, **kwarg):
-    width = kwarg.get("width", default_values["width"])
-    height = kwarg.get("height", default_values["height"])
-    fps = kwarg.get("fps", default_values["fps"])
-    num_frames = kwarg.get("num_frames", default_values["num_frames"])
-    vft_id = kwarg.get("vft_id", default_values["vft_id"])
-    pre_samples = kwarg.get("pre_samples", default_values["pre_samples"])
-    debug = kwarg.get("debug", default_values["debug"])
+    width = kwarg.get("width", video_common.DEFAULT_WIDTH)
+    height = kwarg.get("height", video_common.DEFAULT_HEIGHT)
+    fps = kwarg.get("fps", video_common.DEFAULT_FPS)
+    num_frames = kwarg.get("num_frames", video_common.DEFAULT_NUM_FRAMES)
+    vft_id = kwarg.get("vft_id", vft.DEFAULT_VFT_ID)
+    pre_samples = kwarg.get("pre_samples", audio_common.DEFAULT_PRE_SAMPLES)
+    debug = kwarg.get("debug", common.DEFAULT_DEBUG)
 
     video_filename = tempfile.NamedTemporaryFile().name + ".rgb24"
     video_generate.video_generate_noise(
@@ -41,21 +44,21 @@ def media_generate_noise_video(outfile, **kwarg):
 
 
 def media_generate(outfile, **kwarg):
-    width = kwarg.get("width", default_values["width"])
-    height = kwarg.get("height", default_values["height"])
-    fps = kwarg.get("fps", default_values["fps"])
-    num_frames = kwarg.get("num_frames", default_values["num_frames"])
-    vft_id = kwarg.get("vft_id", default_values["vft_id"])
-    pre_samples = kwarg.get("pre_samples", default_values["pre_samples"])
-    samplerate = kwarg.get("samplerate", default_values["samplerate"])
-    beep_freq = kwarg.get("beep_freq", default_values["beep_freq"])
+    width = kwarg.get("width", video_common.DEFAULT_WIDTH)
+    height = kwarg.get("height", video_common.DEFAULT_HEIGHT)
+    fps = kwarg.get("fps", video_common.DEFAULT_FPS)
+    num_frames = kwarg.get("num_frames", video_common.DEFAULT_NUM_FRAMES)
+    vft_id = kwarg.get("vft_id", vft.DEFAULT_VFT_ID)
+    pre_samples = kwarg.get("pre_samples", audio_common.DEFAULT_PRE_SAMPLES)
+    samplerate = kwarg.get("samplerate", audio_common.DEFAULT_SAMPLERATE)
+    beep_freq = kwarg.get("beep_freq", audio_common.DEFAULT_BEEP_FREQ)
     beep_duration_samples = kwarg.get(
-        "beep_duration_samples", default_values["beep_duration_samples"]
+        "beep_duration_samples", audio_common.DEFAULT_BEEP_DURATION_SAMPLES
     )
-    beep_period_sec = kwarg.get("beep_period_sec", default_values["beep_period_sec"])
-    scale = kwarg.get("scale", default_values["scale"])
-    debug = kwarg.get("debug", default_values["debug"])
-    audio_sample = kwarg.get("audio_sample", default_values["audio_sample"])
+    beep_period_sec = kwarg.get("beep_period_sec", audio_common.DEFAULT_BEEP_PERIOD_SEC)
+    scale = kwarg.get("scale", audio_common.DEFAULT_SCALE)
+    debug = kwarg.get("debug", common.DEFAULT_DEBUG)
+    audio_sample = kwarg.get("audio_sample", audio_common.DEFAULT_AUDIO_SAMPLE)
 
     # calculate the frame period
     beep_period_frames = beep_period_sec * fps
