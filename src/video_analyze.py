@@ -49,7 +49,7 @@ default_values = {
     "debug": 0,
     "width": video_common.DEFAULT_WIDTH,
     "height": video_common.DEFAULT_HEIGHT,
-    "luma_threshold": vft.DEFAULT_LUMA_THRESHOLD,
+    "luma_threshold": vft.LUMA_AUTO_THRESHOLD,
     "pixel_format": video_common.DEFAULT_PIXEL_FORMAT,
     "infile": None,
     "outfile": None,
@@ -222,7 +222,7 @@ def video_parse(
     height,
     pixel_format,
     ref_fps=-1,
-    luma_threshold=vft.DEFAULT_LUMA_THRESHOLD,
+    luma_threshold=vft.LUMA_AUTO_THRESHOLD,
     lock_layout=False,
     tag_manual=False,
     threaded=False,
@@ -318,13 +318,19 @@ def video_analyze(
         lock_layout = True
     # With lock_layout go through the file until valid tags has been identified.
     # Save settings and use those for tranformation and gray code analysis.
+
+    luma_threshold_ = None
     if lock_layout and vft_id is None:
         (
             vft_id,
             tag_center_locations,
             tag_expected_center_locations,
+            luma_threshold_,
         ) = find_first_valid_tag(infile, width, height, pixel_format, debug)
+    if luma_threshold == vft.LUMA_AUTO_THRESHOLD and luma_threshold_ is not None:
+        luma_threshold = luma_threshold_
     video_capture = get_video_capture(infile, width, height, pixel_format, threaded)
+    print(f"{luma_threshold=}")
     if not video_capture.isOpened():
         print(f"error: {infile = } is not open")
         sys.exit(-1)
@@ -406,7 +412,7 @@ def video_analyze(
             if status != ERROR_SINGLE_GRAYCODE_BIT:
                 # analyze image
                 _vft_id = None
-                if not tag_manual:
+                if not tag_manual and (not lock_layout or vft_id is None):
                     _vft_id, _tag_center_locations, _borders, _ids = vft.detect_tags(
                         img, debug=0
                     )
@@ -661,6 +667,7 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
     tag_expected_center_locations = None
     ids = None
     vft_id = None
+
     while tag_center_locations is None:
         status, img = video_capture.read()
 
@@ -675,6 +682,9 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
     vft_layout = vft.VFTLayout(width, height, vft_id)
     tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
 
+    lm, ls, im, istd = vft.get_luma_stats(img, vft_layout, debug)
+    print(f"luma stats: {lm = }, {ls = }, {im=}, {istd=} ")
+    luma = lm - ls
     if len(tag_center_locations) == 3 and ids is not None:
         tag_order = [nbr for nbr, id_ in enumerate(vft_layout.tag_ids) if id_ in ids]
         tag_expected_center_locations = [
@@ -693,7 +703,7 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
 
     if debug > 0:
         print(f"Found tags: {len(tag_center_locations) = }")
-    return vft_id, tag_center_locations, tag_expected_center_locations
+    return vft_id, tag_center_locations, tag_expected_center_locations, luma
 
 
 def clean_video_read_errors(data):
@@ -705,7 +715,7 @@ def clean_video_read_errors(data):
     data["value_read"].fillna(method="ffill", inplace=True)
     # Maybe some values in the beginning are bad as well.
     data["value_read"].fillna(method="bfill", inplace=True)
-    data["value_clean"] = data["value_read"].astype(int)
+    data["value_clean"] = data["value_read"].apply(lambda x: np.ceil(x))
     data["val_m1"] = data["value_clean"].shift(-1)
     data["val_p1"] = data["value_clean"].shift(1)
     data["val_m1"].fillna(method="ffill", inplace=True)
@@ -723,7 +733,6 @@ def clean_video_read_errors(data):
     data["value_read"] = data["value_clean"]
     data.drop(columns=["val_m1", "val_p1", "singles", "value_clean"], inplace=True)
 
-    print(data)
     return data
 
 
@@ -934,6 +943,7 @@ def main(argv):
             print(
                 "Filtering parsing error. Make sure capturing frequency > twice the display frequency"
             )
+        video_results = clean_video_read_errors(video_results)
     dump_video_results(video_results, options.outfile, options.debug)
     # print the delta info
     video_delta_info = video_analyze_delta_info(video_results)

@@ -43,6 +43,7 @@ VFT_IDS = ("9x8", "9x6", "7x5", "5x4")
 DEFAULT_VFT_ID = "7x5"
 DEFAULT_TAG_BORDER_SIZE = 2
 DEFAULT_LUMA_THRESHOLD = 20
+LUMA_AUTO_THRESHOLD = -1
 DEFAULT_TAG_NUMBER = 4
 
 VFT_LAYOUT = {
@@ -518,6 +519,49 @@ def affine_transformation(img, tag_center_locations, tag_expected_locations, deb
 
 
 last_min_diff = -1
+
+
+def get_luma_stats(img, vft_layout, debug):
+    # 1. get the luma values
+    luma_values = []
+    # 1. extract the luma
+    img_luma = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # 2. read the per-block luma average value
+    block_luma_avgs = []
+    for row, col in itertools.product(
+        range(vft_layout.numrows), range(vft_layout.numcols)
+    ):
+        block_id = (row * vft_layout.numcols) + col
+        if block_id in vft_layout.tag_block_ids:
+            # this is a tag: skip it
+            continue
+        # get the coordinates
+        col, row = vft_layout.get_colrow(block_id)
+        x0 = vft_layout.x[col]
+        x1 = x0 + vft_layout.block_width
+        y0 = vft_layout.y[row]
+        y1 = y0 + vft_layout.block_height
+        img_luma_block = img_luma[y0:y1, x0:x1]
+        block_luma_avg = np.mean(img_luma_block)
+        block_luma_avgs.append(block_luma_avg)
+    # 3. convert per-block luma averages to bits
+    # TODO(chema): what we really want here is an adaptive luma
+    # threshold system: If we are getting luma avg values close
+    # 0 and 255, we can infer the image quality is pretty good,
+    # and therefore use a large threshold. Otherwise, we should
+    # resort to a smaller threshold.
+    bit_stream = []
+    diff = 255
+    for luma1, luma2 in zip(block_luma_avgs[0::2], block_luma_avgs[1::2]):
+        lumadiff = abs(luma2 - luma1)
+        luma_values.append(lumadiff)
+
+    return (
+        np.mean(luma_values),
+        np.std(luma_values),
+        np.mean(img_luma),
+        np.std(img_luma),
+    )
 
 
 def analyze_read_bits(img, vft_layout, luma_threshold, debug):

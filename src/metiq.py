@@ -36,7 +36,7 @@ default_values = {
     # vft parameters
     "vft_id": vft.DEFAULT_VFT_ID,
     "vft_tag_border_size": vft.DEFAULT_TAG_BORDER_SIZE,
-    "luma_threshold": vft.DEFAULT_LUMA_THRESHOLD,
+    "luma_threshold": vft.LUMA_AUTO_THRESHOLD,
     # video parameters
     "num_frames": DEFAULT_NUM_FRAMES,
     "fps": video_common.DEFAULT_FPS,
@@ -494,10 +494,16 @@ def calculate_stats(
 # (d) the frame_num of the next frame where a beep is expected,
 # (e) the latency assuming the initial frame_time.
 def match_video_to_time(
-    ts, video_results, beep_period_frames, frame_time, closest=False, debug=0
+    ts,
+    video_results,
+    beep_period_frames,
+    frame_time,
+    closest=False,
+    debug=0,
 ):
     # get all entries whose ts <= signal ts to a filter
     candidate_list = video_results.index[video_results["timestamp"] <= ts].tolist()
+
     if len(candidate_list) > 0:
         # check the latest video frame in the filter
         latest_iloc = candidate_list[-1]
@@ -652,7 +658,6 @@ def calculate_video_relation(
             "video_latency_sec",
         ],
     )
-
     for index in range(len(audio_latency)):
         match = audio_latency.iloc[index]
         # calculate video latency based on the
@@ -688,6 +693,7 @@ def calculate_video_latency(
     ignore_match_order=True,
     debug=False,
 ):
+    print(f"{audio_latency=}")
     # video latency is the time between the frame shown when a signal is played
     return calculate_video_relation(
         audio_latency,
@@ -1178,6 +1184,11 @@ def get_options(argv):
         dest="parse_clean",
         help="Try to clean parsing single frame errors.",
     )
+    parser.add_argument(
+        "--filter-echo",
+        action="store_true",
+        dest="filter_echo",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -1340,6 +1351,12 @@ def media_analyze_full(options):
                 video_result = video_analyze.clean_video_read_errors(video_result)
                 video_result.to_csv(infile + ".video.csv", index=False)
 
+        # filter echo
+        if options.filter_echo:
+            print(f"Filtr audio, {len(audio_result)}")
+            audio_result2 = audio_result.loc[audio_result["timestamp"].diff() > 2]
+            print(f"After filter audio, {len(audio_result)} {audio_result[~audio_result.isin(audio_result2)].dropna()}")
+            audio_result = audio_result2
         audio_latency = None
         video_latency = None
         av_sync = None
