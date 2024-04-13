@@ -48,6 +48,7 @@ default_values = {
     "min_match_threshold": audio_parse.DEFAULT_MIN_MATCH_THRESHOLD,
     # common parameters
     "func": "help",
+    "analysis_type": None,
     "infile": None,
     "input_audio": None,
     "input_video": None,
@@ -290,6 +291,20 @@ def get_options(argv):
         % (" | ".join("{}: {}".format(k, v) for k, v in FUNC_CHOICES.items())),
     )
     parser.add_argument(
+        "--analysis-type",
+        type=str,
+        dest="analysis_type",
+        default=default_values["analysis_type"],
+        choices=media_analyze.MEDIA_ANALYSIS.keys(),
+        help="%s"
+        % (
+            " | ".join(
+                "{}: {}".format(k, v[1])
+                for k, v in media_analyze.MEDIA_ANALYSIS.items()
+            )
+        ),
+    )
+    parser.add_argument(
         "-i",
         "--input",
         type=str,
@@ -387,47 +402,11 @@ def get_options(argv):
         help="Reuse video frame layout location from the first frame to subsequent frames. This reduces the complexity of the parsing when the camera and DUT are set in a fixed setup",
     )
     parser.add_argument(
-        "--calc-all",
-        action="store_true",
-        dest="calc_all",
-        help="Calculate all possible derived data",
-    )
-    parser.add_argument(
-        "--audio-latency",
-        action="store_true",
-        dest="audio_latency",
-        help="Calculate audio latency.",
-    )
-    parser.add_argument(
-        "--video-latency",
-        action="store_true",
-        dest="video_latency",
-        help="Calculate video latency.",
-    )
-    parser.add_argument(
-        "--av-sync",
-        action="store_true",
-        dest="av_sync",
-        help="Calculate audio/video synchronization using audio timestamps and video frame numbers.",
-    )
-    parser.add_argument(
-        "--quality-stats",
-        action="store_true",
-        dest="quality_stats",
-        help="Calculate quality stats.",
-    )
-    parser.add_argument(
         "--windowed-stats-sec",
         type=float,
         dest="windowed_stats_sec",
         default=None,
         help="Calculate video frames shown/dropped per unit sec.",
-    )
-    parser.add_argument(
-        "--calc-frame-durations",
-        action="store_true",
-        dest="calculate_frame_durations",
-        help="Calculate source frame durations.",
     )
     parser.add_argument(
         "--noise-video",
@@ -536,6 +515,7 @@ def main(argv):
 
     elif options.func == "analyze":
         media_analyze.media_analyze(
+            analysis_type=options.analysis_type,
             width=options.width,
             height=options.height,
             num_frames=options.num_frames,
@@ -562,14 +542,8 @@ def main(argv):
             force_fps=options.force_fps,
             threaded=options.threaded,
             audio_offset=options.audio_offset,
-            audio_latency=options.audio_latency,
-            video_latency=options.video_latency,
-            calc_all=options.calc_all,
             z_filter=options.z_filter,
-            av_sync=options.av_sync,
-            quality_stats=options.quality_stats,
             windowed_stats_sec=options.windowed_stats_sec,
-            calculate_frame_durations=options.calculate_frame_durations,
             no_hw_decode=options.no_hw_decode,
             debug=options.debug,
         )
