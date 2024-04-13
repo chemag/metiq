@@ -33,6 +33,7 @@ ERROR_UNKNOWN = 100
 
 HW_DECODER_ENABLE = True
 TEN_TO_NINE = 1000000000.0
+COMMON_FPS = [7.0, 15.0, 29.97, 30.0, 59.94, 60.0, 119.88, 120.0, 239.76]
 
 ERROR_TYPES = {
     # error_id: ("short message", "long message"),
@@ -697,6 +698,40 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
 def config_decoder(**options):
     global HW_DECODER_ENABLE
     HW_DECODER_ENABLE = options.get("HW_DECODER_ENABLE", False)
+
+
+# estimates the framerate (fps) of a video
+def estimate_fps(video_results, use_common_fps_vals=True):
+    # Estimate source and capture fps by looking at video timestamps
+    video_results = video_results.replace([np.inf, -np.inf], np.nan)
+    video_results = video_results.dropna(subset=["value_read"])
+
+    if len(video_results) == 0:
+        raise Exception("Failed to estimate fps")
+    capture_fps = len(video_results) / (
+        video_results["timestamp"].max() - video_results["timestamp"].min()
+    )
+
+    video_results["value_read_int"] = video_results["value_read"].astype(int)
+    min_val = video_results["value_read_int"].min()
+    min_ts = video_results.loc[video_results["value_read_int"] == min_val][
+        "timestamp"
+    ].values[0]
+    max_val = video_results["value_read_int"].max()
+    max_ts = video_results.loc[video_results["value_read_int"] == max_val][
+        "timestamp"
+    ].values[0]
+    vals = video_results["value_read_int"].unique()
+
+    min_val = np.min(vals)
+    max_val = np.max(vals)
+
+    ref_fps = (max_val - min_val) / (max_ts - min_ts)
+
+    if use_common_fps_vals:
+        ref_fps = COMMON_FPS[np.argmin([abs(x - ref_fps) for x in COMMON_FPS])]
+        capture_fps = COMMON_FPS[np.argmin([abs(x - capture_fps) for x in COMMON_FPS])]
+    return ref_fps, capture_fps
 
 
 def get_options(argv):

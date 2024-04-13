@@ -64,47 +64,12 @@ def calculate_frames_moving_average(video_results, window_size_sec=1):
     return pd.DataFrame(average)
 
 
-# TODO(chema): move to video_parse file
-def estimate_fps(video_results, use_common_fps_vals=True):
-    # Estimate source and capture fps by looking at video timestamps
-    video_results = video_results.replace([np.inf, -np.inf], np.nan)
-    video_results = video_results.dropna(subset=["value_read"])
-
-    if len(video_results) == 0:
-        raise Exception("Failed to estimate fps")
-    capture_fps = len(video_results) / (
-        video_results["timestamp"].max() - video_results["timestamp"].min()
-    )
-
-    video_results["value_read_int"] = video_results["value_read"].astype(int)
-    min_val = video_results["value_read_int"].min()
-    min_ts = video_results.loc[video_results["value_read_int"] == min_val][
-        "timestamp"
-    ].values[0]
-    max_val = video_results["value_read_int"].max()
-    max_ts = video_results.loc[video_results["value_read_int"] == max_val][
-        "timestamp"
-    ].values[0]
-    vals = video_results["value_read_int"].unique()
-
-    min_val = np.min(vals)
-    max_val = np.max(vals)
-
-    ref_fps = (max_val - min_val) / (max_ts - min_ts)
-
-    common_fps = [7.0, 15.0, 29.97, 30.0, 59.94, 60.0, 119.88, 120.0, 239.76]
-    if use_common_fps_vals:
-        ref_fps = common_fps[np.argmin([abs(x - ref_fps) for x in common_fps])]
-        capture_fps = common_fps[np.argmin([abs(x - capture_fps) for x in common_fps])]
-    return ref_fps, capture_fps
-
-
 def calculate_frame_durations(video_results):
     # Calculate how many times a source frame is shown in capture frames/time
     video_results = video_results.replace([np.inf, -np.inf], np.nan)
     video_results = video_results.dropna(subset=["value_read"])
 
-    ref_fps, capture_fps = estimate_fps(video_results)
+    ref_fps, capture_fps = video_parse.estimate_fps(video_results)
     video_results["value_read_int"] = video_results["value_read"].astype(int)
     capt_group = video_results.groupby("value_read_int")
     cg = capt_group.count()["value_read"]
@@ -668,7 +633,7 @@ def media_analyze(
 
     # estimate the video framerate
     # TODO: capture fps should be available
-    ref_fps, capture_fps = estimate_fps(video_results)
+    ref_fps, capture_fps = video_parse.estimate_fps(video_results)
     if force_fps > 0:
         ref_fps = force_fps
 
