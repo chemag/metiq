@@ -13,92 +13,6 @@ import video_parse
 import time
 
 
-# TODO(chema): implement as a function of media_parse
-def media_parse_alt(
-    width,
-    height,
-    num_frames,
-    pixel_format,
-    luma_threshold,
-    pre_samples,
-    samplerate,
-    beep_freq,
-    beep_duration_samples,
-    beep_period_sec,
-    scale,
-    infile,
-    outfile,
-    debug,
-    **kwargs,
-):
-    lock_layout = kwargs.get("lock_layout", False)  # TODO(johan): use default variable
-    cache_video = kwargs.get("cache_video", True)  # TODO(johan): use default variable
-    cache_audio = kwargs.get("cache_audio", True)  # TODO(johan): use default variable
-    audio_sample = kwargs.get("audio_sample", "")  # TODO(johan): use default variable
-    tag_manual = kwargs.get("tag_manual", False)  # TODO(johan): use default variable
-    ref_fps = kwargs.get("ref_fps", -1)  # TODO(johan): use default variable
-    threaded = kwargs.get("threaded", False)  # TODO(johan): use default variable
-    # 1. parse the audio stream
-    path_audio = f"{infile}.audio.csv"
-    if cache_audio and os.path.exists(path_audio):
-        audio_results = pd.read_csv(path_audio)
-    else:
-        # recalculate the audio results
-        audio_results = audio_parse.audio_parse(
-            infile,
-            pre_samples=pre_samples,
-            samplerate=samplerate,
-            beep_freq=beep_freq,
-            beep_duration_samples=beep_duration_samples,
-            beep_period_sec=beep_period_sec,
-            scale=scale,
-            min_separation_msec=kwargs.get(
-                "min_separation_msec", 50
-            ),  # TODO(johan): use default variable
-            min_match_threshold=kwargs.get(
-                "min_match_threshold", 10
-            ),  # TODO(johan): use default variable
-            audio_sample=audio_sample,
-            debug=debug,
-        )
-        if audio_results is None or len(audio_results) == 0:
-            # without audio there is not point in running the video parsing
-            raise Exception(
-                "ERROR: audio calculation failed. Verify that there are signals in audio stream."
-            )
-        # write up the results to disk
-        audio_results.to_csv(path_audio, index=False)
-
-    # 2. parse the video stream
-    path_video = f"{infile}.video.csv"
-    if cache_video and os.path.exists(path_video):
-        video_results = pd.read_csv(path_video)
-    else:
-        # recalculate the video results
-        video_results = video_parse.video_parse(
-            infile,
-            width,
-            height,
-            pixel_format,
-            ref_fps,
-            luma_threshold,
-            lock_layout=lock_layout,
-            tag_manual=tag_manual,
-            threaded=threaded,
-            debug=debug,
-        )
-
-        if debug > 0:
-            print(
-                f"Done parsing, write csv, size: {len(video_results)} to {path_video}"
-            )
-        # write up the results to disk
-        video_results.to_csv(path_video, index=False)
-    if debug > 0:
-        print("Return video results")
-    return video_results, audio_results
-
-
 def calculate_frames_moving_average(video_results, window_size_sec=1):
     # frame, ts, video_result_frame_num_read_int
 
@@ -233,8 +147,8 @@ def calculate_measurement_quality_stats(audio_results, video_results):
 
 
 def calculate_stats(
-    audio_latencies,
-    video_latencies,
+    audio_latency_results,
+    video_latency_results,
     av_syncs,
     video_results,
     audio_duration_samples,
@@ -262,29 +176,29 @@ def calculate_stats(
     stats["audio_frames_capture_duration_samples"] = audio_duration_samples
 
     # 2. video latency statistics
-    stats["video_latency_sec.num_samples"] = len(video_latencies)
+    stats["video_latency_sec.num_samples"] = len(video_latency_results)
     stats["video_latency_sec.mean"] = (
         np.nan
-        if len(video_latencies) == 0
-        else np.mean(video_latencies["video_latency_sec"])
+        if len(video_latency_results) == 0
+        else np.mean(video_latency_results["video_latency_sec"])
     )
     stats["video_latency_sec.std_dev"] = (
         np.nan
-        if len(video_latencies) == 0
-        else np.std(video_latencies["video_latency_sec"].values)
+        if len(video_latency_results) == 0
+        else np.std(video_latency_results["video_latency_sec"].values)
     )
 
     # 3. video latency statistics
-    stats["audio_latency_sec.num_samples"] = len(audio_latencies)
+    stats["audio_latency_sec.num_samples"] = len(audio_latency_results)
     stats["audio_latency_sec.mean"] = (
         np.nan
-        if len(video_latencies) == 0
-        else np.mean(audio_latencies["audio_latency_sec"])
+        if len(video_latency_results) == 0
+        else np.mean(audio_latency_results["audio_latency_sec"])
     )
     stats["audio_latency_sec.std_dev"] = (
         np.nan
-        if len(audio_latencies) == 0
-        else np.std(audio_latencies["audio_latency_sec"].values)
+        if len(audio_latency_results) == 0
+        else np.std(audio_latency_results["audio_latency_sec"].values)
     )
 
     # 4. avsync statistics
@@ -420,13 +334,12 @@ def calculate_audio_latency(
     # audio latency is the time between two correlated values where one should be higher
 
     prev = None
-    audio_latencies = []
     beep_period_frames = int(beep_period_sec * fps)  # fps
     frame_time = 1 / fps
     # run audio_results looking for audio latency matches,
     # defined as 2x audio correlations that are close and
     # where the correlation value goes down
-    audio_latencies = pd.DataFrame(
+    audio_latency_results = pd.DataFrame(
         columns=[
             "audio_sample1",
             "timestamp1",
@@ -452,7 +365,7 @@ def calculate_audio_latency(
                 # default 3 sec -> 1.5 sec, max detected audio delay
                 prev = match
                 continue
-            audio_latencies.loc[len(audio_latencies.index)] = [
+            audio_latency_results.loc[len(audio_latency_results.index)] = [
                 prev["audio_sample"],
                 prev["timestamp"],
                 match["audio_sample"],
@@ -463,22 +376,22 @@ def calculate_audio_latency(
             ]
         prev = audio_results.iloc[index]
     # Remove echoes.
-    audio_latencies["diff"] = audio_latencies["timestamp1"].diff()
+    audio_latency_results["diff"] = audio_latency_results["timestamp1"].diff()
     too_close = len(
-        audio_latencies.loc[audio_latencies["diff"] < beep_period_sec * 0.5]
+        audio_latency_results.loc[audio_latency_results["diff"] < beep_period_sec * 0.5]
     )
     if too_close > 0:
         print(f"WARNING. Potential echoes detected - {too_close} counts")
-    audio_latencies.fillna(beep_period_sec, inplace=True)
-    audio_latencies = audio_latencies.loc[
-        audio_latencies["diff"] > beep_period_sec * 0.5
+    audio_latency_results.fillna(beep_period_sec, inplace=True)
+    audio_latency_results = audio_latency_results.loc[
+        audio_latency_results["diff"] > beep_period_sec * 0.5
     ]
-    audio_latencies = audio_latencies.drop(columns=["diff"])
-    return audio_latencies
+    audio_latency_results = audio_latency_results.drop(columns=["diff"])
+    return audio_latency_results
 
 
 def calculate_video_relation(
-    audio_latency,
+    audio_latency_results,
     video_results,
     audio_anchor,
     closest_reference,
@@ -491,11 +404,11 @@ def calculate_video_relation(
     # video latency is the time between the frame shown when a signal is played
     # and the time when it should be played out
     prev = None
-    video_latencies = []
+    video_latency_results = []
     beep_period_frames = int(beep_period_sec * fps)  # fps
     frame_time = 1 / fps
 
-    video_latencies = pd.DataFrame(
+    video_latency_results = pd.DataFrame(
         columns=[
             "frame_num",
             "timestamp",
@@ -505,8 +418,8 @@ def calculate_video_relation(
         ],
     )
 
-    for index in range(len(audio_latency)):
-        match = audio_latency.iloc[index]
+    for index in range(len(audio_latency_results)):
+        match = audio_latency_results.iloc[index]
         # calculate video latency based on the
         # timestamp of the first (prev) audio match
         # vs. the timestamp of the video frame.
@@ -521,7 +434,7 @@ def calculate_video_relation(
         if vmatch is not None and (
             vmatch[4] >= 0 or closest_reference
         ):  # avsync can be negative
-            video_latencies.loc[len(video_latencies.index)] = vmatch
+            video_latency_results.loc[len(video_latency_results.index)] = vmatch
         elif vmatch is None:
             print(f"ERROR: no match found for video latency calculation")
         else:
@@ -529,11 +442,11 @@ def calculate_video_relation(
                 f"ERROR: negative video latency - period length needs to be increased, {vmatch}"
             )
 
-    return video_latencies
+    return video_latency_results
 
 
 def calculate_video_latency(
-    audio_latency,
+    audio_latency_results,
     video_results,
     beep_period_sec,
     fps=30,
@@ -542,7 +455,7 @@ def calculate_video_latency(
 ):
     # video latency is the time between the frame shown when a signal is played
     return calculate_video_relation(
-        audio_latency,
+        audio_latency_results,
         video_results,
         "timestamp1",
         False,
@@ -554,7 +467,7 @@ def calculate_video_latency(
 
 
 def calculate_av_sync(
-    audio_data,
+    audio_results,
     video_results,
     beep_period_sec,
     fps=30,
@@ -564,10 +477,10 @@ def calculate_av_sync(
     # av sync is the difference between when a signal is heard and when the frame is shown
     # If there is a second ssignal, use that one.
     timefield = "timestamp2"
-    if timefield not in audio_data.columns:
+    if timefield not in audio_results.columns:
         timefield = "timestamp"
     av_sync = calculate_video_relation(
-        audio_data,
+        audio_results,
         video_results,
         timefield,
         True,
@@ -580,10 +493,128 @@ def calculate_av_sync(
     return av_sync
 
 
-def z_filter(data, field, z_val):
+def z_filter_function(data, field, z_val):
     mean = data[field].mean()
     std = data[field].std()
     return data.drop(data[data[field] > mean + z_val * std].index)
+
+
+def audio_latency_function(**kwargs):
+    audio_results = kwargs.get("audio_results")
+    video_results = kwargs.get("video_results")
+    ref_fps = kwargs.get("ref_fps")
+    beep_period_sec = kwargs.get("beep_period_sec")
+    debug = kwargs.get("debug")
+
+    audio_latency_results = calculate_audio_latency(
+        audio_results,
+        video_results,
+        fps=ref_fps,
+        beep_period_sec=beep_period_sec,
+        debug=debug,
+    )
+    if len(audio_latency_results) <= 0:
+        return
+    audio_latency_results.to_csv(outfile, index=False)
+
+
+def video_latency_function(**kwargs):
+    audio_results = kwargs.get("audio_results")
+    video_results = kwargs.get("video_results")
+    ref_fps = kwargs.get("ref_fps")
+    beep_period_sec = kwargs.get("beep_period_sec")
+    debug = kwargs.get("debug")
+    z_filter = kwargs.get("z_filter")
+    outfile = kwargs.get("outfile")
+
+    # start with the audio latencies
+    audio_latency_results = calculate_audio_latency(
+        audio_results,
+        video_results,
+        fps=ref_fps,
+        beep_period_sec=beep_period_sec,
+        debug=debug,
+    )
+    # calculate the video latencies
+    video_latency_results = calculate_video_latency(
+        audio_latency_results,
+        video_results,
+        fps=ref_fps,
+        beep_period_sec=beep_period_sec,
+        debug=debug,
+    )
+    # filter the video latencies
+    if z_filter > 0:
+        video_latency_results = z_filter_function(
+            video_latency_results, "video_latency_sec", z_filter
+        )
+    if len(video_latency_results) <= 0:
+        return
+    video_latency_results.to_csv(outfile, index=False)
+
+
+def av_sync_function(**kwargs):
+    audio_results = kwargs.get("audio_results")
+    video_results = kwargs.get("video_results")
+    ref_fps = kwargs.get("ref_fps")
+    beep_period_sec = kwargs.get("beep_period_sec")
+    debug = kwargs.get("debug")
+    z_filter = kwargs.get("z_filter")
+    outfile = kwargs.get("outfile")
+
+    # audio_source = audio_results
+    # TODO(johan): remove this (?)
+    # if audio_latency_results is not None and len(audio_latency_results) > 0:
+    #     audio_source = audio_latency_results
+    av_sync_results = calculate_av_sync(
+        audio_results,
+        video_results,
+        fps=ref_fps,
+        beep_period_sec=beep_period_sec,
+        debug=debug,
+    )
+    # filter the a/v sync values
+    if z_filter > 0:
+        av_sync_results = z_filter_function(av_sync_results, "av_sync_sec", z_filter)
+    if len(av_sync_results) > 0:
+        av_sync_results.to_csv(outfile, index=False)
+
+    # print statistics
+    avsync_sec_average = np.average(av_sync["av_sync_sec"])
+    avsync_sec_stddev = np.std(av_sync["av_sync_sec"])
+    print(
+        f"avsync_sec average: {avsync_sec_average} stddev: {avsync_sec_stddev} size: {len(av_sync)}"
+    )
+
+
+def quality_stats_function(**kwargs):
+    audio_results = kwargs.get("audio_results")
+    video_results = kwargs.get("video_results")
+    outfile = kwargs.get("outfile")
+
+    quality_stats_results = calculate_measurement_quality_stats(
+        audio_results, video_results
+    )
+    quality_stats_results.to_csv(outfile, index=False)
+
+
+def windowed_stats_sec_function(**kwargs):
+    video_results = kwargs.get("video_results")
+    windowed_stats_sec = kwargs.get("windowed_stats_sec")
+    outfile = kwargs.get("outfile")
+
+    windowed_stats_sec_results = calculate_frames_moving_average(
+        video_results, windowed_stats_sec
+    )
+    windowed_stats_sec_results.to_csv(outfile, index=False)
+
+
+def frame_duration_function(**kwargs):
+    video_results = kwargs.get("video_results")
+    outfile = kwargs.get("outfile")
+
+    frame_duration_results = calculate_frame_durations(video_results)
+    frame_duration_results.to_csv(outfile, index=False)
 
 
 def media_analyze(
@@ -618,6 +649,7 @@ def media_analyze(
     calc_all,
     z_filter,
     av_sync,
+    quality_stats,
     windowed_stats_sec,
     calculate_frame_durations,
     no_hw_decode,
@@ -652,93 +684,69 @@ def media_analyze(
 
     # 1. calculate audio latencies
     if audio_latency:
-        audio_latency_results = calculate_audio_latency(
-            audio_results,
-            video_results,
+        audio_latency_function(
+            audio_results=audio_results,
+            video_results=video_results,
             fps=ref_fps,
             beep_period_sec=beep_period_sec,
             debug=debug,
+            outfile=outfile,
         )
-        if len(audio_latency_results) > 0:
-            audio_latency_results.to_csv(outfile, index=False)
 
     # 2. calculate video latencies
     elif video_latency:
-        # start with the audio latencies
-        audio_latency = calculate_audio_latency(
-            audio_results,
-            video_results,
-            fps=ref_fps,
+        video_latency_function(
+            audio_results=audio_results,
+            video_results=video_results,
+            ref_fps=ref_fps,
             beep_period_sec=beep_period_sec,
             debug=debug,
+            z_filter=z_filter,
+            outfile=outfile,
         )
-        # calculate the video latencies
-        video_latency_results = calculate_video_latency(
-            audio_latency,
-            video_results,
-            fps=ref_fps,
-            beep_period_sec=beep_period_sec,
-            debug=debug,
-        )
-        # filter the video latencies
-        if z_filter > 0:
-            video_latency_results = z_filter(
-                video_latency_results, "video_latency_sec", z_filter
-            )
-        if len(video_latency_results) > 0:
-            video_latency_results.to_csv(outfile, index=False)
+
 
     # 3. calculate av sync
     elif av_sync:
-        audio_source = audio_results
-        # TODO(johan): remove this (?)
-        # if audio_latency is not None and len(audio_latency) > 0:
-        #     audio_source = audio_latency
-        av_sync_results = calculate_av_sync(
-            audio_source,
-            video_results,
-            fps=ref_fps,
+        av_sync_function(
+            audio_results=audio_results,
+            video_results=video_results,
+            ref_fps=ref_fps,
             beep_period_sec=beep_period_sec,
             debug=debug,
-        )
-        # filter the a/v sync values
-        if z_filter > 0:
-            av_sync_results = z_filter(av_sync_results, "av_sync_sec", z_filter)
-        if len(av_sync_results) > 0:
-            av_sync_results.to_csv(outfile, index=False)
-
-        # print statistics
-        avsync_sec_average = np.average(av_sync["av_sync_sec"])
-        avsync_sec_stddev = np.std(av_sync["av_sync_sec"])
-        print(
-            f"avsync_sec average: {avsync_sec_average} stddev: {avsync_sec_stddev} size: {len(av_sync)}"
+            z_filter=z_filter,
+            outfile=outfile,
         )
 
     # 4. calculate quality stats
     elif quality_stats:
-        quality_stats_results = calculate_measurement_quality_stats(
-            audio_results, video_results
+        quality_stats_function(
+            audio_results=audio_results,
+            video_results=video_results,
+            debug=debug,
+            outfile=outfile,
         )
-        quality_stats_results.to_csv(outfile, index=False)
 
-    # 5. calculate windowed stats stats
+    # 5. calculate windowed stats
     elif windowed_stats_sec is not None:
-        windowed_stats_sec_results = calculate_frames_moving_average(
-            video_results, windowed_stats_sec
+        windowed_stats_sec_function(
+            video_results=video_results,
+            windowed_stats_sec=windowed_stats_sec,
+            outfile=outfile,
         )
-        windowed_stats_sec_results.to_csv(outfile, index=False)
 
     # 6. calculate frame durations
     elif calculate_frame_durations:
-        frame_duration_results = calculate_frame_durations(video_results)
-        frame_duration_results.to_csv(outfile, index=False)
-
+        frame_duration_function(
+            video_results=video_results,
+            outfile=outfile,
+        )
 
 def combined_calculations(unknown):
     # video latency and avsync latency share original frame
     # video latency and audio latency share timestamp
 
-    all_audio_latency = pd.DataFrame()
+    all_audio_latency_results = pd.DataFrame()
     all_video_latency = pd.DataFrame()
     all_av_sync = pd.DataFrame()
     all_combined = pd.DataFrame()
@@ -746,12 +754,12 @@ def combined_calculations(unknown):
     all_frame_duration = pd.DataFrame()
 
     combined = []
-    frames = video_latency["original_frame"].values
+    frames = video_latency_results["original_frame"].values
     for frame in frames:
-        video_latency_row = video_latency.loc[video_latency["original_frame"] == frame]
+        video_latency_row = video_latency_results.loc[video_latency_results["original_frame"] == frame]
         video_latency_sec = video_latency_row["video_latency_sec"].values[0]
         timestamp = video_latency_row["timestamp"].values[0]
-        audio_latency_row = audio_latency.loc[audio_latency["timestamp1"] == timestamp]
+        audio_latency_row = audio_latency_results.loc[audio_latency_results["timestamp1"] == timestamp]
 
         if len(audio_latency_row) == 0:
             continue
@@ -794,26 +802,26 @@ def combined_calculations(unknown):
             all_combined = pd.concat([all_combined, combined])
         else:
             if audio_latency:
-                audio_latency["file"] = infile
-                all_audio_latency = pd.concat([all_audio_latency, audio_latency])
+                audio_latency_results["file"] = infile
+                all_audio_latency_results = pd.concat([all_audio_latency_results, audio_latency_results])
             if video_latency:
-                video_latency["file"] = infile
-                all_video_latency = pd.concat([all_video_latency, video_latency])
+                video_latency_results["file"] = infile
+                all_video_latency_results = pd.concat([all_video_latency_results, video_latency_results])
             if av_sync:
                 av_sync["file"] = infile
                 all_av_sync = pd.concat([all_av_sync, av_sync])
 
-    if len(all_audio_latency) > 0:
+    if len(all_audio_latency_results) > 0:
         path = f"all.audio_latency.csv"
         if outfile is not None and len(outfile) > 0:
             path = f"{outfile}.all.audio_latency.csv"
-        all_audio_latency.to_csv(path, index=False)
+        all_audio_latency_results.to_csv(path, index=False)
 
-    if len(all_video_latency) > 0:
+    if len(all_video_latency_results) > 0:
         path = f"all.video_latency.csv"
         if outfile is not None and len(outfile) > 0:
             path = f"{outfile}.all.video_latency.csv"
-        all_video_latency.to_csv(path, index=False)
+        all_video_latency_results.to_csv(path, index=False)
 
     if len(all_av_sync) > 0:
         path = f"all.avsync.csv"
@@ -838,3 +846,13 @@ def combined_calculations(unknown):
         if outfile is not None and len(outfile) > 0:
             path = f"{outfile}.all.frame_duration.csv"
         all_frame_duration.to_csv(path, index=False)
+
+
+MEDIA_ANALYSIS = {
+    "audio_latency": audio_latency_function,
+    "video_latency": video_latency_function,
+    "av_sync": av_sync_function,
+    "quality_stats": quality_stats_function,
+    "windowed_stats_sec": windowed_stats_sec_function,
+    "frame_duration": frame_duration_function,
+}

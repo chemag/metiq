@@ -411,6 +411,12 @@ def get_options(argv):
         help="Calculate audio/video synchronization using audio timestamps and video frame numbers.",
     )
     parser.add_argument(
+        "--quality-stats",
+        action="store_true",
+        dest="quality_stats",
+        help="Calculate quality stats.",
+    )
+    parser.add_argument(
         "--windowed-stats-sec",
         type=float,
         dest="windowed_stats_sec",
@@ -541,7 +547,8 @@ def main(argv):
             beep_duration_samples=options.beep_duration_samples,
             beep_period_sec=options.beep_period_sec,
             scale=options.scale,
-            infile=options.infile,
+            input_video=options.input_video,
+            input_audio=options.input_audio,
             outfile=options.outfile,
             vft_id=options.vft_id,
             cache_video=options.cache_video,
@@ -560,6 +567,7 @@ def main(argv):
             calc_all=options.calc_all,
             z_filter=options.z_filter,
             av_sync=options.av_sync,
+            quality_stats=options.quality_stats,
             windowed_stats_sec=options.windowed_stats_sec,
             calculate_frame_durations=options.calculate_frame_durations,
             no_hw_decode=options.no_hw_decode,
