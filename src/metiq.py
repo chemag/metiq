@@ -49,6 +49,8 @@ default_values = {
     # common parameters
     "func": "help",
     "infile": None,
+    "input_audio": None,
+    "input_video": None,
     "outfile": None,
     "output_audio": None,
     "output_video": None,
@@ -297,6 +299,24 @@ def get_options(argv):
         help="input file",
     )
     parser.add_argument(
+        "--input-audio",
+        type=str,
+        required=False,
+        dest="input_audio",
+        default=default_values["input_audio"],
+        metavar="input-audio-file",
+        help="input audio file",
+    )
+    parser.add_argument(
+        "--input-video",
+        type=str,
+        required=False,
+        dest="input_video",
+        default=default_values["input_video"],
+        metavar="input-video-file",
+        help="input video file",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         type=str,
@@ -394,7 +414,7 @@ def get_options(argv):
         "--windowed-stats-sec",
         type=float,
         dest="windowed_stats_sec",
-        default=-1,
+        default=None,
         help="Calculate video frames shown/dropped per unit sec.",
     )
     parser.add_argument(
@@ -408,12 +428,6 @@ def get_options(argv):
         action="store_true",
         dest="noise_video",
         help="For 'generate', create a noise video with tags but without audio. For 'parse', calculate percentage of identified video.",
-    )
-    parser.add_argument(
-        "--calc-coverage",
-        action="store_true",
-        dest="calc_coverage",
-        help="Calculate coverage of the contained tags video.",
     )
     parser.add_argument(
         "--tag-manual",
@@ -529,7 +543,6 @@ def main(argv):
             scale=options.scale,
             infile=options.infile,
             outfile=options.outfile,
-            calc_coverage=options.calc_coverage,
             vft_id=options.vft_id,
             cache_video=options.cache_video,
             cache_audio=options.cache_audio,
