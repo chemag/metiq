@@ -509,8 +509,8 @@ def main(argv):
             beep_period_sec=options.beep_period_sec,
             scale=options.scale,
             infile=options.infile,
-            output_audio=options.output_audio,
             output_video=options.output_video,
+            output_audio=options.output_audio,
             debug=options.debug,
         )
 

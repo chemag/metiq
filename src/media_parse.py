@@ -111,8 +111,8 @@ def media_parse(
     beep_period_sec,
     scale,
     infile,
-    output_audio,
     output_video,
+    output_audio,
     debug,
     **kwargs,
 ):
