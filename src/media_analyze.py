@@ -13,7 +13,7 @@ import video_parse
 import time
 
 
-def calculate_frames_moving_average(video_results, window_size_sec=1):
+def calculate_frames_moving_average(video_results, windowed_stats_sec):
     # frame, ts, video_result_frame_num_read_int
 
     video_results = video_results.dropna()
@@ -34,7 +34,7 @@ def calculate_frames_moving_average(video_results, window_size_sec=1):
             continue
         nextframe = video_results.loc[
             video_results["timestamp"]
-            >= (current.iloc[0]["timestamp"] + window_size_sec)
+            >= (current.iloc[0]["timestamp"] + windowed_stats_sec)
         ]
         if len(nextframe) == 0:
             break

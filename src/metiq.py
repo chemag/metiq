@@ -56,6 +56,7 @@ default_values = {
     "output_audio": None,
     "output_video": None,
     "audio_offset": 0,
+    "windowed_stats_sec": 1,
     "lock_layout": False,
     "audio_sample": audio_common.DEFAULT_AUDIO_SAMPLE,
 }
@@ -405,7 +406,7 @@ def get_options(argv):
         "--windowed-stats-sec",
         type=float,
         dest="windowed_stats_sec",
-        default=None,
+        default=default_values["windowed_stats_sec"],
         help="Calculate video frames shown/dropped per unit sec.",
     )
     parser.add_argument(
