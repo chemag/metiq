@@ -434,8 +434,6 @@ def calculate_video_latency(
     ignore_match_order=True,
     debug=False,
 ):
-    print("Calculate video latency")
-
     # video latency is the time between the frame shown when a signal is played
     # In the case of a transmission we look at the time from the first played out source
     # and when it is shown on the screen on the rx side.
@@ -577,7 +575,7 @@ def av_sync_function(**kwargs):
     # Check residue
     signal_ratio = len(clean_audio) / len(audio_results)
     if signal_ratio < 1:
-        print(f"Removed {signal_ratio * 100:.2f}% echoes, transmissin use case")
+        print(f"Removed {signal_ratio * 100:.2f}% echoes, transmission use case")
         if signal_ratio < 0.2:
             print("Few echoes, recheck thresholds")
 
@@ -786,8 +784,7 @@ def media_analyze(
                 debug,
             )
 
-        input_video = None
-        input_audio = None
+        combined_calculations(infile, outfile)
     else:
         _media_analyze(
             analysis_type,
@@ -825,120 +822,118 @@ def media_analyze(
         )
 
 
-def combined_calculations(unknown):
+def combined_calculations(source_files, outfile):
     # video latency and avsync latency share original frame
     # video latency and audio latency share timestamp
 
-    all_audio_latency_results = pd.DataFrame()
+    all_audio_latency = pd.DataFrame()
     all_video_latency = pd.DataFrame()
-    all_av_sync_results = pd.DataFrame()
+    all_av_sync = pd.DataFrame()
     all_combined = pd.DataFrame()
     all_quality_stats = pd.DataFrame()
     all_frame_duration = pd.DataFrame()
 
-    combined = []
-    frames = video_latency_results["original_frame"].values
-    for frame in frames:
-        video_latency_row = video_latency_results.loc[
-            video_latency_results["original_frame"] == frame
-        ]
-        video_latency_sec = video_latency_row["video_latency_sec"].values[0]
-        timestamp = video_latency_row["timestamp"].values[0]
-        audio_latency_row = audio_latency_results.loc[
-            audio_latency_results["timestamp1"] == timestamp
-        ]
+    for file in source_files:
+        # This will be the root of the file name
+        # Assuming default naming scheme
+        audio_latency = pd.read_csv(file + ".audio.latency.csv")
+        video_latency = pd.read_csv(file + ".video.latency.csv")
+        av_sync = pd.read_csv(file + ".avsync.csv")
+        quality_stats = pd.read_csv(file + ".measurement.quality.csv")
+        frame_duration = pd.read_csv(file + ".frame.duration.csv")
 
-        if len(audio_latency_row) == 0:
-            continue
-        audio_latency_sec = audio_latency_row["audio_latency_sec"].values[0]
-        av_sync_sec_row = av_sync_results.loc[
-            av_sync_results["original_frame"] == frame
-        ]
-        if len(av_sync_sec_row) == 0:
-            continue
+        combined = []
+        frames = video_latency["original_frame"].values
+        for frame in frames:
+            video_latency_row = video_latency.loc[
+                video_latency["original_frame"] == frame
+            ]
+            video_latency_sec = video_latency_row["video_latency_sec"].values[0]
+            timestamp = video_latency_row["timestamp"].values[0]
+            audio_latency_row = audio_latency.loc[
+                audio_latency["timestamp1"] == timestamp
+            ]
 
-        av_sync_sec = av_sync_sec_row["av_sync_sec"].values[0]
-        combined.append([frame, audio_latency_sec, video_latency_sec, av_sync_sec])
+            if len(audio_latency_row) == 0:
+                continue
+            audio_latency_sec = audio_latency_row["audio_latency_sec"].values[0]
+            av_sync_sec_row = av_sync.loc[av_sync["original_frame"] == frame]
+            if len(av_sync_sec_row) == 0:
+                continue
 
-    combined = pd.DataFrame(
-        combined,
-        columns=[
-            "frame_num",
-            "audio_latency_sec",
-            "video_latency_sec",
-            "av_sync_sec",
-        ],
-    )
+            av_sync_sec = av_sync_sec_row["av_sync_sec"].values[0]
+            combined.append([frame, audio_latency_sec, video_latency_sec, av_sync_sec])
 
-    if len(combined) > 0:
-        path = f"{infile}.latencies.csv"
-        if outfile is not None and len(outfile) > 0 and len(infile_list) == 1:
-            path = f"{outfile}.latencies.csv"
-        combined.to_csv(path, index=False)
+        combined = pd.DataFrame(
+            combined,
+            columns=[
+                "frame_num",
+                "audio_latency_sec",
+                "video_latency_sec",
+                "av_sync_sec",
+            ],
+        )
 
-    if len(infile_list) > 1:
-        df["file"] = infile
-        all_frame_duration = pd.concat([all_frame_duration, df])
+        if len(combined) > 0:
+            path = f"{file}.latencies.csv"
+            combined.to_csv(path, index=False)
 
-    if len(infile_list) > 1:
-        quality_stats_results["file"] = infile
-        all_quality_stats = pd.concat([all_quality_stats, quality_stats_results])
+        frame_duration["file"] = file
 
-        # combined data
-        if calc_all:
-            # only create the combined stat file
-            combined["file"] = infile
-            all_combined = pd.concat([all_combined, combined])
-        else:
-            if audio_latency:
-                audio_latency_results["file"] = infile
-                all_audio_latency_results = pd.concat(
-                    [all_audio_latency_results, audio_latency_results]
-                )
-            if video_latency:
-                video_latency_results["file"] = infile
-                all_video_latency_results = pd.concat(
-                    [all_video_latency_results, video_latency_results]
-                )
-            if av_sync:
-                av_sync_results["file"] = infile
-                all_av_sync_results = pd.concat([all_av_sync_results, av_sync_results])
+        all_frame_duration = pd.concat([all_frame_duration, frame_duration])
 
-    if len(all_audio_latency_results) > 0:
-        path = f"all.audio_latency.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.audio_latency.csv"
-        all_audio_latency_results.to_csv(path, index=False)
+        quality_stats["file"] = file
+        all_quality_stats = pd.concat([all_quality_stats, quality_stats])
 
-    if len(all_video_latency_results) > 0:
-        path = f"all.video_latency.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.video_latency.csv"
-        all_video_latency_results.to_csv(path, index=False)
+        # only create the combined stat file
+        combined["file"] = file
+        all_combined = pd.concat([all_combined, combined])
+        if audio_latency is not None:
+            audio_latency["file"] = file
+            all_audio_latency = pd.concat([all_audio_latency, audio_latency])
+        if video_latency is not None:
+            video_latency["file"] = file
+            all_video_latency = pd.concat([all_video_latency, video_latency])
+        if av_sync is not None:
+            av_sync["file"] = file
+            all_av_sync = pd.concat([all_av_sync, av_sync])
 
-    if len(all_av_sync_results) > 0:
-        path = f"all.avsync.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.avsync.csv"
-        all_av_sync_results.to_csv(path, index=False)
+    if len(source_files) > 1:
+        if len(all_audio_latency) > 0:
+            path = f"all.audio_latency.csv"
+            if outfile is not None and len(outfile) > 0:
+                path = f"{outfile}.all.audio_latency.csv"
+            all_audio_latency.to_csv(path, index=False)
 
-    if len(all_combined) > 0:
-        path = f"all.combined.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.latencies.csv"
-        all_combined.to_csv(path, index=False)
+        if len(all_video_latency) > 0:
+            path = f"all.video_latency.csv"
+            if outfile is not None and len(outfile) > 0:
+                path = f"{outfile}.all.video_latency.csv"
+            all_video_latency.to_csv(path, index=False)
 
-    if len(all_quality_stats) > 0:
-        path = f"all.quality_stats.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.measurement.quality.csv"
-        all_quality_stats.to_csv(path, index=False)
+        if len(all_av_sync) > 0:
+            path = f"all.avsync.csv"
+            if outfile is not None and len(outfile) > 0:
+                path = f"{outfile}.all.avsync.csv"
+            all_av_sync.to_csv(path, index=False)
 
-    if len(all_frame_duration) > 0:
-        path = f"all.frame_duration.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.frame_duration.csv"
-        all_frame_duration.to_csv(path, index=False)
+        if len(all_combined) > 0:
+            path = f"all.combined.csv"
+            if outfile is not None and len(outfile) > 0:
+                path = f"{outfile}.all.latencies.csv"
+            all_combined.to_csv(path, index=False)
+
+        if len(all_quality_stats) > 0:
+            path = f"all.quality_stats.csv"
+            if outfile is not None and len(outfile) > 0:
+                path = f"{outfile}.all.measurement.quality.csv"
+            all_quality_stats.to_csv(path, index=False)
+
+        if len(all_frame_duration) > 0:
+            path = f"all.frame_duration.csv"
+            if outfile is not None and len(outfile) > 0:
+                path = f"{outfile}.all.frame_duration.csv"
+            all_frame_duration.to_csv(path, index=False)
 
 
 MEDIA_ANALYSIS = {
