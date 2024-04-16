@@ -292,6 +292,7 @@ def get_options(argv):
         % (" | ".join("{}: {}".format(k, v) for k, v in FUNC_CHOICES.items())),
     )
     parser.add_argument(
+        "-a",
         "--analysis-type",
         type=str,
         dest="analysis_type",
@@ -308,6 +309,7 @@ def get_options(argv):
     parser.add_argument(
         "-i",
         "--input",
+        nargs="+",
         type=str,
         dest="infile",
         default=default_values["infile"],
@@ -496,6 +498,7 @@ def main(argv):
             options.output_audio = f"{options.infile}.audio.csv"
         if options.output_video is None:
             options.output_video = f"{options.infile}.video.csv"
+
         media_parse.media_parse(
             width=options.width,
             height=options.height,
@@ -511,6 +514,8 @@ def main(argv):
             infile=options.infile,
             output_video=options.output_video,
             output_audio=options.output_audio,
+            lock_layout=options.lock_layout,
+            threaded=options.threaded,
             debug=options.debug,
         )
 
@@ -528,6 +533,7 @@ def main(argv):
             beep_duration_samples=options.beep_duration_samples,
             beep_period_sec=options.beep_period_sec,
             scale=options.scale,
+            infile=options.infile,
             input_video=options.input_video,
             input_audio=options.input_audio,
             outfile=options.outfile,

@@ -273,7 +273,7 @@ def image_parse(
         status = ERROR_SINGLE_GRAYCODE_BIT
     except Exception as ex:
         if debug > 0:
-            print(f"{frame_num = } {str(ex)}")
+            print(f"{str(ex)}")
         status = ERROR_UNKNOWN
     return status, value_read
 
@@ -303,7 +303,6 @@ def video_parse(
     threaded=False,
     debug=0,
 ):
-    # If running multiple files where there may be minor realignments
     # reset and latch onto a fresh layout config
     vft_id = None
     tag_center_locations = None
@@ -347,6 +346,7 @@ def video_parse(
 
     start = time.monotonic_ns()
     accumulated_decode_time = 0
+    failed_parses = 0
     while True:
         # get image
         decstart = time.monotonic_ns()
@@ -394,12 +394,15 @@ def video_parse(
         )
         estimation = f" estimated time left: {time_left_sec:6.1f} sec"
         speed_text = f", processing {1/(time_per_iteration/TEN_TO_NINE):.2f} fps"
+        error_ratio = ""
+        if failed_parses > 0:
+            error_ratio = f" errors: {100*failed_parses/(frame_num + 1):4.2f}% "
         if debug > 0:
             decode_time_per_iteration = accumulated_decode_time / (frame_num + 1)
             speed_text = f"{speed_text}, dec. time:{decode_time_per_iteration/1000000:=5.2f} ms, calc, time: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms"
 
         print(
-            f"-- {round(100 * frame_num/total_nbr_of_frames, 2):5.2f} %, {estimation}{speed_text}{' ' * 20}",
+            f"-- {round(100 * frame_num/total_nbr_of_frames, 2):5.2f} %, {estimation}{speed_text} - {error_ratio}{' ' * 20}",
             end="\r",
         )
         if status != 0:
@@ -427,6 +430,7 @@ def video_parse(
 
         if status != 0:
             print(f"failed parsing frame {frame_num=}")
+            failed_parses += 1
             if status == ERROR_UNKNOWN:
                 continue
 
@@ -486,7 +490,7 @@ def video_parse(
     current_time = time.monotonic_ns()
     total_time = current_time - start
     calc_time = total_time - accumulated_decode_time
-
+    error_ratio = f" errors: {100*failed_parses/(total_nbr_of_frames):4.2f}% "
     if debug > 0:
         decode_time_per_iteration = accumulated_decode_time / (frame_num + 1)
         print(f"{' ' * 120}")
@@ -495,12 +499,12 @@ def video_parse(
         )
         print(
             f"Processing  {total_nbr_of_frames/total_time*1000000000:.2f} fps, per frame: {decode_time_per_iteration/1000000:=5.2f} ms,"
-            f"calc: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms"
+            f"calc: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms - {error_ratio}"
         )
     else:
         print(f"{' ' * 120}")
         print(
-            f"Total time: {total_time/1000000000:.2f} sec, processing {total_nbr_of_frames/total_time*1000000000:.2f} fps {' '*30}"
+            f"Total time: {total_time/1000000000:.2f} sec, processing {total_nbr_of_frames/total_time*1000000000:.2f} fps {' '*30} - {error_ratio}"
         )
 
     return video_results

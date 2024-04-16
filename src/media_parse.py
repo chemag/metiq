@@ -72,10 +72,13 @@ def media_parse_video(
     scale,
     infile,
     outfile,
-    debug,
+    debug=False,
     **kwargs,
 ):
     ref_fps = kwargs.get("ref_fps", -1)
+    if ref_fps == -1:
+        print("Warning: ref_fps is not set. Using the default value of 30 fps.")
+        ref_fps = 30
     lock_layout = kwargs.get("lock_layout", False)
     tag_manual = kwargs.get("tag_manual", False)
     threaded = kwargs.get("threaded", False)
@@ -93,7 +96,7 @@ def media_parse_video(
         debug=debug,
     )
     if debug > 0:
-        print(f"Done parsing, write csv, size: {len(video_results)} to {path_video}")
+        print(f"Done parsing, write csv, size: {len(video_results)} to {outfile}")
     # write up the results to disk
     video_results.to_csv(outfile, index=False)
 
@@ -116,35 +119,36 @@ def media_parse(
     debug,
     **kwargs,
 ):
-    # 1. parse the audio stream
-    media_parse_audio(
-        pre_samples,
-        samplerate,
-        beep_freq,
-        beep_duration_samples,
-        beep_period_sec,
-        scale,
-        infile,
-        output_audio,
-        debug,
-        **kwargs,
-    )
+    for sourcefile in infile:
+        # 1. parse the audio stream
+        media_parse_audio(
+            pre_samples,
+            samplerate,
+            beep_freq,
+            beep_duration_samples,
+            beep_period_sec,
+            scale,
+            sourcefile,
+            output_audio,
+            debug,
+            **kwargs,
+        )
 
-    # 2. parse the video stream
-    media_parse_video(
-        width,
-        height,
-        num_frames,
-        pixel_format,
-        luma_threshold,
-        pre_samples,
-        samplerate,
-        beep_freq,
-        beep_duration_samples,
-        beep_period_sec,
-        scale,
-        infile,
-        output_video,
-        debug,
-        **kwargs,
-    )
+        # 2. parse the video stream
+        media_parse_video(
+            width,
+            height,
+            num_frames,
+            pixel_format,
+            luma_threshold,
+            pre_samples,
+            samplerate,
+            beep_freq,
+            beep_duration_samples,
+            beep_period_sec,
+            scale,
+            sourcefile,
+            output_video,
+            debug,
+            **kwargs,
+        )
