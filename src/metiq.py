@@ -494,11 +494,6 @@ def main(argv):
             )
 
     elif options.func == "parse":
-        if options.output_audio is None:
-            options.output_audio = f"{options.infile}.audio.csv"
-        if options.output_video is None:
-            options.output_video = f"{options.infile}.video.csv"
-
         media_parse.media_parse(
             width=options.width,
             height=options.height,

@@ -121,6 +121,8 @@ def media_parse(
 ):
     for sourcefile in infile:
         # 1. parse the audio stream
+        if output_audio is None:
+            output_audio = sourcefile + ".audio.csv"
         media_parse_audio(
             pre_samples,
             samplerate,
@@ -135,6 +137,8 @@ def media_parse(
         )
 
         # 2. parse the video stream
+        if output_video is None:
+            output_video = sourcefile + ".video.csv"
         media_parse_video(
             width,
             height,
