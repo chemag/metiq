@@ -292,6 +292,7 @@ def get_options(argv):
         % (" | ".join("{}: {}".format(k, v) for k, v in FUNC_CHOICES.items())),
     )
     parser.add_argument(
+        "-a",
         "--analysis-type",
         type=str,
         dest="analysis_type",
@@ -492,10 +493,6 @@ def main(argv):
             )
 
     elif options.func == "parse":
-        if options.output_audio is None:
-            options.output_audio = f"{options.infile}.audio.csv"
-        if options.output_video is None:
-            options.output_video = f"{options.infile}.video.csv"
         media_parse.media_parse(
             width=options.width,
             height=options.height,
@@ -511,17 +508,14 @@ def main(argv):
             infile=options.infile,
             output_video=options.output_video,
             output_audio=options.output_audio,
+            lock_layout=options.lock_layout,
+            threaded=options.threaded,
             debug=options.debug,
         )
 
     elif options.func == "analyze":
         media_analyze.media_analyze(
             analysis_type=options.analysis_type,
-            width=options.width,
-            height=options.height,
-            num_frames=options.num_frames,
-            pixel_format=options.pixel_format,
-            luma_threshold=options.luma_threshold,
             pre_samples=options.pre_samples,
             samplerate=options.samplerate,
             beep_freq=options.beep_freq,
@@ -531,21 +525,11 @@ def main(argv):
             input_video=options.input_video,
             input_audio=options.input_audio,
             outfile=options.outfile,
-            vft_id=options.vft_id,
-            cache_video=options.cache_video,
-            cache_audio=options.cache_audio,
-            cache_both=options.cache_both,
-            min_separation_msec=options.min_separation_msec,
-            min_match_threshold=options.min_match_threshold,
             audio_sample=options.audio_sample,
-            lock_layout=options.lock_layout,
-            tag_manual=options.tag_manual,
             force_fps=options.force_fps,
-            threaded=options.threaded,
             audio_offset=options.audio_offset,
             z_filter=options.z_filter,
             windowed_stats_sec=options.windowed_stats_sec,
-            no_hw_decode=options.no_hw_decode,
             debug=options.debug,
         )
 

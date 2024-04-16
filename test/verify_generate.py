@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import sys
-
-metiq_path = "../src"
+import os
+script_dir = os.path.dirname(__file__) 
+metiq_path = f"{script_dir}/../src"
 sys.path.append(metiq_path)
 
 import common
@@ -19,8 +20,8 @@ import scipy
 import os
 
 BEEP_PERIOD_SEC = 3.0
-WIDTH = 720
-HEIGHT = 536
+WIDTH = 1280
+HEIGHT = 720
 FPS = 30
 VFT_LAYOUT = vft.VFT_LAYOUT[vft.DEFAULT_VFT_ID]
 BEEP_PERIOD_FRAMES = BEEP_PERIOD_SEC * FPS
@@ -98,7 +99,7 @@ def generate_test_file(**settings):
     # capture path offset, positive value for delayed audio
     audio_offset = settings.get("audio_offset", 0)
 
-    outfile = settings.get("outfile", f"test.mov")
+    outfile = settings.get("outfile", f"test.y4m")
     descr = settings.get("descr", "test")
     num_frames = settings.get("num_frames", NUM_FRAMES)
     fps = settings.get("fps", FPS)
@@ -199,13 +200,14 @@ def generate_test_file(**settings):
     )
 
     # speed up
-    ws = int(width / 4)
-    hs = int(height / 4)
+    ws = int(width)
+    hs = int(height)
     # put them together
+
     command = "ffmpeg -y "
     command += f"-y -f rawvideo -pixel_format rgb24 -s {width}x{height} -r {output_fps} -i {video_filename} "
     command += f"-i {audio_filename} "
-    command += f"-c:v libx264 -pix_fmt yuv420p -c:a pcm_s16le -s {ws}x{hs} {outfile}"
+    command += f"-pix_fmt yuv420p -c:a pcm_s16le -s {ws}x{hs} {outfile}"
 
     ret, stdout, stderr = common.run(command, debug=debug)
     assert ret == 0, f"error: {stderr}"

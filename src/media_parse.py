@@ -72,10 +72,13 @@ def media_parse_video(
     scale,
     infile,
     outfile,
-    debug,
+    debug=False,
     **kwargs,
 ):
     ref_fps = kwargs.get("ref_fps", -1)
+    if ref_fps == -1:
+        print("Warning: ref_fps is not set. Using the default value of 30 fps.")
+        ref_fps = 30
     lock_layout = kwargs.get("lock_layout", False)
     tag_manual = kwargs.get("tag_manual", False)
     threaded = kwargs.get("threaded", False)
@@ -93,7 +96,7 @@ def media_parse_video(
         debug=debug,
     )
     if debug > 0:
-        print(f"Done parsing, write csv, size: {len(video_results)} to {path_video}")
+        print(f"Done parsing, write csv, size: {len(video_results)} to {outfile}")
     # write up the results to disk
     video_results.to_csv(outfile, index=False)
 
@@ -117,6 +120,8 @@ def media_parse(
     **kwargs,
 ):
     # 1. parse the audio stream
+    if output_audio is None:
+        output_audio = infile + ".audio.csv"
     media_parse_audio(
         pre_samples,
         samplerate,
@@ -131,6 +136,8 @@ def media_parse(
     )
 
     # 2. parse the video stream
+    if output_video is None:
+        output_video = infile + ".video.csv"
     media_parse_video(
         width,
         height,
