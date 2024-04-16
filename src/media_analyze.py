@@ -11,6 +11,7 @@ import audio_parse
 import media_parse
 import video_parse
 import time
+import sys
 
 
 def calculate_frames_moving_average(video_results, windowed_stats_sec):
@@ -355,6 +356,21 @@ def calculate_audio_latency(
     return audio_latency_results
 
 
+def filter_echoes(audiodata, beep_period_sec, margin):
+    """
+    The DataFrame audiodata have a timestamp in seconds, margin is 0 to 1.
+
+    Filter everything that is closer than margin * beep_period_sec
+    Tis pusts the limit on the lcombined length of echoes in order not
+    to prevent identifying the first signal to.
+    """
+
+    audiodata["timestamp_diff"] = audiodata["timestamp"].diff()
+    # keep first signal even if it could be an echo - we cannot tell.
+    audiodata.fillna(beep_period_sec, inplace=True)
+    return audiodata.loc[audiodata["timestamp_diff"] > beep_period_sec * margin]
+
+
 def calculate_video_relation(
     audio_latency_results,
     video_results,
@@ -419,6 +435,8 @@ def calculate_video_latency(
     debug=False,
 ):
     # video latency is the time between the frame shown when a signal is played
+    # In the case of a transmission we look at the time from the first played out source
+    # and when it is shown on the screen on the rx side.
     return calculate_video_relation(
         audio_latency_results,
         video_results,
@@ -466,6 +484,23 @@ def z_filter_function(data, field, z_val):
     return data.drop(data[data[field] > mean + z_val * std].index)
 
 
+def all_analysis_function(**kwargs):
+    outfile = kwargs.get("outfile", None)
+    if not outfile:
+        infile = kwargs.get("input_video", None)
+        # It could be MOV.video.csv or X.csv
+        split_text = infile.split(".")
+        if split_text[-3].lower() == "mov":
+            outfile = ".".join(split_text[:-2])
+
+    for function in MEDIA_ANALYSIS:
+        if function == "all":
+            continue
+        kwargs["outfile"] = f"{outfile}{MEDIA_ANALYSIS[function][2]}"
+
+        results = MEDIA_ANALYSIS[function][0](**kwargs)
+
+
 def audio_latency_function(**kwargs):
     audio_results = kwargs.get("audio_results")
     video_results = kwargs.get("video_results")
@@ -501,6 +536,7 @@ def video_latency_function(**kwargs):
         beep_period_sec=beep_period_sec,
         debug=debug,
     )
+
     # calculate the video latencies
     video_latency_results = calculate_video_latency(
         audio_latency_results,
@@ -526,12 +562,32 @@ def av_sync_function(**kwargs):
     z_filter = kwargs.get("z_filter")
     outfile = kwargs.get("outfile")
 
-    # audio_source = audio_results
-    # TODO(johan): remove this (?)
-    # if audio_latency_results is not None and len(audio_latency_results) > 0:
-    #     audio_source = audio_latency_results
+    # av sync is the time from the signal until the video is shown
+    # for tegsts that include a transmission the signal of interest is
+    # the first echo and not the source.
+
+    if len(audio_results) == 0:
+        print("No audio results, skipping av sync calculation")
+        return
+
+    margin = 0.7
+    clean_audio = filter_echoes(audio_results, beep_period_sec, margin)
+    # Check residue
+    signal_ratio = len(clean_audio) / len(audio_results)
+    if signal_ratio < 1:
+        print(f"Removed {signal_ratio * 100:.2f}% echoes, transmission use case")
+        if signal_ratio < 0.2:
+            print("Few echoes, recheck thresholds")
+
+        # Filter residue to get echoes
+        residue = audio_results[~audio_results.index.isin(clean_audio.index)]
+        clean_audio = filter_echoes(pd.DataFrame(residue), beep_period_sec, margin)
+
+    else:
+        print("No echoes, simple source use case")
+
     av_sync_results = calculate_av_sync(
-        audio_results,
+        clean_audio,
         video_results,
         fps=ref_fps,
         beep_period_sec=beep_period_sec,
@@ -583,11 +639,6 @@ def frame_duration_function(**kwargs):
 
 def media_analyze(
     analysis_type,
-    width,
-    height,
-    num_frames,
-    pixel_format,
-    luma_threshold,
     pre_samples,
     samplerate,
     beep_freq,
@@ -597,36 +648,13 @@ def media_analyze(
     input_video,
     input_audio,
     outfile,
-    vft_id,
-    cache_video,
-    cache_audio,
-    cache_both,
-    min_separation_msec,
-    min_match_threshold,
     audio_sample,
-    lock_layout,
-    tag_manual,
     force_fps,
-    threaded,
     audio_offset,
     z_filter,
     windowed_stats_sec,
-    no_hw_decode,
     debug,
 ):
-
-    if no_hw_decode:
-        video_parse.config_decoder(HW_DECODER_ENABLE=False)
-
-    # TODO(johan): move somewhere else
-    # if calc_coverage:
-    #    media_parse.media_parse_noise_video(
-    #        infile=infile,
-    #        outfile=outfile,
-    #        vft_id=vft_id,
-    #        debug=debug,
-    #    )
-
     # read inputs
     video_results = pd.read_csv(input_video)
     audio_results = pd.read_csv(input_audio)
@@ -653,136 +681,40 @@ def media_analyze(
         outfile=outfile,
         z_filter=z_filter,
         windowed_stats_sec=windowed_stats_sec,
+        input_video=input_video,
     )
-
-
-def combined_calculations(unknown):
-    # video latency and avsync latency share original frame
-    # video latency and audio latency share timestamp
-
-    all_audio_latency_results = pd.DataFrame()
-    all_video_latency = pd.DataFrame()
-    all_av_sync_results = pd.DataFrame()
-    all_combined = pd.DataFrame()
-    all_quality_stats = pd.DataFrame()
-    all_frame_duration = pd.DataFrame()
-
-    combined = []
-    frames = video_latency_results["original_frame"].values
-    for frame in frames:
-        video_latency_row = video_latency_results.loc[
-            video_latency_results["original_frame"] == frame
-        ]
-        video_latency_sec = video_latency_row["video_latency_sec"].values[0]
-        timestamp = video_latency_row["timestamp"].values[0]
-        audio_latency_row = audio_latency_results.loc[
-            audio_latency_results["timestamp1"] == timestamp
-        ]
-
-        if len(audio_latency_row) == 0:
-            continue
-        audio_latency_sec = audio_latency_row["audio_latency_sec"].values[0]
-        av_sync_sec_row = av_sync_results.loc[
-            av_sync_results["original_frame"] == frame
-        ]
-        if len(av_sync_sec_row) == 0:
-            continue
-
-        av_sync_sec = av_sync_sec_row["av_sync_sec"].values[0]
-        combined.append([frame, audio_latency_sec, video_latency_sec, av_sync_sec])
-
-    combined = pd.DataFrame(
-        combined,
-        columns=[
-            "frame_num",
-            "audio_latency_sec",
-            "video_latency_sec",
-            "av_sync_sec",
-        ],
-    )
-
-    if len(combined) > 0:
-        path = f"{infile}.latencies.csv"
-        if outfile is not None and len(outfile) > 0 and len(infile_list) == 1:
-            path = f"{outfile}.latencies.csv"
-        combined.to_csv(path, index=False)
-
-    if len(infile_list) > 1:
-        df["file"] = infile
-        all_frame_duration = pd.concat([all_frame_duration, df])
-
-    if len(infile_list) > 1:
-        quality_stats_results["file"] = infile
-        all_quality_stats = pd.concat([all_quality_stats, quality_stats_results])
-
-        # combined data
-        if calc_all:
-            # only create the combined stat file
-            combined["file"] = infile
-            all_combined = pd.concat([all_combined, combined])
-        else:
-            if audio_latency:
-                audio_latency_results["file"] = infile
-                all_audio_latency_results = pd.concat(
-                    [all_audio_latency_results, audio_latency_results]
-                )
-            if video_latency:
-                video_latency_results["file"] = infile
-                all_video_latency_results = pd.concat(
-                    [all_video_latency_results, video_latency_results]
-                )
-            if av_sync:
-                av_sync_results["file"] = infile
-                all_av_sync_results = pd.concat([all_av_sync_results, av_sync_results])
-
-    if len(all_audio_latency_results) > 0:
-        path = f"all.audio_latency.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.audio_latency.csv"
-        all_audio_latency_results.to_csv(path, index=False)
-
-    if len(all_video_latency_results) > 0:
-        path = f"all.video_latency.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.video_latency.csv"
-        all_video_latency_results.to_csv(path, index=False)
-
-    if len(all_av_sync_results) > 0:
-        path = f"all.avsync.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.avsync.csv"
-        all_av_sync_results.to_csv(path, index=False)
-
-    if len(all_combined) > 0:
-        path = f"all.combined.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.latencies.csv"
-        all_combined.to_csv(path, index=False)
-
-    if len(all_quality_stats) > 0:
-        path = f"all.quality_stats.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.measurement.quality.csv"
-        all_quality_stats.to_csv(path, index=False)
-
-    if len(all_frame_duration) > 0:
-        path = f"all.frame_duration.csv"
-        if outfile is not None and len(outfile) > 0:
-            path = f"{outfile}.all.frame_duration.csv"
-        all_frame_duration.to_csv(path, index=False)
 
 
 MEDIA_ANALYSIS = {
-    "audio_latency": (audio_latency_function, "Calculate audio latency"),
-    "video_latency": (video_latency_function, "Calculate video latency"),
+    "audio_latency": (
+        audio_latency_function,
+        "Calculate audio latency",
+        ".audio.latency.csv",
+    ),
+    "video_latency": (
+        video_latency_function,
+        "Calculate video latency",
+        ".video.latency.csv",
+    ),
     "av_sync": (
         av_sync_function,
         "Calculate audio/video synchronization offset using audio timestamps and video frame numbers",
+        ".avsync.csv",
     ),
-    "quality_stats": (quality_stats_function, "Calculate quality stats"),
+    "quality_stats": (
+        quality_stats_function,
+        "Calculate quality stats",
+        ".measurement.quality.csv",
+    ),
     "windowed_stats": (
         windowed_stats_function,
         "Calculate video frames shown/dropped per unit sec",
+        ".windowed.stats.csv",
     ),
-    "frame_duration": (frame_duration_function, "Calculate source frame durations"),
+    "frame_duration": (
+        frame_duration_function,
+        "Calculate source frame durations",
+        ".frame.duration.csv",
+    ),
+    "all": (all_analysis_function, "Calculate all media analysis", None),
 }
