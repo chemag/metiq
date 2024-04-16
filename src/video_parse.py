@@ -396,13 +396,13 @@ def video_parse(
         speed_text = f", processing {1/(time_per_iteration/TEN_TO_NINE):.2f} fps"
         error_ratio = ""
         if failed_parses > 0:
-            error_ratio = f" errors: {100*failed_parses/(frame_num + 1):4.2f}% "
+            error_ratio = f"- errors: {100*failed_parses/(frame_num + 1):5.2f}% "
         if debug > 0:
             decode_time_per_iteration = accumulated_decode_time / (frame_num + 1)
             speed_text = f"{speed_text}, dec. time:{decode_time_per_iteration/1000000:=5.2f} ms, calc, time: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms"
 
         print(
-            f"-- {round(100 * frame_num/total_nbr_of_frames, 2):5.2f} %, {estimation}{speed_text} - {error_ratio}{' ' * 20}",
+            f"-- {round(100 * frame_num/total_nbr_of_frames, 2):5.2f} %, {estimation}{speed_text} {error_ratio}{' ' * 20}",
             end="\r",
         )
         if status != 0:
@@ -490,7 +490,7 @@ def video_parse(
     current_time = time.monotonic_ns()
     total_time = current_time - start
     calc_time = total_time - accumulated_decode_time
-    error_ratio = f" errors: {100*failed_parses/(total_nbr_of_frames):4.2f}% "
+    error_ratio = f"- errors: {100*failed_parses/(total_nbr_of_frames):5.2f}% "
     if debug > 0:
         decode_time_per_iteration = accumulated_decode_time / (frame_num + 1)
         print(f"{' ' * 120}")
@@ -499,7 +499,7 @@ def video_parse(
         )
         print(
             f"Processing  {total_nbr_of_frames/total_time*1000000000:.2f} fps, per frame: {decode_time_per_iteration/1000000:=5.2f} ms,"
-            f"calc: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms - {error_ratio}"
+            f"calc: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms {error_ratio}"
         )
     else:
         print(f"{' ' * 120}")
