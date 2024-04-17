@@ -15,6 +15,7 @@ import pandas as pd
 import metiq
 import media_parse
 import media_analyze
+import multiprocessing as mp
 
 
 def combined_calculations(source_files, outfile):
@@ -184,15 +185,25 @@ def get_options(argv):
     parser.add_argument(
         "-ao", "--audio-offset", type=float, default=0.0, help="Audio offset in seconds"
     )
+    parser.add_argument(
+        "-mp",
+        "--max-parallel",
+        dest="max_parallel",
+        type=int,
+        default=1,
+        help="Maximum number of parallel processes",
+    )
     options = parser.parse_args()
     return options
 
 
-def main(argv):
-    # parse options
-    options = get_options(argv)
-
-    # We assume default settings on everything.
+def run_file(args):
+    file = args[0]
+    parse_audio = args[1]
+    parse_video = args[2]
+    audio_offset = args[3]
+    print(f"Processing file {file}")
+    # We assume default settings on/ everything.
     # TODO(johan): expose more settings to the user
     width = metiq.default_values["width"]
     height = metiq.default_values["height"]
@@ -205,7 +216,7 @@ def main(argv):
     pixel_format = metiq.default_values["pixel_format"]
     luma_threshold = metiq.default_values["luma_threshold"]
     num_frames = -1
-    kwargs = {"lock_layout": True, "threaded": True}
+    kwargs = {"lock_layout": True, "threaded": False}
 
     min_match_threshold = metiq.default_values["min_match_threshold"]
     min_separation_msec = metiq.default_values["min_separation_msec"]
@@ -216,46 +227,44 @@ def main(argv):
     windowed_stats_sec = metiq.default_values["windowed_stats_sec"]
     analysis_type = "all"
 
+    videocsv = file + ".video.csv"
+    audiocsv = file + ".audio.csv"
     debug = 0
-    for file in options.infile_list:
-        videocsv = file + ".video.csv"
-        audiocsv = file + ".audio.csv"
+    # files exist
+    if not os.path.exists(audiocsv) or parse_audio:
+        # 1. parse the audio stream
+        media_parse.media_parse_audio(
+            pre_samples,
+            samplerate,
+            beep_freq,
+            beep_duration_samples,
+            beep_period_sec,
+            scale,
+            file,
+            audiocsv,
+            debug,
+            **kwargs,
+        )
 
-        # files exist
-        if not os.path.exists(audiocsv) or options.parse_audio:
-            # 1. parse the audio stream
-            media_parse.media_parse_audio(
-                pre_samples,
-                samplerate,
-                beep_freq,
-                beep_duration_samples,
-                beep_period_sec,
-                scale,
-                file,
-                audiocsv,
-                debug,
-                **kwargs,
-            )
-
-        if not os.path.exists(videocsv) or options.parse_video:
-            # 2. parse the video stream
-            media_parse.media_parse_video(
-                width,
-                height,
-                num_frames,
-                pixel_format,
-                luma_threshold,
-                pre_samples,
-                samplerate,
-                beep_freq,
-                beep_duration_samples,
-                beep_period_sec,
-                scale,
-                file,
-                videocsv,
-                debug,
-                **kwargs,
-            )
+    if not os.path.exists(videocsv) or parse_video:
+        # 2. parse the video stream
+        media_parse.media_parse_video(
+            width,
+            height,
+            num_frames,
+            pixel_format,
+            luma_threshold,
+            pre_samples,
+            samplerate,
+            beep_freq,
+            beep_duration_samples,
+            beep_period_sec,
+            scale,
+            file,
+            videocsv,
+            debug,
+            **kwargs,
+        )
         # Analyze the video and audio files
         for file in options.infile_list:
             media_analyze.media_analyze(
@@ -269,11 +278,24 @@ def main(argv):
                 audiocsv,
                 None,  # options.output,
                 force_fps,
-                options.audio_offset,
+                audio_offset,
                 z_filter,
                 windowed_stats_sec,
                 debug,
             )
+
+
+def main(argv):
+    # parse options
+    options = get_options(argv)
+    parse_video = options.parse_video
+    parse_audio = options.parse_audio
+    audio_offset = options.audio_offset
+
+    args = [(x, parse_audio, parse_video, audio_offset) for x in options.infile_list]
+    with mp.Pool(processes=options.max_parallel) as p:
+        results = p.map(run_file, args, chunksize=1)
+
     combined_calculations(options.infile_list, options.output)
 
 
