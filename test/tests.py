@@ -1,12 +1,12 @@
 #! /usr/bin/env python3
 
 
-
 import unittest
 import inspect
 import os
 import sys
-script_dir = os.path.dirname(__file__) 
+
+script_dir = os.path.dirname(__file__)
 metiq_path = f"{script_dir}/../src"
 sys.path.append(metiq_path)
 sys.path.append(script_dir)
@@ -16,6 +16,7 @@ import common
 import verify_config as config
 import verify_generate as vg
 
+
 def run_metiq_cli(**settings):
     filename = settings.get("outfile", "")
     audio_offset = settings.get("audio_offset", 0)
@@ -23,11 +24,9 @@ def run_metiq_cli(**settings):
     ret, stdout, stderr = common.run(command, debug=config.DEBUG)
     assert ret == 0, f"error: {stderr}"
 
-    command = f"python3 {metiq_path}/metiq.py -i {filename} --audio-offset {audio_offset} analyze -a all -d"
+    command = f"python3 {metiq_path}/metiq.py --input-audio {filename}.audio.csv --input-video {filename}.video.csv --audio-offset {audio_offset} analyze -a all -d"
     ret, stdout, stderr = common.run(command, debug=config.DEBUG)
     assert ret == 0, f"error: {stderr}"
-
-
 
 
 def verify_metiq_cli(**settings):
@@ -90,15 +89,13 @@ def verify_metiq_cli(**settings):
 
     return True
 
-#----------------------------------
+
+# ----------------------------------
+
 
 class E2ETests(unittest.TestCase):
 
-
-
     def test_1(self):
-
-
         """
         Plain file with no delays and perfect a/v sync. File @ 60fps
         """
@@ -119,7 +116,6 @@ class E2ETests(unittest.TestCase):
 
         verify_metiq_cli(**settings)
 
-    
     def test_2(self):
         """
         Audio late 30 ms
@@ -139,7 +135,6 @@ class E2ETests(unittest.TestCase):
         run_metiq_cli(**settings)
 
         verify_metiq_cli(**settings)
-
 
     def test_3(self):
         """
@@ -162,8 +157,6 @@ class E2ETests(unittest.TestCase):
         run_metiq_cli(**settings)
 
         verify_metiq_cli(**settings)
-        
-
 
     def test_4(self):
         """
@@ -180,14 +173,12 @@ class E2ETests(unittest.TestCase):
             "audio_delay": audio,
         }
 
-        
         vg.generate_test_file(**settings)
         run_metiq_cli(**settings)
 
         verify_metiq_cli(**settings)
 
     def test_5(self):
-
         """
         Video delay 100ms, a/v sync perfect
         """
@@ -208,8 +199,6 @@ class E2ETests(unittest.TestCase):
         run_metiq_cli(**settings)
 
         verify_metiq_cli(**settings)
-        
-
 
     def test_6(self):
         """
@@ -225,9 +214,6 @@ class E2ETests(unittest.TestCase):
             "video_delay": video,
             "audio_delay": audio,
         }
-
-        
-
 
     def test_7(self):
         """
@@ -250,8 +236,6 @@ class E2ETests(unittest.TestCase):
         run_metiq_cli(**settings)
 
         verify_metiq_cli(**settings)
-        
-
 
     def test_8(self):
         """
@@ -274,8 +258,6 @@ class E2ETests(unittest.TestCase):
         run_metiq_cli(**settings)
 
         verify_metiq_cli(**settings)
-        
-
 
     def test_9(self):
         """
@@ -298,8 +280,6 @@ class E2ETests(unittest.TestCase):
         run_metiq_cli(**settings)
 
         verify_metiq_cli(**settings)
-        
-
 
     def test_10(self):
         """
@@ -322,8 +302,7 @@ class E2ETests(unittest.TestCase):
         vg.generate_test_file(**settings)
         run_metiq_cli(**settings)
 
-        verify_metiq_cli(**settings)    
-
+        verify_metiq_cli(**settings)
 
     def test_11(self):
         """
@@ -346,8 +325,6 @@ class E2ETests(unittest.TestCase):
         run_metiq_cli(**settings)
 
         verify_metiq_cli(**settings)
-        
-
 
     def test_12(self):
         """
@@ -369,9 +346,7 @@ class E2ETests(unittest.TestCase):
         run_metiq_cli(**settings)
 
         verify_metiq_cli(**settings)
-        
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
