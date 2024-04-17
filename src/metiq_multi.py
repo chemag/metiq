@@ -131,11 +131,42 @@ def combined_calculations(source_files, outfile):
             all_frame_duration.to_csv(path, index=False)
 
 
-def main():
+def get_options(argv):
+    """Generic option parser.
+
+    Args:
+        argv: list containing arguments
+
+    Returns:
+        Namespace - An argparse.ArgumentParser-generated option object
+    """
+    # init parser
     parser = argparse.ArgumentParser(
         description="Run multiple METIQ instances in parallel"
     )
-    parser.add_argument("files", nargs="+", type=str, help="Input file(s)")
+    parser.add_argument(
+        "-d",
+        "--debug",
+        action="count",
+        dest="debug",
+        default=default_values["debug"],
+        help="Increase verbosity (use multiple times for more)",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_const",
+        dest="debug",
+        const=-1,
+        help="Zero verbosity",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        default=default_values["dry_run"],
+        help="Dry run",
+    )
+    parser.add_argument("infile_list", nargs="+", type=str, help="Input file(s)")
     parser.add_argument(
         "-o",
         "--output",
@@ -160,9 +191,16 @@ def main():
     parser.add_argument(
         "-ao", "--audio-offset", type=float, default=0.0, help="Audio offset in seconds"
     )
-    args = parser.parse_args()
+    options = parser.parse_args()
+    return options
 
-    # We assume default settings on everything. TODO: expose more settings to the user
+
+def main(argv):
+    # parse options
+    options = get_options(argv)
+
+    # We assume default settings on everything.
+    # TODO(johan): expose more settings to the user
     width = metiq.default_values["width"]
     height = metiq.default_values["height"]
     pre_samples = metiq.default_values["pre_samples"]
@@ -186,12 +224,12 @@ def main():
     analysis_type = "all"
 
     debug = 0
-    for file in args.files:
+    for file in options.infile_list:
         videocsv = file + ".video.csv"
         audiocsv = file + ".audio.csv"
 
         # files exist
-        if not os.path.exists(audiocsv) or args.parse_audio:
+        if not os.path.exists(audiocsv) or options.parse_audio:
             # 1. parse the audio stream
             media_parse.media_parse_audio(
                 pre_samples,
@@ -206,7 +244,7 @@ def main():
                 **kwargs,
             )
 
-        if not os.path.exists(videocsv) or args.parse_video:
+        if not os.path.exists(videocsv) or options.parse_video:
             # 2. parse the video stream
             media_parse.media_parse_video(
                 width,
@@ -226,8 +264,7 @@ def main():
                 **kwargs,
             )
         # Analyze the video and audio files
-        for file in args.files:
-
+        for file in options.infile_list:
             media_analyze.media_analyze(
                 analysis_type,
                 pre_samples,
@@ -238,15 +275,15 @@ def main():
                 scale,
                 videocsv,
                 audiocsv,
-                None,  # args.output,
+                None,  # options.output,
                 audio_sample,
                 force_fps,
-                args.audio_offset,
+                options.audio_offset,
                 z_filter,
                 windowed_stats_sec,
                 debug,
             )
-    combined_calculations(args.files, args.output)
+    combined_calculations(options.infile_list, options.output)
 
 
 if __name__ == "__main__":
