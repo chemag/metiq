@@ -361,8 +361,8 @@ def filter_echoes(audiodata, beep_period_sec, margin):
     The DataFrame audiodata have a timestamp in seconds, margin is 0 to 1.
 
     Filter everything that is closer than margin * beep_period_sec
-    Tis pusts the limit on the lcombined length of echoes in order not
-    to prevent identifying the first signal to.
+    This puts the limit on the combined length of echoes in order not
+    to prevent identifying the first signal too.
     """
 
     audiodata["timestamp_diff"] = audiodata["timestamp"].diff()
@@ -563,7 +563,7 @@ def av_sync_function(**kwargs):
     outfile = kwargs.get("outfile")
 
     # av sync is the time from the signal until the video is shown
-    # for tegsts that include a transmission the signal of interest is
+    # for tests that include a transmission the signal of interest is
     # the first echo and not the source.
 
     if len(audio_results) == 0:
@@ -579,7 +579,7 @@ def av_sync_function(**kwargs):
         if signal_ratio < 0.2:
             print("Few echoes, recheck thresholds")
 
-        # Filter residue to get echoes
+        # Filter residues to get echoes
         residue = audio_results[~audio_results.index.isin(clean_audio.index)]
         clean_audio = filter_echoes(pd.DataFrame(residue), beep_period_sec, margin)
 
