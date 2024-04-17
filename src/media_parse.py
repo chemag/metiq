@@ -119,40 +119,39 @@ def media_parse(
     debug,
     **kwargs,
 ):
-    for sourcefile in infile:
-        # 1. parse the audio stream
-        if output_audio is None:
-            output_audio = sourcefile + ".audio.csv"
-        media_parse_audio(
-            pre_samples,
-            samplerate,
-            beep_freq,
-            beep_duration_samples,
-            beep_period_sec,
-            scale,
-            sourcefile,
-            output_audio,
-            debug,
-            **kwargs,
-        )
+    # 1. parse the audio stream
+    if output_audio is None:
+        output_audio = infile + ".audio.csv"
+    media_parse_audio(
+        pre_samples,
+        samplerate,
+        beep_freq,
+        beep_duration_samples,
+        beep_period_sec,
+        scale,
+        infile,
+        output_audio,
+        debug,
+        **kwargs,
+    )
 
-        # 2. parse the video stream
-        if output_video is None:
-            output_video = sourcefile + ".video.csv"
-        media_parse_video(
-            width,
-            height,
-            num_frames,
-            pixel_format,
-            luma_threshold,
-            pre_samples,
-            samplerate,
-            beep_freq,
-            beep_duration_samples,
-            beep_period_sec,
-            scale,
-            sourcefile,
-            output_video,
-            debug,
-            **kwargs,
-        )
+    # 2. parse the video stream
+    if output_video is None:
+        output_video = infile + ".video.csv"
+    media_parse_video(
+        width,
+        height,
+        num_frames,
+        pixel_format,
+        luma_threshold,
+        pre_samples,
+        samplerate,
+        beep_freq,
+        beep_duration_samples,
+        beep_period_sec,
+        scale,
+        infile,
+        output_video,
+        debug,
+        **kwargs,
+    )

@@ -637,38 +637,22 @@ def frame_duration_function(**kwargs):
     frame_duration_results.to_csv(outfile, index=False)
 
 
-def _media_analyze(
+def media_analyze(
     analysis_type,
-    width,
-    height,
-    num_frames,
-    pixel_format,
-    luma_threshold,
     pre_samples,
     samplerate,
     beep_freq,
     beep_duration_samples,
     beep_period_sec,
     scale,
-    infile,
     input_video,
     input_audio,
     outfile,
-    vft_id,
-    cache_video,
-    cache_audio,
-    cache_both,
-    min_separation_msec,
-    min_match_threshold,
     audio_sample,
-    lock_layout,
-    tag_manual,
     force_fps,
-    threaded,
     audio_offset,
     z_filter,
     windowed_stats_sec,
-    no_hw_decode,
     debug,
 ):
     # read inputs
@@ -699,241 +683,6 @@ def _media_analyze(
         windowed_stats_sec=windowed_stats_sec,
         input_video=input_video,
     )
-
-
-def media_analyze(
-    analysis_type,
-    width,
-    height,
-    num_frames,
-    pixel_format,
-    luma_threshold,
-    pre_samples,
-    samplerate,
-    beep_freq,
-    beep_duration_samples,
-    beep_period_sec,
-    scale,
-    infile,
-    input_video,
-    input_audio,
-    outfile,
-    vft_id,
-    cache_video,
-    cache_audio,
-    cache_both,
-    min_separation_msec,
-    min_match_threshold,
-    audio_sample,
-    lock_layout,
-    tag_manual,
-    force_fps,
-    threaded,
-    audio_offset,
-    z_filter,
-    windowed_stats_sec,
-    no_hw_decode,
-    debug,
-):
-    if no_hw_decode:
-        video_parse.config_decoder(HW_DECODER_ENABLE=False)
-
-    # Either a single inout file using default naming scheme or explicit files
-    # in the case of a single file it is the common file root (e.g. "xxx.MOV")
-    if infile:
-        if input_audio or input_video:
-            print("Error: input and input_audio/input_video are mutually exclusive")
-            sys.exit(1)
-
-        for sourcefile in infile:
-            input_audio = sourcefile + ".audio.csv"
-            input_video = sourcefile + ".video.csv"
-
-            _media_analyze(
-                analysis_type,
-                width,
-                height,
-                num_frames,
-                pixel_format,
-                luma_threshold,
-                pre_samples,
-                samplerate,
-                beep_freq,
-                beep_duration_samples,
-                beep_period_sec,
-                scale,
-                infile,
-                input_video,
-                input_audio,
-                outfile,
-                vft_id,
-                cache_video,
-                cache_audio,
-                cache_both,
-                min_separation_msec,
-                min_match_threshold,
-                audio_sample,
-                lock_layout,
-                tag_manual,
-                force_fps,
-                threaded,
-                audio_offset,
-                z_filter,
-                windowed_stats_sec,
-                no_hw_decode,
-                debug,
-            )
-
-        combined_calculations(infile, outfile)
-    else:
-        _media_analyze(
-            analysis_type,
-            width,
-            height,
-            num_frames,
-            pixel_format,
-            luma_threshold,
-            pre_samples,
-            samplerate,
-            beep_freq,
-            beep_duration_samples,
-            beep_period_sec,
-            scale,
-            infile,
-            input_video,
-            input_audio,
-            outfile,
-            vft_id,
-            cache_video,
-            cache_audio,
-            cache_both,
-            min_separation_msec,
-            min_match_threshold,
-            audio_sample,
-            lock_layout,
-            tag_manual,
-            force_fps,
-            threaded,
-            audio_offset,
-            z_filter,
-            windowed_stats_sec,
-            no_hw_decode,
-            debug,
-        )
-
-
-def combined_calculations(source_files, outfile):
-    # video latency and avsync latency share original frame
-    # video latency and audio latency share timestamp
-
-    all_audio_latency = pd.DataFrame()
-    all_video_latency = pd.DataFrame()
-    all_av_sync = pd.DataFrame()
-    all_combined = pd.DataFrame()
-    all_quality_stats = pd.DataFrame()
-    all_frame_duration = pd.DataFrame()
-
-    for file in source_files:
-        # This will be the root of the file name
-        # Assuming default naming scheme
-        audio_latency = pd.read_csv(file + ".audio.latency.csv")
-        video_latency = pd.read_csv(file + ".video.latency.csv")
-        av_sync = pd.read_csv(file + ".avsync.csv")
-        quality_stats = pd.read_csv(file + ".measurement.quality.csv")
-        frame_duration = pd.read_csv(file + ".frame.duration.csv")
-
-        combined = []
-        frames = video_latency["original_frame"].values
-        for frame in frames:
-            video_latency_row = video_latency.loc[
-                video_latency["original_frame"] == frame
-            ]
-            video_latency_sec = video_latency_row["video_latency_sec"].values[0]
-            timestamp = video_latency_row["timestamp"].values[0]
-            audio_latency_row = audio_latency.loc[
-                audio_latency["timestamp1"] == timestamp
-            ]
-
-            if len(audio_latency_row) == 0:
-                continue
-            audio_latency_sec = audio_latency_row["audio_latency_sec"].values[0]
-            av_sync_sec_row = av_sync.loc[av_sync["original_frame"] == frame]
-            if len(av_sync_sec_row) == 0:
-                continue
-
-            av_sync_sec = av_sync_sec_row["av_sync_sec"].values[0]
-            combined.append([frame, audio_latency_sec, video_latency_sec, av_sync_sec])
-
-        combined = pd.DataFrame(
-            combined,
-            columns=[
-                "frame_num",
-                "audio_latency_sec",
-                "video_latency_sec",
-                "av_sync_sec",
-            ],
-        )
-
-        if len(combined) > 0:
-            path = f"{file}.latencies.csv"
-            combined.to_csv(path, index=False)
-
-        frame_duration["file"] = file
-
-        all_frame_duration = pd.concat([all_frame_duration, frame_duration])
-
-        quality_stats["file"] = file
-        all_quality_stats = pd.concat([all_quality_stats, quality_stats])
-
-        # only create the combined stat file
-        combined["file"] = file
-        all_combined = pd.concat([all_combined, combined])
-        if audio_latency is not None:
-            audio_latency["file"] = file
-            all_audio_latency = pd.concat([all_audio_latency, audio_latency])
-        if video_latency is not None:
-            video_latency["file"] = file
-            all_video_latency = pd.concat([all_video_latency, video_latency])
-        if av_sync is not None:
-            av_sync["file"] = file
-            all_av_sync = pd.concat([all_av_sync, av_sync])
-
-    if len(source_files) > 1:
-        if len(all_audio_latency) > 0:
-            path = f"all.audio_latency.csv"
-            if outfile is not None and len(outfile) > 0:
-                path = f"{outfile}.all.audio_latency.csv"
-            all_audio_latency.to_csv(path, index=False)
-
-        if len(all_video_latency) > 0:
-            path = f"all.video_latency.csv"
-            if outfile is not None and len(outfile) > 0:
-                path = f"{outfile}.all.video_latency.csv"
-            all_video_latency.to_csv(path, index=False)
-
-        if len(all_av_sync) > 0:
-            path = f"all.avsync.csv"
-            if outfile is not None and len(outfile) > 0:
-                path = f"{outfile}.all.avsync.csv"
-            all_av_sync.to_csv(path, index=False)
-
-        if len(all_combined) > 0:
-            path = f"all.combined.csv"
-            if outfile is not None and len(outfile) > 0:
-                path = f"{outfile}.all.latencies.csv"
-            all_combined.to_csv(path, index=False)
-
-        if len(all_quality_stats) > 0:
-            path = f"all.quality_stats.csv"
-            if outfile is not None and len(outfile) > 0:
-                path = f"{outfile}.all.measurement.quality.csv"
-            all_quality_stats.to_csv(path, index=False)
-
-        if len(all_frame_duration) > 0:
-            path = f"all.frame_duration.csv"
-            if outfile is not None and len(outfile) > 0:
-                path = f"{outfile}.all.frame_duration.csv"
-            all_frame_duration.to_csv(path, index=False)
 
 
 MEDIA_ANALYSIS = {
