@@ -149,7 +149,7 @@ def get_options(argv):
         "--debug",
         action="count",
         dest="debug",
-        default=default_values["debug"],
+        default=0,
         help="Increase verbosity (use multiple times for more)",
     )
     parser.add_argument(
@@ -158,13 +158,6 @@ def get_options(argv):
         dest="debug",
         const=-1,
         help="Zero verbosity",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        dest="dry_run",
-        default=default_values["dry_run"],
-        help="Dry run",
     )
     parser.add_argument("infile_list", nargs="+", type=str, help="Input file(s)")
     parser.add_argument(
@@ -272,11 +265,9 @@ def main(argv):
                 beep_freq,
                 beep_duration_samples,
                 beep_period_sec,
-                scale,
                 videocsv,
                 audiocsv,
                 None,  # options.output,
-                audio_sample,
                 force_fps,
                 options.audio_offset,
                 z_filter,
@@ -287,4 +278,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv)

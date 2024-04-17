@@ -17,11 +17,16 @@ import video_common
 
 from _version import __version__
 
+
+PARSE = "parse"
+GENERATE = "generate"
+ANALYZE = "analyze"
+
 FUNC_CHOICES = {
     "help": "show help options",
-    "generate": "generate reference video",
-    "parse": "parse distorted video",
-    "analyze": "analyze distorted video",
+    GENERATE: "generate reference video",
+    PARSE: "parse distorted video",
+    ANALYZE: "analyze distorted video",
 }
 
 
@@ -59,7 +64,401 @@ default_values = {
     "windowed_stats_sec": 1,
     "lock_layout": False,
     "audio_sample": audio_common.DEFAULT_AUDIO_SAMPLE,
+    "z_filter": 3,
+    "force_fps": 30,
 }
+
+
+class VideoSizeAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        namespace.width, namespace.height = [int(v) for v in values[0].split("x")]
+
+
+input_args = {
+    "version": {
+        "func": f"{GENERATE}, {PARSE}, {ANALYZE}",
+        "short": "-v",
+        "long": "--version",
+        "args": {
+            "help": "show version",
+        },
+    },
+    "debug": {
+        "func": f"{GENERATE}, {PARSE}, {ANALYZE}",
+        "short": "-d",
+        "long": "--debug",
+        "args": {
+            "action": "count",
+            "help": "Increase verbosity (use multiple times for more)",
+            "default": default_values["debug"],
+        },
+    },
+    "quiet": {
+        "func": f"{GENERATE}, {PARSE}, {ANALYZE}",
+        "short": "-q",
+        "long": "--quiet",
+        "args": {
+            "action": "store_true",
+            "help": "Suppress all output",
+        },
+    },
+    "width": {
+        "func": f"{GENERATE}, {PARSE}",
+        "short": "",
+        "long": "--width",
+        "args": {
+            "type": int,
+            "help": "Width of video",
+            "default": default_values["width"],
+        },
+    },
+    "height": {
+        "func": f"{GENERATE}, {PARSE}",
+        "short": "",
+        "long": "--height",
+        "args": {
+            "type": int,
+            "help": "Height of video",
+            "default": default_values["height"],
+        },
+    },
+    "num_frames": {
+        "func": f"{GENERATE}, {PARSE}",
+        "short": "",
+        "long": "--num-frames",
+        "dest": "num_frames",
+        "args": {
+            "type": int,
+            "help": "Number of frames in video",
+            "default": default_values["num_frames"],
+        },
+    },
+    "vft_id": {
+        "func": GENERATE,
+        "short": "",
+        "long": "--vft-id",
+        "args": {
+            "type": str,
+            "help": "VFT ID",
+            "default": default_values["vft_id"],
+        },
+    },
+    "vft_tag_border_size": {
+        "func": GENERATE,
+        "short": "",
+        "long": "--vft-tag-border-size",
+        "args": {
+            "type": int,
+            "help": "VFT tag border size",
+            "default": default_values["vft_tag_border_size"],
+        },
+    },
+    "luma_threshold": {
+        "func": PARSE,
+        "short": "",
+        "long": "--luma-threshold",
+        "args": {
+            "type": float,
+            "help": "Luma threshold",
+            "default": default_values["luma_threshold"],
+        },
+    },
+    "fps": {
+        "func": GENERATE,
+        "short": "",
+        "long": "--fps",
+        "args": {
+            "type": float,
+            "help": "Frames per second",
+            "default": default_values["fps"],
+        },
+    },
+    "pixel_format": {
+        "func": f"{GENERATE}, {PARSE}",
+        "short": "",
+        "long": "--pixel-format",
+        "args": {
+            "type": str,
+            "help": "Pixel format",
+            "default": default_values["pixel_format"],
+        },
+    },
+    "pre_samples": {
+        "func": f"{GENERATE}. {PARSE}, {ANALYZE}",
+        "short": "",
+        "long": "--pre-samples",
+        "args": {
+            "type": int,
+            "help": "Pre samples",
+            "default": default_values["pre_samples"],
+        },
+    },
+    "samplerate": {
+        "func": f"{GENERATE}.{PARSE}, {ANALYZE}",
+        "short": "",
+        "long": "--samplerate",
+        "args": {
+            "type": int,
+            "help": "Samplerate",
+            "default": default_values["samplerate"],
+        },
+    },
+    "beep_freq": {
+        "func": f"{GENERATE}.{PARSE}, {ANALYZE}",
+        "short": "",
+        "long": "--beep-freq",
+        "args": {
+            "type": int,
+            "help": "Beep frequency",
+            "default": default_values["beep_freq"],
+        },
+    },
+    "beep_duration_samples": {
+        "func": f"{GENERATE}.{PARSE}, {ANALYZE}",
+        "short": "",
+        "long": "--beep-duration-samples",
+        "args": {
+            "type": int,
+            "help": "Beep duration samples",
+            "default": default_values["beep_duration_samples"],
+        },
+    },
+    "beep_period_sec": {
+        "func": f"{GENERATE}.{PARSE}, {ANALYZE}",
+        "short": "",
+        "long": "--beep-period-sec",
+        "args": {
+            "type": int,
+            "help": "Beep period seconds",
+            "default": default_values["beep_period_sec"],
+        },
+    },
+    "scale": {
+        "func": f"{GENERATE}, {PARSE}",
+        "short": "",
+        "long": "--scale",
+        "args": {
+            "type": int,
+            "help": "Scale",
+            "default": default_values["scale"],
+        },
+    },
+    "min_separation_msec": {
+        "func": PARSE,
+        "short": "",
+        "long": "--min-separation-msec",
+        "args": {
+            "type": int,
+            "help": "Minimum separation milliseconds",
+            "default": default_values["min_separation_msec"],
+        },
+    },
+    "lock_layout": {
+        "func": PARSE,
+        "short": "",
+        "long": "--lock-layout",
+        "args": {
+            "action": "store_true",
+            "help": "Lock layout",
+        },
+    },
+    "analysis_type": {
+        "func": ANALYZE,
+        "short": "-a",
+        "long": "--analysis-type",
+        "args": {
+            "type": str,
+            "help": "Analysis type",
+            "default": default_values["analysis_type"],
+        },
+    },
+    "input": {
+        "func": PARSE,
+        "short": "-i",
+        "long": "--input",
+        "args": {
+            "type": str,
+            "help": "Input media file",
+            "dest": "infile",
+            "default": default_values["infile"],
+        },
+    },
+    "output": {
+        "func": f"{GENERATE}, {PARSE}, {ANALYZE}",
+        "short": "-o",
+        "long": "--output",
+        "args": {
+            "type": str,
+            "help": "Output media file or output csv base name",
+            "dest": "outfile",
+            "default": default_values["outfile"],
+        },
+    },
+    "input_audio": {
+        "func": ANALYZE,
+        "short": "",
+        "long": "--input-audio",
+        "dest": "input_audio",
+        "args": {
+            "type": str,
+            "help": "Input audio parsed csv file",
+            "default": default_values["input_audio"],
+        },
+    },
+    "input_video": {
+        "func": ANALYZE,
+        "short": "",
+        "long": "--input-video",
+        "dest": "input_video",
+        "args": {
+            "type": str,
+            "help": "Input video parsed csv file",
+            "default": default_values["input_video"],
+        },
+    },
+    "output_audio": {
+        "func": PARSE,
+        "short": "",
+        "long": "--output-audio",
+        "dest": "output_audio",
+        "args": {
+            "type": str,
+            "help": "Output audio parsed csv file",
+            "default": default_values["output_audio"],
+        },
+    },
+    "output_video": {
+        "func": PARSE,
+        "short": "",
+        "long": "--output-video",
+        "args": {
+            "type": str,
+            "help": "Output video parsed csv file",
+            "default": default_values["output_video"],
+        },
+    },
+    "no_hw_decode": {
+        "func": PARSE,
+        "short": "",
+        "long": "--no-hw-decode",
+        "args": {
+            "action": "store_true",
+            "help": "Disable hardware decoding",
+        },
+    },
+    "tag_manual": {
+        "func": PARSE,
+        "short": "",
+        "long": "--tag-manual",
+        "args": {
+            "action": "store_true",
+            "help": "Tag manual",
+        },
+    },
+    "threaded": {
+        "func": PARSE,
+        "short": "",
+        "long": "--threaded",
+        "args": {
+            "action": "store_true",
+            "help": "Threaded",
+        },
+    },
+    "audio_offset": {
+        "func": ANALYZE,
+        "short": "-f",
+        "long": "--audio-offset",
+        "args": {
+            "type": float,
+            "help": "Audio offset",
+            "default": default_values["audio_offset"],
+        },
+    },
+    "z_filter": {
+        "func": ANALYZE,
+        "short": "",
+        "long": "--z-filter",
+        "args": {
+            "type": str,
+            "help": "Z filter",
+            "default": default_values["z_filter"],
+        },
+    },
+    "analysis_type": {
+        "func": ANALYZE,
+        "short": "-a",
+        "long": "--analysis-type",
+        "args": {
+            "type": str,
+            "dest": "analysis_type",
+            "help": "%s"
+            % (
+                " | ".join(
+                    "{}: {}".format(k, v[1])
+                    for k, v in media_analyze.MEDIA_ANALYSIS.items()
+                )
+            ),
+            "default": default_values["analysis_type"],
+        },
+    },
+    "audio_sample": {
+        "func": PARSE,
+        "short": "",
+        "long": "--audio-sample",
+        "args": {
+            "type": str,
+            "help": "Audio sample",
+            "default": default_values["audio_sample"],
+        },
+    },
+    "force_fps": {
+        "func": f"{PARSE}, {ANALYZE}",
+        "short": "",
+        "long": "--force-fps",
+        "args": {
+            "type": int,
+            "help": "Force fps",
+            "default": default_values["force_fps"],
+        },
+    },
+    "video_size": {
+        "func": PARSE,
+        "short": "",
+        "long": "--video-size",
+        "args": {
+            "type": str,
+            "action": VideoSizeAction,
+            "nargs": 1,
+            "help": "use <width>x<height>",
+        },
+    },
+    "windowed_stats_sec": {
+        "func": ANALYZE,
+        "short": "",
+        "long": "--windowed-stats-sec",
+        "args": {
+            "type": int,
+            "help": "Windowed stats seconds",
+            "default": default_values["windowed_stats_sec"],
+        },
+    },
+}
+
+
+def add_arg(func, parser):
+    for key, value in input_args.items():
+        if func in value["func"]:
+            if value["short"]:
+                parser.add_argument(
+                    value["short"],
+                    value["long"],
+                    **value["args"],
+                )
+            else:
+                parser.add_argument(
+                    value["long"],
+                    **value["args"],
+                )
 
 
 def get_options(argv):
@@ -69,7 +468,7 @@ def get_options(argv):
         argv: list containing arguments
 
     Returns:
-        Namespace - An argparse.ArgumentParser-generated option object
+        Namesypace - An argparse.ArgumentParser-generated option object
     """
     # init parser
     # usage = 'usage: %prog [options] arg1 arg2'
@@ -77,364 +476,17 @@ def get_options(argv):
     # parser.print_help() to get argparse.usage (large help)
     # parser.print_usage() to get argparse.usage (just usage line)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "-v",
-        "--version",
-        action="store_true",
-        dest="version",
-        default=False,
-        help="Print version",
-    )
-    parser.add_argument(
-        "-d",
-        "--debug",
-        action="count",
-        dest="debug",
-        default=default_values["debug"],
-        help="Increase verbosity (use multiple times for more)",
-    )
-    parser.add_argument(
-        "--quiet",
-        action="store_const",
-        dest="debug",
-        const=-1,
-        help="Zero verbosity",
-    )
+    subparsers = parser.add_subparsers(dest="func", help="function to perform")
+
+    gen_parser = subparsers.add_parser(GENERATE, help="generate reference video")
+    parse_parser = subparsers.add_parser(PARSE, help="parse distorted video")
+    analyze_parser = subparsers.add_parser(ANALYZE, help="analyze distorted video")
+
+    add_arg(GENERATE, gen_parser)
+    add_arg(PARSE, parse_parser)
+    add_arg(ANALYZE, analyze_parser)
+
     # 2-parameter setter using argparse.Action
-    parser.add_argument(
-        "--width",
-        action="store",
-        type=int,
-        dest="width",
-        default=default_values["width"],
-        metavar="WIDTH",
-        help=("use WIDTH width (default: %i)" % default_values["width"]),
-    )
-    parser.add_argument(
-        "--height",
-        action="store",
-        type=int,
-        dest="height",
-        default=default_values["height"],
-        metavar="HEIGHT",
-        help=("HEIGHT height (default: %i)" % default_values["height"]),
-    )
-
-    class VideoSizeAction(argparse.Action):
-        def __call__(self, parser, namespace, values, option_string=None):
-            namespace.width, namespace.height = [int(v) for v in values[0].split("x")]
-
-    parser.add_argument(
-        "--video-size",
-        action=VideoSizeAction,
-        nargs=1,
-        help="use <width>x<height>",
-    )
-    parser.add_argument(
-        "--fps",
-        action="store",
-        type=int,
-        dest="fps",
-        default=default_values["fps"],
-        metavar="FPS",
-        help=("use FPS fps (default: %i)" % default_values["fps"]),
-    )
-    parser.add_argument(
-        "--force-fps",
-        action="store",
-        type=int,
-        dest="force_fps",
-        default=-1,
-        metavar="ForceFPS",
-        help=(
-            "If the auto detection mechanism failes, this value can be used to override te measured value."
-        ),
-    )
-
-    parser.add_argument(
-        "--num-frames",
-        action="store",
-        type=int,
-        dest="num_frames",
-        default=default_values["num_frames"],
-        metavar="NUM_FRAMES",
-        help=("use NUM_FRAMES frames (default: %i)" % default_values["num_frames"]),
-    )
-    parser.add_argument(
-        "--audio-sample",
-        type=str,
-        dest="audio_sample",
-        default=default_values["audio_sample"],
-        help="use a sample as source for signal",
-    )
-    parser.add_argument(
-        "--pixel-format",
-        action="store",
-        dest="pixel_format",
-        default=default_values["pixel_format"],
-        choices=video_common.PIXEL_FORMAT_CHOICES,
-        metavar="[%s]"
-        % (
-            " | ".join(
-                video_common.PIXEL_FORMAT_CHOICES,
-            )
-        ),
-        help="pixel format",
-    )
-    parser.add_argument(
-        "--luma-threshold",
-        action="store",
-        type=int,
-        dest="luma_threshold",
-        default=default_values["luma_threshold"],
-        metavar="LUMA_THRESHOLD",
-        help=(
-            "detection luma_threshold (default: %i)" % default_values["luma_threshold"]
-        ),
-    )
-
-    parser.add_argument(
-        "--vft-id",
-        type=str,
-        nargs="?",
-        default=default_values["vft_id"],
-        choices=vft.VFT_IDS,
-        help="%s (default: %s)"
-        % (" | ".join("{}".format(k) for k in vft.VFT_IDS), default_values["vft_id"]),
-    )
-    parser.add_argument(
-        "--vft-tag-border-size",
-        action="store",
-        type=int,
-        dest="vft_tag_border_size",
-        default=default_values["vft_tag_border_size"],
-        metavar="BORDER_SIZE",
-        help=(
-            "vft tag border size (default: %i)" % default_values["vft_tag_border_size"]
-        ),
-    )
-    parser.add_argument(
-        "--pre-samples",
-        action="store",
-        type=int,
-        dest="pre_samples",
-        default=default_values["pre_samples"],
-        metavar="pre_samples",
-        help=("use pre_samples (default: %i)" % default_values["pre_samples"]),
-    )
-    parser.add_argument(
-        "--samplerate",
-        action="store",
-        type=int,
-        dest="samplerate",
-        default=default_values["samplerate"],
-        metavar="samplerate",
-        help=("use samplerate Hz (default: %i)" % default_values["samplerate"]),
-    )
-    parser.add_argument(
-        "--beep-freq",
-        action="store",
-        type=int,
-        dest="beep_freq",
-        default=default_values["beep_freq"],
-        metavar="beep_freq",
-        help=("use beep_freq Hz (default: %i)" % default_values["beep_freq"]),
-    )
-    parser.add_argument(
-        "--beep-duration-samples",
-        action="store",
-        type=int,
-        dest="beep_duration_samples",
-        default=default_values["beep_duration_samples"],
-        metavar="beep_duration_samples",
-        help=(
-            "use beep_duration_samples (default: %i)"
-            % default_values["beep_duration_samples"]
-        ),
-    )
-    parser.add_argument(
-        "--beep-period-sec",
-        action="store",
-        type=float,
-        dest="beep_period_sec",
-        default=default_values["beep_period_sec"],
-        metavar="beep_period_sec",
-        help=("use beep_period_sec (default: %i)" % default_values["beep_period_sec"]),
-    )
-    parser.add_argument(
-        "--scale",
-        action="store",
-        type=float,
-        dest="scale",
-        default=default_values["scale"],
-        metavar="scale",
-        help=("use scale [0-1] (default: %i)" % default_values["scale"]),
-    )
-    parser.add_argument(
-        "--min-separation-msec",
-        dest="min_separation_msec",
-        default=default_values["min_separation_msec"],
-        help="Sets a minimal distance between two adjacent signals and sets the shortest detectable time difference in ms. Default is set to half the needle length.",
-    )
-    parser.add_argument(
-        "--min-match-threshold",
-        dest="min_match_threshold",
-        default=default_values["min_match_threshold"],
-        help=f"Sets the threshold for detecting audio matches. Default is {default_values['min_match_threshold']}, ratio between the highest correlation and the lower threshold for triggering hits.",
-    )
-    parser.add_argument(
-        "func",
-        type=str,
-        nargs="?",
-        default=default_values["func"],
-        choices=FUNC_CHOICES.keys(),
-        help="%s"
-        % (" | ".join("{}: {}".format(k, v) for k, v in FUNC_CHOICES.items())),
-    )
-    parser.add_argument(
-        "-a",
-        "--analysis-type",
-        type=str,
-        dest="analysis_type",
-        default=default_values["analysis_type"],
-        choices=media_analyze.MEDIA_ANALYSIS.keys(),
-        help="%s"
-        % (
-            " | ".join(
-                "{}: {}".format(k, v[1])
-                for k, v in media_analyze.MEDIA_ANALYSIS.items()
-            )
-        ),
-    )
-    parser.add_argument(
-        "-i",
-        "--input",
-        type=str,
-        dest="infile",
-        default=default_values["infile"],
-        metavar="input-file",
-        help="input file",
-    )
-    parser.add_argument(
-        "--input-audio",
-        type=str,
-        required=False,
-        dest="input_audio",
-        default=default_values["input_audio"],
-        metavar="input-audio-file",
-        help="input audio file",
-    )
-    parser.add_argument(
-        "--input-video",
-        type=str,
-        required=False,
-        dest="input_video",
-        default=default_values["input_video"],
-        metavar="input-video-file",
-        help="input video file",
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        required=False,
-        dest="outfile",
-        default=default_values["outfile"],
-        metavar="output-file",
-        help="output file",
-    )
-    parser.add_argument(
-        "--output-audio",
-        type=str,
-        required=False,
-        dest="output_audio",
-        default=default_values["output_audio"],
-        metavar="output-audio-file",
-        help="output audio file",
-    )
-    parser.add_argument(
-        "--output-video",
-        type=str,
-        required=False,
-        dest="output_video",
-        default=default_values["output_video"],
-        metavar="output-video-file",
-        help="output video file",
-    )
-    parser.add_argument(
-        "--no-cache",
-        action="store_false",
-        dest="cache_both",
-        default=True,
-        help="Recalculate both audio and video parsing",
-    )
-    parser.add_argument(
-        "--no-cache-audio",
-        action="store_false",
-        dest="cache_audio",
-        default=True,
-        help="Recalculate audio parsing",
-    )
-    parser.add_argument(
-        "--no-cache-video",
-        action="store_false",
-        dest="cache_video",
-        default=True,
-        help="Recalculate video parsing",
-    )
-    parser.add_argument(
-        "--no-hw-decode",
-        action="store_true",
-        dest="no_hw_decode",
-        default=False,
-        help="Do not try to enable hardware decoding",
-    )
-    parser.add_argument(
-        "--audio-offset",
-        type=float,
-        dest="audio_offset",
-        default=default_values["audio_offset"],
-        metavar="audio_offset",
-        help="Adjust problem in sync for either source of measuring device",
-    )
-    parser.add_argument(
-        "--lock-layout",
-        action="store_true",
-        dest="lock_layout",
-        help="Reuse video frame layout location from the first frame to subsequent frames. This reduces the complexity of the parsing when the camera and DUT are set in a fixed setup",
-    )
-    parser.add_argument(
-        "--windowed-stats-sec",
-        type=float,
-        dest="windowed_stats_sec",
-        default=default_values["windowed_stats_sec"],
-        help="Calculate video frames shown/dropped per unit sec.",
-    )
-    parser.add_argument(
-        "--noise-video",
-        action="store_true",
-        dest="noise_video",
-        help="For 'generate', create a noise video with tags but without audio. For 'parse', calculate percentage of identified video.",
-    )
-    parser.add_argument(
-        "--tag-manual",
-        action="store_true",
-        dest="tag_manual",
-        default=False,
-        help="Mouse click tag positions",
-    )
-    parser.add_argument(
-        "--threaded",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-z",
-        "--z-filter",
-        dest="z_filter",
-        type=float,
-        default=0,
-        help="Filter latency outliers by calculating z-scores and filter above this value. Typical value is 3.`",
-    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -458,7 +510,7 @@ def main(argv):
     if options.debug > 2:
         print(options)
 
-    if options.func == "generate":
+    if options.func == GENERATE:
         # get outfile
         if options.outfile == "-":
             options.outfile = "/dev/fd/1"
@@ -492,7 +544,8 @@ def main(argv):
                 audio_sample=options.audio_sample,
             )
 
-    elif options.func == "parse":
+    elif options.func == PARSE:
+        print(f"parse: {options}")
         media_parse.media_parse(
             width=options.width,
             height=options.height,
@@ -513,7 +566,7 @@ def main(argv):
             debug=options.debug,
         )
 
-    elif options.func == "analyze":
+    elif options.func == ANALYZE:
         media_analyze.media_analyze(
             analysis_type=options.analysis_type,
             pre_samples=options.pre_samples,
@@ -521,11 +574,9 @@ def main(argv):
             beep_freq=options.beep_freq,
             beep_duration_samples=options.beep_duration_samples,
             beep_period_sec=options.beep_period_sec,
-            scale=options.scale,
             input_video=options.input_video,
             input_audio=options.input_audio,
             outfile=options.outfile,
-            audio_sample=options.audio_sample,
             force_fps=options.force_fps,
             audio_offset=options.audio_offset,
             z_filter=options.z_filter,
