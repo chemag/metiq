@@ -17,6 +17,8 @@ import media_parse
 import media_analyze
 import multiprocessing as mp
 
+VIDEO_ENDING = ".video.csv"
+
 
 def combined_calculations(source_files, outfile):
     # video latency and avsync latency share original frame
@@ -31,6 +33,9 @@ def combined_calculations(source_files, outfile):
     all_avsyncs = pd.DataFrame()
 
     for file in source_files:
+        if file.endswith(VIDEO_ENDING):
+            file = file[: -len(VIDEO_ENDING)]
+
         # This will be the root of the file name
         # Assuming default naming scheme
         audio_latency = pd.DataFrame()
@@ -128,8 +133,9 @@ def combined_calculations(source_files, outfile):
                 .groupby("file")
                 .agg(["mean", "std", "min", "max"])
             )
+            simple = simple.droplevel(0, axis=1)
             path = f"{outfile}.audio_latency.stats.csv"
-            simple.to_csv(path, index=False)
+            simple.to_csv(path)
 
         if len(all_video_latency) > 0:
             path = f"{outfile}.video_latency.csv"
@@ -141,8 +147,9 @@ def combined_calculations(source_files, outfile):
                 .groupby("file")
                 .agg(["mean", "std", "min", "max"])
             )
+            simple = simple.droplevel(0, axis=1)
             path = f"{outfile}.video_latency.stats.csv"
-            simple.to_csv(path, index=False)
+            simple.to_csv(path)
 
         if len(all_combined) > 0:
             path = f"{outfile}.latencies.csv"
@@ -156,8 +163,23 @@ def combined_calculations(source_files, outfile):
                 .groupby("file")
                 .agg(["mean", "std", "min", "max"])
             )
+            simple = simple.droplevel(0, axis=1)
+            simple.columns = [
+                "audio_latency_sec_mean",
+                "audio_latency_sec_std",
+                "audio_latency_sec_min",
+                "audio_latency_sec_max",
+                "video_latency_sec_mean",
+                "video_latency_sec_std",
+                "video_latency_sec_min",
+                "video_latency_sec_max",
+                "av_sync_sec_mean",
+                "av_sync_sec_std",
+                "av_sync_sec_min",
+                "av_sync_sec_max",
+            ]
             path = f"{outfile}.latencies.stats.csv"
-            simple.to_csv(path, index=False)
+            simple.to_csv(path)
 
         if len(all_quality_stats) > 0:
             path = f"{outfile}.measurement.quality.csv"
@@ -177,8 +199,8 @@ def combined_calculations(source_files, outfile):
                 .groupby("file")
                 .agg(["mean", "std", "min", "max"])
             )
-            path = f"{outfile}.avsync.stats.csv"
-            simple.to_csv(path, index=False)
+            simple = simple.droplevel(0, axis=1)
+            simple.to_csv(path)
 
 
 def get_options(argv):
@@ -276,62 +298,75 @@ def run_file(args):
     windowed_stats_sec = metiq.default_values["windowed_stats_sec"]
     analysis_type = "all"
 
-    videocsv = file + ".video.csv"
+    videocsv = file + VIDEO_ENDING
     audiocsv = file + ".audio.csv"
     debug = 0
-    # files exist
-    if not os.path.exists(audiocsv) or parse_audio:
-        # 1. parse the audio stream
-        media_parse.media_parse_audio(
-            pre_samples,
-            samplerate,
-            beep_freq,
-            beep_duration_samples,
-            beep_period_sec,
-            scale,
-            file,
-            audiocsv,
-            debug,
-            **kwargs,
-        )
+    # Allow us to run a reanalysis of a fiel without reprocessing the video
+    if not file.endswith(VIDEO_ENDING):
+        # files exist
+        if not os.path.exists(audiocsv) or parse_audio:
+            # 1. parse the audio stream
+            media_parse.media_parse_audio(
+                pre_samples,
+                samplerate,
+                beep_freq,
+                beep_duration_samples,
+                beep_period_sec,
+                scale,
+                file,
+                audiocsv,
+                debug,
+                **kwargs,
+            )
 
-    if not os.path.exists(videocsv) or parse_video:
-        # 2. parse the video stream
-        media_parse.media_parse_video(
-            width,
-            height,
-            num_frames,
-            pixel_format,
-            luma_threshold,
-            pre_samples,
-            samplerate,
-            beep_freq,
-            beep_duration_samples,
-            beep_period_sec,
-            scale,
-            file,
-            videocsv,
-            debug,
-            **kwargs,
-        )
+        if not os.path.exists(videocsv) or parse_video:
+            # 2. parse the video stream
+            media_parse.media_parse_video(
+                width,
+                height,
+                num_frames,
+                pixel_format,
+                luma_threshold,
+                pre_samples,
+                samplerate,
+                beep_freq,
+                beep_duration_samples,
+                beep_period_sec,
+                scale,
+                file,
+                videocsv,
+                debug,
+                **kwargs,
+            )
+    else:
+        videocsv = file
+        audiocsv = file[: -len(VIDEO_ENDING)] + ".audio.csv"
+
+    if not os.path.exists(audiocsv) or not os.path.exists(videocsv):
+        print(f"Error: {audiocsv} or {videocsv} does not exist")
+        return None
 
     # Analyze the video and audio files
-    media_analyze.media_analyze(
-        analysis_type,
-        pre_samples,
-        samplerate,
-        beep_freq,
-        beep_duration_samples,
-        beep_period_sec,
-        videocsv,
-        audiocsv,
-        None,  # options.output,
-        force_fps,
-        audio_offset,
-        z_filter,
-        windowed_stats_sec,
-        debug,
-    )
+    try:
+        media_analyze.media_analyze(
+            analysis_type,
+            pre_samples,
+            samplerate,
+            beep_freq,
+            beep_duration_samples,
+            beep_period_sec,
+            videocsv,
+            audiocsv,
+            None,  # options.output,
+            force_fps,
+            audio_offset,
+            z_filter,
+            windowed_stats_sec,
+            debug,
+        )
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
 
 
 def main(argv):
