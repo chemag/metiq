@@ -267,7 +267,7 @@ def get_options(argv):
         "--filter-all-echoes",
         dest="filter_all_echoes",
         action="store_true",
-        help="Filter all echoes from the audio, essentially only do avsync analysis,"
+        help="Filter all echoes from the audio, essentially only do avsync analysis,",
     )
     options = parser.parse_args()
     return options
@@ -392,6 +392,7 @@ def main(argv):
                 "parse_audio": parse_audio,
                 "parse_video": parse_video,
                 "audio_offset": audio_offset,
+                "filter_all_echoes": options.filter_all_echoes,
             }
         )
         for x in options.infile_list
