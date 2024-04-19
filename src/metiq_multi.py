@@ -263,6 +263,12 @@ def get_options(argv):
         default=1,
         help="Maximum number of parallel processes",
     )
+    parser.add_argument(
+        "--filter-all-echoes",
+        dest="filter_all_echoes",
+        action="store_true",
+        help="Filter all echoes from the audio, essentially only do avsync analysis,"
+    )
     options = parser.parse_args()
     return options
 
@@ -272,6 +278,7 @@ def run_file(args):
     parse_audio = args.get("parse_audio", False)
     parse_video = args.get("parse_video", False)
     audio_offset = args.get("audio_offset", 0.0)
+    filter_all_echoes = args.get("filter_all_echoes", False)
 
     # We assume default settings on/ everything.
     # TODO(johan): expose more settings to the user
@@ -360,9 +367,10 @@ def run_file(args):
             None,  # options.output,
             force_fps,
             audio_offset,
-            z_filter,
-            windowed_stats_sec,
-            debug,
+            z_filter=z_filter,
+            windowed_stats_sec=windowed_stats_sec,
+            filter_all_echoes=filter_all_echoes,
+            debug=debug,
         )
     except Exception as e:
         print(f"Error: {e}")
