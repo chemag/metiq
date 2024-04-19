@@ -270,7 +270,8 @@ def run_file(args):
     min_separation_msec = metiq.default_values["min_separation_msec"]
     audio_sample = metiq.default_values["audio_sample"]
     vft_id = metiq.default_values["vft_id"]
-    force_fps = 30  # TODO: remove
+    # TODO(johan): remove
+    force_fps = 30
     z_filter = 3
     windowed_stats_sec = metiq.default_values["windowed_stats_sec"]
     analysis_type = "all"
@@ -340,8 +341,18 @@ def main(argv):
     parse_audio = options.parse_audio
     audio_offset = options.audio_offset
 
-    #TODO: Add more options
-    args = [({"file":x, "parse_audio":parse_audio, "parse_video":parse_video, "audio_offset":audio_offset}) for x in options.infile_list]
+    # TODO(johan): Add more options
+    args = [
+        (
+            {
+                "file": x,
+                "parse_audio": parse_audio,
+                "parse_video": parse_video,
+                "audio_offset": audio_offset,
+            }
+        )
+        for x in options.infile_list
+    ]
     with mp.Pool(processes=options.max_parallel) as p:
         results = p.map(run_file, args, chunksize=1)
 
