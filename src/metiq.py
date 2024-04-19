@@ -442,6 +442,15 @@ input_args = {
             "default": default_values["windowed_stats_sec"],
         },
     },
+    "filter_all_echoes": {
+        "func": ANALYZE,
+        "short": "",
+        "long": "--filter-all-echoes",
+        "args": {
+            "action": "store_true",
+            "help": "Filter all echoes",
+        },
+    },
 }
 
 
@@ -579,6 +588,7 @@ def main(argv):
             outfile=options.outfile,
             force_fps=options.force_fps,
             audio_offset=options.audio_offset,
+            filter_all_echoes=options.filter_all_echoes,
             z_filter=options.z_filter,
             windowed_stats_sec=options.windowed_stats_sec,
             debug=options.debug,

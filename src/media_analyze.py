@@ -226,8 +226,15 @@ def calculate_stats(
 # (d) the frame_num of the next frame where a beep is expected,
 # (e) the latency assuming the initial frame_time.
 def match_video_to_time(
-    ts, video_results, beep_period_frames, frame_time, closest=False, debug=0
+    ts,
+    video_results,
+    beep_period_frames,
+    frame_time,
+    previous_matches,
+    closest=False,
+    debug=0,
 ):
+    print(f"match_video_to_time {ts}, {previous_matches}")
     # get all entries whose ts <= signal ts to a filter
     candidate_list = video_results.index[video_results["timestamp"] <= ts].tolist()
     if len(candidate_list) > 0:
@@ -271,8 +278,9 @@ def match_video_to_time(
         candidate_list = sorted(list(set(candidate_list) & set(new_candidate_list)))
         time_in_frame = ts - video_results.iloc[candidate_list[0]]["timestamp"]
         latency = (next_beep_frame - latest_value_read) * frame_time - time_in_frame
-        if not closest and latency < 0 and debug > 0:
-            print("ERROR: negative latency")
+        if not closest and latency < 0 or (next_beep_frame in previous_matches):
+            if debug > 0:
+                print("ERROR: negative latency")
         else:
             vlat = [
                 latest_frame_num,
@@ -381,6 +389,7 @@ def calculate_video_relation(
     ignore_match_order=True,
     debug=False,
 ):
+
     # video is (frame, ts, expected, status, read, delta)
     # video latency is the time between the frame shown when a signal is played
     # and the time when it should be played out
@@ -389,6 +398,7 @@ def calculate_video_relation(
     beep_period_frames = int(beep_period_sec * fps)  # fps
     frame_time = 1 / fps
 
+    previous_matches = []
     video_latency_results = pd.DataFrame(
         columns=[
             "frame_num",
@@ -409,6 +419,7 @@ def calculate_video_relation(
             video_results,
             beep_period_frames,
             frame_time,
+            previous_matches,
             closest=closest_reference,
         )
 
@@ -416,6 +427,7 @@ def calculate_video_relation(
             vmatch[4] >= 0 or closest_reference
         ):  # av_sync can be negative
             video_latency_results.loc[len(video_latency_results.index)] = vmatch
+            previous_matches.append(vmatch[3])
         elif vmatch is None:
             print(f"ERROR: no match found for video latency calculation")
         else:
@@ -457,6 +469,7 @@ def calculate_av_sync(
     ignore_match_order=True,
     debug=False,
 ):
+
     # av sync is the difference between when a signal is heard and when the frame is shown
     # If there is a second ssignal, use that one.
     timefield = "timestamp2"
@@ -689,6 +702,7 @@ def media_analyze(
     outfile,
     force_fps,
     audio_offset,
+    filter_all_echoes,
     z_filter,
     windowed_stats_sec,
     debug,
@@ -716,6 +730,9 @@ def media_analyze(
     # adjust the audio offset
     if audio_offset is not None:
         video_results["timestamp"] += audio_offset
+
+    if filter_all_echoes:
+        audio_results = filter_echoes(audio_results, beep_period_sec, 0.7)
 
     assert analysis_type is not None, f"error: need to specify --analysis-type"
     analysis_function = MEDIA_ANALYSIS[analysis_type][0]
