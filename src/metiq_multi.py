@@ -235,7 +235,6 @@ def get_options(argv):
         "-ao", "--audio-offset", type=float, default=0.0, help="Audio offset in seconds"
     )
     parser.add_argument(
-        "-mp",
         "--max-parallel",
         dest="max_parallel",
         type=int,
