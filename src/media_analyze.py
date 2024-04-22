@@ -654,8 +654,18 @@ def media_analyze(
     debug,
 ):
     # read inputs
-    video_results = pd.read_csv(input_video)
-    audio_results = pd.read_csv(input_audio)
+    video_results = None
+    try:
+        video_results = pd.read_csv(input_video)
+    except ValueError:
+        # ignore in case the analysis does not need it
+        pass
+    audio_results = None
+    try:
+        audio_results = pd.read_csv(input_audio)
+    except ValueError:
+        # ignore in case the analysis does not need it
+        pass
 
     # estimate the video framerate
     # TODO: capture fps should be available
