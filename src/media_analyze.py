@@ -607,6 +607,38 @@ def av_sync_function(**kwargs):
     )
 
 
+def calculate_video_playouts(video_results):
+    # calculate the delta of the value read between consecutive frames
+    video_results["value_read_delta"] = [
+        0,
+    ] + list(
+        y - x
+        for (x, y) in zip(video_results.value_read[:-1], video_results.value_read[1:])
+    )
+    # remove consecutive frames with the same value read
+    video_results = video_results.drop(
+        video_results[video_results.value_read_delta == 0].index
+    )
+    # add column assuming the average delta
+    average_delta = round(video_results.value_read_delta.mean())
+    video_results["value_read_delta_minus_mean"] = (
+        video_results.value_read_delta - average_delta
+    )
+    # remove unused columns
+    video_results = video_results.drop(
+        [
+            "frame_num_expected",
+            "status",
+            "value_read",
+            "delta_frame",
+            "value_before_clean",
+            "value_read_delta",
+        ],
+        axis=1,
+    )
+    return video_results
+
+
 def quality_stats_function(**kwargs):
     audio_results = kwargs.get("audio_results")
     video_results = kwargs.get("video_results")
@@ -635,6 +667,14 @@ def frame_duration_function(**kwargs):
 
     frame_duration_results = calculate_frame_durations(video_results)
     frame_duration_results.to_csv(outfile, index=False)
+
+
+def video_playout_fun(**kwargs):
+    video_results = kwargs.get("video_results")
+    outfile = kwargs.get("outfile")
+
+    video_playout_results = calculate_video_playouts(video_results)
+    video_playout_results.to_csv(outfile, index=False)
 
 
 def media_analyze(
@@ -723,6 +763,11 @@ MEDIA_ANALYSIS = {
         frame_duration_function,
         "Calculate source frame durations",
         ".frame.duration.csv",
+    ),
+    "video_playout": (
+        video_playout_fun,
+        "Analyze video playout issues",
+        ".video.playout.csv",
     ),
     "all": (all_analysis_function, "Calculate all media analysis", None),
 }
