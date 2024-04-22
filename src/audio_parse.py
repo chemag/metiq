@@ -49,6 +49,8 @@ def get_correlation_indices(haystack, needle, **kwargs):
 
     # calculate the correlation in FP numbers to avoid saturation
     needlesize = len(needle)
+    # add a needle length to the front
+    haystack = np.concatenate((np.zeros(needlesize), haystack))
     correlation = np.correlate(haystack.astype(np.float32), needle.astype(np.float32))
     # find peaks with a minimum separation of min_separation_samples
     peaks = scipy.signal.find_peaks(correlation, distance=min_separation_samples)[0]
@@ -58,7 +60,9 @@ def get_correlation_indices(haystack, needle, **kwargs):
     ]
     # filter by threshold
     return [
-        [peak, cc] for peak, cc in zip(peaks, corrcoeff) if cc > min_match_threshold
+        [peak - needlesize, cc]
+        for peak, cc in zip(peaks, corrcoeff)
+        if cc > min_match_threshold
     ]
 
 
@@ -148,7 +152,6 @@ def audio_parse_wav(infile, **kwargs):
         ]
 
     audio_results = pd.DataFrame(columns=["audio_sample", "timestamp", "correlation"])
-
     # calculate the correlation signal
     if min_separation_samples < 0:
         min_separation_samples = len(needle_target) / 2
