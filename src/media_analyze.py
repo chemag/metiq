@@ -225,73 +225,109 @@ def calculate_stats(
 # (c) the value read in the selected frame,
 # (d) the frame_num of the next frame where a beep is expected,
 # (e) the latency assuming the initial frame_time.
-def match_video_to_time(
+# (f) if the value read is extrapolated (or perfect match)
+def match_video_to_sources_beep(
     ts,
     video_results,
     beep_period_frames,
     frame_time,
     previous_matches,
     closest=False,
-    debug=0,
+    match_distance_frames=-1,
+    debug=1,
 ):
-    print(f"match_video_to_time {ts}, {previous_matches}")
-    # get all entries whose ts <= signal ts to a filter
-    candidate_list = video_results.index[video_results["timestamp"] <= ts].tolist()
-    if len(candidate_list) > 0:
-        # check the latest video frame in the filter
-        latest_iloc = candidate_list[-1]
-        latest_frame_num = video_results.iloc[latest_iloc]["frame_num"]
-        latest_value_read = video_results.iloc[latest_iloc]["value_read"]
-        if latest_value_read == None or np.isnan(latest_value_read):
-            if debug > 0:
-                print("read is nan")
-            # look for the previous frame with a valid value_read
-            # TODO: maybe interpolate
-            # limit the list to half the frame time
-            for i in reversed(candidate_list[:-1]):
-                if not np.isnan(video_results.iloc[i]["value_read"]):
-                    latest_iloc = i
-                    latest_frame_num = video_results.iloc[latest_iloc]["frame_num"]
-                    latest_value_read = video_results.iloc[latest_iloc]["value_read"]
-                    break
-                if ts - video_results.iloc[i]["timestamp"] > frame_time / 2:
-                    print(f"Could not match {ts} with a frame, too many broken frames")
-                    break
+    # The algorithm is as follows:
+    # 1) find the frame in video that match the closest to ts
+    # 2) Check the value parsed and compare to the expected beep frame time
+    #    given the value just read.
+    # 3) Find the frame matching the beep number
+    # 3) If the match in (1) was not exact adjust for it.
 
-            if latest_value_read == None or np.isnan(latest_value_read):
-                return None
-            if debug > 0:
-                print(
-                    f"Used previous frame {latest_frame_num} with value {latest_value_read}, {latest_iloc - candidate_list[-1]} frames before"
-                )
-        # estimate the frame for the next beep based on the frequency
-        next_beep_frame = (
-            int(latest_value_read / beep_period_frames) + 1
-        ) * beep_period_frames
-        if closest and next_beep_frame - latest_value_read > beep_period_frames / 2:
-            next_beep_frame -= beep_period_frames
-        # look for other frames where we read the same value
-        new_candidate_list = video_results.index[
-            video_results["value_read"] == latest_value_read
-        ].tolist()
-        # get the intersection
-        candidate_list = sorted(list(set(candidate_list) & set(new_candidate_list)))
-        time_in_frame = ts - video_results.iloc[candidate_list[0]]["timestamp"]
-        latency = (next_beep_frame - latest_value_read) * frame_time - time_in_frame
-        if not closest and latency < 0 or (next_beep_frame in previous_matches):
-            if debug > 0:
-                print("ERROR: negative latency")
-        else:
-            vlat = [
-                latest_frame_num,
-                ts,
-                latest_value_read,
-                next_beep_frame,
-                latency,
-            ]
-            return vlat
-    elif debug > 0:
-        print(f"{ts=} not found in video_results")
+    # Limit errors (audio offset and errors)
+    if match_distance_frames < 0:
+        # somewhat arbitrary +/- 1 frame i.e. 33ms at 30fps
+        match_distance_frames = 4
+
+    closematch = None
+    # Just find the closes match to the timestamp
+    video_results["distance"] = np.abs(video_results["timestamp"] - ts)
+    # The purpose of this is just to find the beep source
+    closematch = video_results.loc[video_results["distance"] < beep_period_frames]
+
+    # remove non valid values
+    closematch = closematch.loc[closematch["value_read"].notna()]
+    if len(closematch) == 0:
+        print(f"Warning. No match for {ts} within a beep period is found")
+        return None
+
+    # sort by time difference
+    closematch = closematch.sort_values("distance")
+    closematch.fillna(method="bfill", inplace=True)
+    best_match = closematch.iloc[0]
+
+    # 2) Check the value parsed and compare to the expected beep frame
+    matched_value_read = best_match["value_read"]
+    # estimate the frame for the next beep based on the frequency
+    next_beep_frame = (
+        int(matched_value_read / beep_period_frames) + 1
+    ) * beep_period_frames
+    if (
+        next_beep_frame - matched_value_read > beep_period_frames / 2
+        and (next_beep_frame - beep_period_frames) not in previous_matches
+    ):
+        next_beep_frame -= beep_period_frames
+
+    if next_beep_frame in previous_matches:
+        # This one has already been seen, this is latency beyond a beep
+        if debug > 0:
+            print("Warning. latency beyond beep period.")
+        next_beep_frame += beep_period_frames
+
+    # Find the beep
+    if closest:
+        video_results["distance_frames"] = np.abs(
+            video_results["value_read"] - next_beep_frame
+        )
+        closematch = video_results.loc[
+            video_results["distance_frames"] < match_distance_frames
+        ]
+    else:
+        video_results["distance_frames"] = video_results["value_read"] - next_beep_frame
+        video_results.sort_values("distance_frames", inplace=True)
+        closematch = video_results.loc[
+            (video_results["distance_frames"] >= 0)
+            & (video_results["distance_frames"] < match_distance_frames)
+        ]
+
+    # remove non valid values
+    closematch = closematch.loc[closematch["value_read"].notna()]
+    if len(closematch) == 0:
+        print(f"Warning. No match for {ts} is found")
+        return None
+
+    # sort by time difference
+    closematch = closematch.sort_values("distance_frames")
+    closematch.fillna(method="bfill", inplace=True)
+    best_match = closematch.iloc[0]
+
+    # get offset if not perfect match
+    offset = best_match["value_read"] - next_beep_frame
+    latency = best_match["timestamp"] - ts - offset * frame_time
+
+    # Find the closest frame to the expected beep
+
+    if not closest and latency < 0:
+        if debug > 0:
+            print("ERROR: negative latency")
+    else:
+        vlat = [
+            best_match["frame_num"],
+            ts,
+            best_match["value_read"],
+            next_beep_frame,
+            latency,
+        ]
+        return vlat
     return None
 
 
@@ -380,7 +416,7 @@ def filter_echoes(audiodata, beep_period_sec, margin):
 
 
 def calculate_video_relation(
-    audio_latency_results,
+    audio_results,
     video_results,
     audio_anchor,
     closest_reference,
@@ -389,7 +425,6 @@ def calculate_video_relation(
     ignore_match_order=True,
     debug=False,
 ):
-
     # video is (frame, ts, expected, status, read, delta)
     # video latency is the time between the frame shown when a signal is played
     # and the time when it should be played out
@@ -409,12 +444,12 @@ def calculate_video_relation(
         ],
     )
 
-    for index in range(len(audio_latency_results)):
-        match = audio_latency_results.iloc[index]
+    for index in range(len(audio_results)):
+        match = audio_results.iloc[index]
         # calculate video latency based on the
         # timestamp of the first (prev) audio match
         # vs. the timestamp of the video frame.
-        vmatch = match_video_to_time(
+        vmatch = match_video_to_sources_beep(
             match[audio_anchor],
             video_results,
             beep_period_frames,
@@ -439,7 +474,7 @@ def calculate_video_relation(
 
 
 def calculate_video_latency(
-    audio_latency_results,
+    audio_results,
     video_results,
     beep_period_sec,
     fps=30,
@@ -450,9 +485,9 @@ def calculate_video_latency(
     # In the case of a transmission we look at the time from the first played out source
     # and when it is shown on the screen on the rx side.
     return calculate_video_relation(
-        audio_latency_results,
+        audio_results,
         video_results,
-        "timestamp1",
+        "timestamp",
         False,
         beep_period_sec=beep_period_sec,
         fps=fps,
@@ -508,9 +543,9 @@ def all_analysis_function(**kwargs):
 
     for function in MEDIA_ANALYSIS:
         if function == "all":
+            # prevent a loop :)
             continue
         kwargs["outfile"] = f"{outfile}{MEDIA_ANALYSIS[function][2]}"
-
         results = MEDIA_ANALYSIS[function][0](**kwargs)
 
 
@@ -541,18 +576,26 @@ def video_latency_function(**kwargs):
     z_filter = kwargs.get("z_filter")
     outfile = kwargs.get("outfile")
 
-    # start with the audio latencies
-    audio_latency_results = calculate_audio_latency(
-        audio_results,
-        video_results,
-        fps=ref_fps,
-        beep_period_sec=beep_period_sec,
-        debug=debug,
-    )
+    if len(audio_results) == 0:
+        print("Warning. No audio signals present")
+        return
+
+    # Assuming that the source frame is played out when the audio signal
+    # is first heard, video latency is the difference between the video frame
+    # of the soruce and video frame shown on rx
+
+    # Frist filter all echoes and keep only source signal
+    clean_audio = filter_echoes(audio_results, beep_period_sec, 0.7)
+
+    signal_ratio = len(clean_audio) / len(audio_results)
+    if signal_ratio == 0:
+        print(audio_results)
+        print("Warning. No source signals present")
+        return
 
     # calculate the video latencies
     video_latency_results = calculate_video_latency(
-        audio_latency_results,
+        clean_audio,
         video_results,
         fps=ref_fps,
         beep_period_sec=beep_period_sec,
