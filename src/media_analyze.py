@@ -681,15 +681,20 @@ def calculate_video_playouts(video_results):
         video_results.value_read_delta - average_delta
     )
     # remove unused columns
+    # TODO: or keep wanted?
+    unused = (
+        "frame_num_expected",
+        "status",
+        "value_read",
+        "delta_frame",
+        "value_before_clean",
+        "value_read_delta",
+    )
+
+    unused = [col for col in unused if col in video_results.columns.values]
+
     video_results = video_results.drop(
-        [
-            "frame_num_expected",
-            "status",
-            "value_read",
-            "delta_frame",
-            "value_before_clean",
-            "value_read_delta",
-        ],
+        columns=unused,
         axis=1,
     )
     return video_results
