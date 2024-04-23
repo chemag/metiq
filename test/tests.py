@@ -20,11 +20,11 @@ import verify_generate as vg
 def run_metiq_cli(**settings):
     filename = settings.get("outfile", "")
     audio_offset = settings.get("audio_offset", 0)
-    command = f"python3 {metiq_path}/metiq.py -i {filename} --lock-layout parse -d"
+    command = f"python3 {metiq_path}/metiq.py parse -i {filename} --lock-layout -d"
     ret, stdout, stderr = common.run(command, debug=config.DEBUG)
     assert ret == 0, f"error: {stderr}"
 
-    command = f"python3 {metiq_path}/metiq.py --input-audio {filename}.audio.csv --input-video {filename}.video.csv --audio-offset {audio_offset} analyze -a all -d"
+    command = f"python3 {metiq_path}/metiq.py analyze --input-audio {filename}.audio.csv --input-video {filename}.video.csv --audio-offset {audio_offset} -a all -d"
     ret, stdout, stderr = common.run(command, debug=config.DEBUG)
     assert ret == 0, f"error: {stderr}"
 
