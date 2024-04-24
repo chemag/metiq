@@ -393,8 +393,8 @@ input_args = {
             "dest": "analysis_type",
             "help": "%s"
             % (
-                " | ".join(
-                    "{}: {}".format(k, v[1])
+                "".join(
+                    f"{k:<16}: {v[1]}\n"
                     for k, v in media_analyze.MEDIA_ANALYSIS.items()
                 )
             ),
@@ -484,12 +484,18 @@ def get_options(argv):
     # parser = argparse.OptionParser(usage=usage)
     # parser.print_help() to get argparse.usage (large help)
     # parser.print_usage() to get argparse.usage (just usage line)
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter, description=__doc__
+    )
     subparsers = parser.add_subparsers(dest="func", help="function to perform")
 
     gen_parser = subparsers.add_parser(GENERATE, help="generate reference video")
     parse_parser = subparsers.add_parser(PARSE, help="parse distorted video")
-    analyze_parser = subparsers.add_parser(ANALYZE, help="analyze distorted video")
+    analyze_parser = subparsers.add_parser(
+        ANALYZE,
+        help="analyze distorted video",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
 
     add_arg(GENERATE, gen_parser)
     add_arg(PARSE, parse_parser)
