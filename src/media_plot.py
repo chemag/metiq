@@ -34,6 +34,8 @@ def plot_latencies(data, options):
         data,
         "frame_num",
         ["audio_latency_sec", "video_latency_sec", "av_sync_sec"],
+        ["Frame number"] * 3,
+        ["Latency (sec)"] * 3,
         title,
         options,
     )
@@ -86,7 +88,7 @@ def plot_frame_duration_hist(data, args):
         plt.show()
 
 
-def plot_columns(data, xname, columns, title, options):
+def plot_columns(data, xname, columns, xtitles, ytitles, title, options):
     if options.aggregate:
         rows = len(columns) + 2
         fig = plt.figure(figsize=(16, 16))
@@ -148,9 +150,10 @@ def plot_columns(data, xname, columns, title, options):
                 )
                 plt.legend()
         ax = None
+        print(xtitles)
         for num, col in enumerate(columns):
             ax = axes[num]
-            configure_axis(ax, col, "frame", "frames")
+            configure_axis(ax, col, xtitles[num], ytitles[num])
         ax.legend(
             loc="upper left",
             bbox_to_anchor=(0.0, -0.4),
@@ -183,149 +186,14 @@ def plot_windowed_framestats(data, options):
         title = f"{title} (rolling window: {options.rolling} frames)"
 
     plot_columns(
-        data, "frame", [frames_field, shown_field, drops_field], title, options
+        data,
+        "frame",
+        [frames_field, shown_field, drops_field],
+        ["Time (sec)"] * 3,
+        ["Fps"] * 3,
+        title,
+        options,
     )
-
-
-def plot_windowed_framestats_(data, options):
-    # | frame | frames | shown | drops | window
-
-    # Verify that data contain correct columns
-    if len([col for col in ["frames", "shown", "drops"] if col in data.columns]) == 0:
-        print("Error: data does not contain correct columns")
-        exit(0)
-
-    frames_field = "frames"
-    shown_field = "shown"
-    drops_field = "drops"
-    title = options.title if options.title else "Windowed frame stats"
-    if options.rolling and not options.aggregate:
-        title = f"{title} (rolling window: {options.rolling} frames)"
-
-    if options.aggregate:
-        fig = plt.figure(figsize=(16, 16))
-
-        group = data.groupby("file")
-        mean = group.mean()
-
-        ax = fig.add_subplot(411)
-        ax.boxplot(
-            [mean[frames_field], mean[shown_field], mean[drops_field]],
-            labels=[frames_field, shown_field, drops_field],
-        )
-        configure_axis(ax, "Aggregated frame stats", "", "Count")
-
-        frames_data = []
-        shown_data = []
-        drops_data = []
-        labels_data = []
-
-        for file in data["file"].unique():
-            _data = data[data["file"] == file]
-            frames_data.append(_data[frames_field])
-            shown_data.append(_data[shown_field])
-            drops_data.append(_data[drops_field])
-            labels_data.append(file)
-
-        ax = fig.add_subplot(412)
-        ax.boxplot(frames_data, labels=labels_data)
-        configure_axis(ax, f"{frames_field} boxplot", "file", frames_field)
-        ax.set_xticklabels([])
-        ax.set_xlabel("")
-
-        ax = fig.add_subplot(413)
-        ax.boxplot(shown_data, labels=labels_data)
-        configure_axis(ax, f"{shown_field} boxplot", "file", shown_field)
-        ax.set_xticklabels([])
-        ax.set_xlabel("")
-
-        ax = fig.add_subplot(414)
-        ax.boxplot(drops_data, labels=labels_data)
-        configure_axis(ax, f"{drops_field} boxplot", "file", drops_field)
-
-        ax.legend(
-            loc="upper left",
-            bbox_to_anchor=(0.0, -0.2),
-            ncol=1,
-            fancybox=True,
-            shadow=True,
-            borderaxespad=0.0,
-        )
-        plt.tight_layout(rect=[0, 0, 1, 0.95])
-        ax.legend()
-        plt.xticks(rotation=45)
-
-    else:
-
-        fig = plt.figure(figsize=(16, 9))
-        ax = None
-        ax1 = None
-        ax2 = None
-        ax3 = None
-
-        if data["file"].nunique() == 1 or options.aggregate:
-            ax = fig.add_subplot(111)
-        else:
-            ax1 = fig.add_subplot(311)
-            ax2 = fig.add_subplot(312)
-            ax3 = fig.add_subplot(313)
-
-        for file in data["file"].unique():
-            _data = pd.DataFrame(data[data["file"] == file])
-            if options.rolling:
-                frames_field = f"{frames_field}_rolling_{options.rolling}"
-                shown_field = f"{shown_field}_rolling_{options.rolling}"
-                drops_field = f"{drops_field}_rolling_{options.rolling}"
-
-                _data[frames_field] = (
-                    _data["frames"].rolling(window=options.rolling).mean()
-                )
-                _data[shown_field] = (
-                    _data["shown"].rolling(window=options.rolling).mean()
-                )
-                _data[drops_field] = (
-                    _data["drops"].rolling(window=options.rolling).mean()
-                )
-
-            if data["file"].unique() == 1:
-                ax = fig.add_subplot(111)
-                ax.plot(_data["frame"], _data[frames_field], label="Frames " + file)
-                ax.plot(_data["frame"], _data[shown_field], label="Shown " + file)
-                ax.plot(_data["frame"], _data[drops_field], label="Drops " + file)
-            else:
-                ax1.plot(_data["frame"], _data[frames_field], label="Frames " + file)
-                ax2.plot(_data["frame"], _data[shown_field], label="Shown " + file)
-                ax3.plot(_data["frame"], _data[drops_field], label="Drops " + file)
-
-        if data["file"].nunique() == 1:
-            configure_axis(ax, "", "frame", "frames")
-
-            ax.legend(
-                loc="upper left",
-                bbox_to_anchor=(0.0, -0.2),
-                ncol=1,
-                fancybox=True,
-                shadow=True,
-                borderaxespad=0.0,
-            )
-        else:
-            configure_axis(ax1, "Framerate", "frame", "frames")
-            configure_axis(ax2, "Frame shown", "frame", "shown")
-            configure_axis(ax3, "Frame drops", "frame", "drops")
-            ax3.legend(
-                loc="upper left",
-                bbox_to_anchor=(0.0, -0.4),
-                ncol=2,
-                fancybox=True,
-                shadow=True,
-                borderaxespad=0.0,
-            )
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-    fig.suptitle(title)
-    if options.output:
-        plt.savefig(options.output)
-    if options.show:
-        plt.show()
 
 
 def main():
