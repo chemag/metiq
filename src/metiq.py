@@ -346,6 +346,15 @@ input_args = {
             "help": "Disable hardware decoding",
         },
     },
+    "noise_video": {
+        "func": GENERATE,
+        "short": "",
+        "long": "--noise_video",
+        "args": {
+            "action": "store_true",
+            "help": "For 'generate', create a noise video with tags but without audio. For 'parse', calculate percentage of identified video",
+        },
+    },
     "tag_manual": {
         "func": PARSE,
         "short": "",
@@ -402,7 +411,7 @@ input_args = {
         },
     },
     "audio_sample": {
-        "func": PARSE,
+        "func": f"{PARSE}, {GENERATE}",
         "short": "",
         "long": "--audio-sample",
         "args": {
