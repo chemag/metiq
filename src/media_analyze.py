@@ -567,6 +567,50 @@ def audio_latency_function(**kwargs):
     audio_latency_results.to_csv(outfile, index=False)
 
 
+def remove_non_doubles(audio_results, clean_audio):
+    # Find all echoes and match with the original signal
+    # If any clean signal has a more than one match, remove the furthest
+    # match from the audio_results.
+
+    residue = pd.concat([audio_results, clean_audio]).drop_duplicates(keep=False)
+    closest = []
+    for index, match in clean_audio.iterrows():
+        closest_match = -1
+        try:
+            closest_match = (
+                residue.loc[residue.index > index]["timestamp"] - match["timestamp"]
+            ).idxmin()
+        except:
+            # could be that there are no signals > index for the actual ts
+            pass
+        closest.append(closest_match)
+
+    # Find matches with multiple references
+    multis = {}
+    drop = []
+    for source_index, matching_index in enumerate(closest):
+        if closest.count(matching_index) > 1:
+            first = clean_audio.iloc[source_index]["timestamp"]
+            second = residue.loc[residue.index == matching_index]["timestamp"].values[0]
+
+            diff = abs(first - second)
+            if matching_index in multis:
+                match = multis[matching_index]
+                if diff < match[1]:
+                    # remove the previous match
+                    drop.append(clean_audio.index[match[0]])
+                    multis[matching_index] = (source_index, diff)
+                else:
+                    # remove this match
+                    clean_audio.drop(clean_audio.index[[source_index]], inplace=True)
+                    drop.append(clean_audio.index[source_index])
+            else:
+                # First match for this row
+                multis[matching_index] = (source_index, diff, first)
+
+    return clean_audio.drop(drop)
+
+
 def video_latency_function(**kwargs):
     audio_results = kwargs.get("audio_results")
     video_results = kwargs.get("video_results")
@@ -584,14 +628,16 @@ def video_latency_function(**kwargs):
     # is first heard, video latency is the difference between the video frame
     # of the soruce and video frame shown on rx
 
-    # Frist filter all echoes and keep only source signal
+    # First filter all echoes and keep only source signal
     clean_audio = filter_echoes(audio_results, beep_period_sec, 0.7)
 
     signal_ratio = len(clean_audio) / len(audio_results)
-    if signal_ratio == 0:
-        print(audio_results)
+    if len(clean_audio) == 0:
         print("Warning. No source signals present")
         return
+    elif signal_ratio < 1:
+        print("Warning: unmatched echo/source signal. Removing unmatched.")
+        clean_audio = remove_non_doubles(audio_results, clean_audio)
 
     # calculate the video latencies
     video_latency_results = calculate_video_latency(
