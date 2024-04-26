@@ -9,8 +9,8 @@ import os
 
 plots = {
     "latencies": "Plot data from the combined latencies using the x.latencies.csv analysis output",
-    "windowed-frame_stats": "Plot frame stats using the 'x.windowed.stats.csv' analysis output",
-    "frame-duration_hist": "Plot histogram using 'x.frame.duration.csv' analysis output",
+    "windowed-frame-stats": "Plot frame stats using the 'x.windowed.stats.csv' analysis output",
+    "frame-duration-hist": "Plot histogram using 'x.frame.duration.csv' analysis output",
     "avsync": "Plot AV sync using the 'x.avsync.csv' analysis output",
     "video-latency": "Plot video latency using the 'x.video.latency.csv' analysis output",
     "audio-latency": "Plot audio latency and related data using the 'x.audio.latency.csv' analysis output",
