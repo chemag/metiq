@@ -9,8 +9,12 @@ import os
 
 plots = {
     "latencies": "Plot data from the combined latencies using the x.latencies.csv analysis output",
-    "windowed_frame_stats": "Plot frame stats using the 'x.windowed.stats.csv' analysis output",
-    "frame_duration_hist": "Plot histogram using 'x.frame.duration.csv' analysis output",
+    "windowed-frame_stats": "Plot frame stats using the 'x.windowed.stats.csv' analysis output",
+    "frame-duration_hist": "Plot histogram using 'x.frame.duration.csv' analysis output",
+    "avsync": "Plot AV sync using the 'x.avsync.csv' analysis output",
+    "video-latency": "Plot video latency using the 'x.video.latency.csv' analysis output",
+    "audio-latency": "Plot audio latency and related data using the 'x.audio.latency.csv' analysis output",
+    "measurement-quality": "Plot measurement quality using the 'x.measurement.quality.csv' analysis output (or the all.measurement.quality.csv)",
 }
 
 
@@ -23,6 +27,23 @@ def configure_axis(ax, title, xlabel, ylabel):
 
 def plot_latencies(data, options):
     # frame_num | audio_latency_sec | video_latency_sec | av_sync_sec
+    if (
+        len(
+            [
+                col
+                for col in [
+                    "audio_latency_sec",
+                    "video_latency_sec",
+                    "av_sync_sec",
+                    "frame_num",
+                ]
+                if col in data.columns
+            ]
+        )
+        == 0
+    ):
+        print("Error: data does not contain correct columns")
+        exit(0)
 
     if options.aggregate:
         pass
@@ -36,6 +57,113 @@ def plot_latencies(data, options):
         ["audio_latency_sec", "video_latency_sec", "av_sync_sec"],
         ["Frame number"] * 3,
         ["Latency (sec)"] * 3,
+        title,
+        options,
+    )
+
+
+def plot_video_latency(data, options):
+    # frame_num | timestamp | frame_num_read | original_frame | video_latency_sec
+    if (
+        len([col for col in ["video_latency_sec", "timestamp"] if col in data.columns])
+        == 0
+    ):
+        print("Error: data does not contain correct columns")
+        exit(0)
+
+    title = options.title if options.title else "Video latency"
+    if options.rolling and not options.aggregate:
+        title = f"{title} (rolling window: {options.rolling} frames)"
+    plot_columns(
+        data,
+        "timestamp",
+        ["video_latency_sec"],
+        ["Time (sec)"],
+        ["AV Sync (sec)"],
+        title,
+        options,
+    )
+
+
+def plot_audio_latency(data, options):
+    # frame_num | timestamp | frame_num_read | original_frame | video_latency_sec
+    if (
+        len([col for col in ["audio_latency_sec", "timestamp"] if col in data.columns])
+        == 0
+    ):
+        print("Error: data does not contain correct columns")
+        exit(0)
+
+    title = options.title if options.title else "Audio latency"
+    if options.rolling and not options.aggregate:
+        title = f"{title} (rolling window: {options.rolling} frames)"
+    plot_columns(
+        data,
+        "timestamp1",
+        ["audio_latency_sec", "cor1", "cor2"],
+        ["Time (sec)"] * 3,
+        ["AV Sync (sec)", "Correlation 1", "Correlation 2"],
+        title,
+        options,
+    )
+
+
+def plot_av_sync(data, options):
+    # frame_num | timestamp | frame_num_read | original_frame | av_sync_sec
+    if len([col for col in ["av_sync_sec", "timestamp"] if col in data.columns]) == 0:
+        print("Error: data does not contain correct columns")
+        exit(0)
+    title = options.title if options.title else "AV Sync"
+    if options.rolling and not options.aggregate:
+        title = f"{title} (rolling window: {options.rolling} frames)"
+    plot_columns(
+        data,
+        "timestamp",
+        ["av_sync_sec"],
+        ["Time (sec)"],
+        ["AV Sync (sec)"],
+        title,
+        options,
+    )
+
+
+def plot_measurement_quality(data, options):
+    # video_frames_metiq_errors_percentage | video_frames_metiq_error.no_valid_tag | video_frames_metiq_error.invalid_graycode | video_frames_metiq_error.single_graycode_bit | video_frames_metiq_error.unknown | signal_distance_sec | max_correlation | min_correlation | mean_correlation | index
+
+    if (
+        len(
+            [
+                col
+                for col in ["video_frames_metiq_errors_percentage"]
+                if col in data.columns
+            ]
+        )
+        == 0
+    ):
+        print("Error: data does not contain correct columns")
+        exit(0)
+
+    title = options.title if options.title else "Measurement quality - Parsing errors"
+    if options.rolling and not options.aggregate:
+        title = f"{title} (rolling window: {options.rolling} frames)"
+    plot_columns(
+        data,
+        "file",
+        [
+            "video_frames_metiq_errors_percentage",
+            "video_frames_metiq_error.no_valid_tag",
+            "video_frames_metiq_error.invalid_graycode",
+            "video_frames_metiq_error.single_graycode_bit",
+            "video_frames_metiq_error.unknown",
+        ],
+        ["File"] * 6,
+        [
+            "Percentage",
+            "count",
+            "count",
+            "count",
+            "count",
+        ],
         title,
         options,
     )
@@ -89,21 +217,36 @@ def plot_frame_duration_hist(data, args):
 
 
 def plot_columns(data, xname, columns, xtitles, ytitles, title, options):
+    figw = options.width
+    figh = options.height
+
+    switch_col_row = False
     if options.aggregate:
-        rows = len(columns) + 2
-        fig = plt.figure(figsize=(16, 16))
+        ncol = len(columns)
+        fig = plt.figure(figsize=(figw, figh))
 
         group = data.groupby("file")
         mean = group.mean()
 
-        ax = fig.add_subplot(rows, 1, 1)
         columns_data = []
         labels_data = []
         for col in columns:
-            columns_data.append(mean[col])
+            mean_col = mean[col]
+            mean_col.dropna(inplace=True)
+            columns_data.append(mean_col)
             labels_data.append(col)
-        ax.boxplot(columns_data, labels=labels_data)
-        configure_axis(ax, "Aggregated frame stats", "", "Count")
+
+        for i in range(len(columns_data)):
+            ax = None
+            if switch_col_row:
+                ax = fig.add_subplot(2, ncol, i + 1)
+            else:
+                ax = fig.add_subplot(ncol + 2, ncol, i + 1)
+            ax.boxplot(columns_data[i : i + 1], labels=labels_data[i : i + 1])
+            configure_axis(ax, "Aggregated frame stats", "", ytitles[i])
+
+        ax.legend()
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
 
         columns_data = {}
         labels_data = []
@@ -118,22 +261,29 @@ def plot_columns(data, xname, columns, xtitles, ytitles, title, options):
             labels_data.append(file)
 
         for num, col in enumerate(columns):
-            ax = fig.add_subplot(rows, 1, num + 2)
+            ax = None
+            if switch_col_row:
+                ax = fig.add_subplot(2, ncol, num + ncol + 1)
+            else:
+                ax = fig.add_subplot(ncol + 2, 1, num + 2)
             ax.boxplot(columns_data[col], labels=labels_data)
-            configure_axis(ax, f"{col}", "file", col)
-            if num < len(columns) - 1:
+            configure_axis(ax, f"{col}", "", ytitles[num])
+            if num < len(columns) - 1 and not switch_col_row:
                 ax.set_xticklabels([])
                 ax.set_xlabel(None)
         ax.legend()
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.xticks(rotation=30, ha="right", rotation_mode="anchor")
     else:
-        rows = len(columns)
-        fig = plt.figure(figsize=(16, 16))
+        ncol = len(columns)
+        fig = plt.figure(figsize=(figw, figh))
         axes = []
 
         for num, col in enumerate(columns):
-            axes.append(fig.add_subplot(rows + 1, 1, num + 1))
+            if switch_col_row:
+                axes.append(fig.add_subplot(1, ncol + 1, num + 1))
+            else:
+                axes.append(fig.add_subplot(ncol + 1, 1, num + 1))
 
         for file in data["file"].unique():
             _data = pd.DataFrame(data[data["file"] == file])
@@ -150,7 +300,6 @@ def plot_columns(data, xname, columns, xtitles, ytitles, title, options):
                 )
                 plt.legend()
         ax = None
-        print(xtitles)
         for num, col in enumerate(columns):
             ax = axes[num]
             configure_axis(ax, col, xtitles[num], ytitles[num])
@@ -218,6 +367,8 @@ def main():
         "-r", "--rolling", type=int, default=0, help="Rolling window size"
     )
     parser.add_argument("--aggregate", action="store_true", help="Aggregate the data")
+    parser.add_argument("--width", type=int, default=12, help="Width of the plot")
+    parser.add_argument("--height", type=int, default=12, help="Height of the plot")
 
     args = parser.parse_args()
     _data = []
@@ -229,12 +380,20 @@ def main():
 
     data = pd.concat(_data)
 
-    if args.type == "windowed_frame_stats":
+    if args.type == "windowed-frame-stats":
         plot_windowed_framestats(data, args)
-    elif args.type == "frame_duration_hist":
+    elif args.type == "frame-duration-hist":
         plot_frame_duration_hist(data, args)
     elif args.type == "latencies":
         plot_latencies(data, args)
+    elif args.type == "avsync":
+        plot_av_sync(data, args)
+    elif args.type == "video-latency":
+        plot_video_latency(data, args)
+    elif args.type == "audio-latency":
+        plot_audio_latency(data, args)
+    elif args.type == "measurement-quality":
+        plot_measurement_quality(data, args)
 
 
 if __name__ == "__main__":
