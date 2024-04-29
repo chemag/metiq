@@ -587,6 +587,7 @@ def main(argv):
             output_audio=options.output_audio,
             lock_layout=options.lock_layout,
             threaded=options.threaded,
+            tag_manual=options.tag_manual,
             debug=options.debug,
         )
 
