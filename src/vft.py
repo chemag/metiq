@@ -89,7 +89,7 @@ default_values = {
 def generate_graycode(width, height, vft_id, tag_border_size, value, debug):
     # convert value to gray code
     graycode_value = graycode.tc_to_gray_code(value)
-    return generate(width, height, vft_id, tag_border_size, graycode_value, debug)
+    return generate(width, height, vft_id, tag_border_size, graycode_value, debug=debug)
 
 
 def draw_tags(img, vft_id, tag_border_size, debug):
@@ -101,8 +101,7 @@ def draw_tags(img, vft_id, tag_border_size, debug):
     # 2. add fiduciary markers (tags) in the top-left, top-right,
     # and bottom-left corners
     for tag_number in range(DEFAULT_TAG_NUMBER):
-        img = generate_add_tag(img, vft_layout, tag_number, debug)
-
+        img = generate_add_tag(img, vft_layout, tag_number, debug=debug)
     return img
 
 
@@ -143,7 +142,9 @@ def graycode_parse(
 # File-based API
 def generate_file(width, height, vft_id, tag_border_size, value, outfile, debug):
     # create the tag
-    img_luma = generate_graycode(width, height, vft_id, tag_border_size, value, debug)
+    img_luma = generate_graycode(
+        width, height, vft_id, tag_border_size, value, debug=debug
+    )
     assert img_luma is not None, "error generating VFT"
     # get a full color image
     img = cv2.cvtColor(img_luma, cv2.COLOR_GRAY2BGR)
@@ -163,7 +164,7 @@ def parse_file(infile, luma_threshold, width=0, height=0, debug=0):
         gmean = int(np.mean(gray))
         gstd = int(np.std(gray))
         print(f"min/max luminance: {gmin}/{gmax}, mean: {gmean} +/- {gstd}")
-    return graycode_parse(img, luma_threshold, debug)
+    return graycode_parse(img, luma_threshold, debug=debug)
 
 
 # Generic Number-based API
@@ -177,7 +178,7 @@ def generate(width, height, vft_id, tag_border_size, value, debug):
     # 2. add fiduciary markers (tags) in the top-left, top-right,
     # and bottom-left corners
     for tag_number in range(DEFAULT_TAG_NUMBER):
-        img = generate_add_tag(img, vft_layout, tag_number, debug)
+        img = generate_add_tag(img, vft_layout, tag_number, debug=debug)
     # 3. add number code
     # we print <value> starting with the LSB
     value_bit_position = 0
@@ -195,7 +196,7 @@ def generate(width, height, vft_id, tag_border_size, value, debug):
             continue
         bit_value = (value >> value_bit_position) & 0x1
         color_white = operator.xor(bit_value == 1, first_block)
-        img = generate_add_block(img, vft_layout, block_id, color_white, debug)
+        img = generate_add_block(img, vft_layout, block_id, color_white, debug=debug)
         # prepare next block
         first_block = not first_block
         if first_block:
@@ -240,7 +241,6 @@ def locked_parse(
 
 def do_parse(img, luma_threshold, debug=0):
     ids = None
-
     # 1. get VFT id and tag locations
     vft_id, tag_center_locations, borders, ids = detect_tags(img, debug=debug)
     if tag_center_locations is None:
@@ -454,7 +454,7 @@ def detect_tags(img, debug):
         if debug > 2:
             print(f"error: image has {len(ids)} tag(s) (should have 3)")
         if debug > 2:
-            tag_center_locations = get_tag_center_locations(ids, corners, debug)
+            tag_center_locations = get_tag_center_locations(ids, corners, debug=debug)
             for tag in tag_center_locations:
                 cv2.circle(img, (int(tag[0]), int(tag[1])), 5, (0, 255, 0), 2)
                 cv2.imshow("Failed identification, showing succesful ids", img)
@@ -473,7 +473,7 @@ def detect_tags(img, debug):
             print(f"error: image has invalid tag ids: {set(ids)}")
         return None, None, None, None
     # 3. get the locations
-    tag_center_locations = get_tag_center_locations(ids, corners, debug)
+    tag_center_locations = get_tag_center_locations(ids, corners, debug=debug)
     # 4. get the borders
     x0 = x1 = y0 = y1 = None
     for corner in corners:
