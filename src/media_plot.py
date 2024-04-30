@@ -50,7 +50,7 @@ def plot_latencies(data, options):
 
     title = options.title if options.title else "Latencies"
     if options.rolling and not options.aggregate:
-        title = f"{title} (rolling window: {options.rolling} frames)"
+        title = f"{title} (rolling window: {options.rolling} values)"
     plot_columns(
         data,
         "frame_num",
@@ -73,7 +73,7 @@ def plot_video_latency(data, options):
 
     title = options.title if options.title else "Video latency"
     if options.rolling and not options.aggregate:
-        title = f"{title} (rolling window: {options.rolling} frames)"
+        title = f"{title} (rolling window: {options.rolling} values)"
     plot_columns(
         data,
         "timestamp",
@@ -96,7 +96,7 @@ def plot_audio_latency(data, options):
 
     title = options.title if options.title else "Audio latency"
     if options.rolling and not options.aggregate:
-        title = f"{title} (rolling window: {options.rolling} frames)"
+        title = f"{title} (rolling window: {options.rolling} values)"
     plot_columns(
         data,
         "timestamp1",
@@ -115,7 +115,7 @@ def plot_av_sync(data, options):
         exit(0)
     title = options.title if options.title else "AV Sync"
     if options.rolling and not options.aggregate:
-        title = f"{title} (rolling window: {options.rolling} frames)"
+        title = f"{title} (rolling window: {options.rolling} values)"
     plot_columns(
         data,
         "timestamp",
