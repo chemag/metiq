@@ -424,11 +424,16 @@ def video_parse(
                 elif not vtc.are_tags_frozen() and tag_manual:
                     tag_center_locations = vtc.tag_frame(img)
 
-                if len(tag_center_locations) == 3 and _ids is not None:
+                tag_expected_center_locations = (
+                    vft_layout.get_tag_expected_center_locations()
+                )
+                if (
+                    len(tag_expected_center_locations) == 3
+                    or len(tag_center_locations) == 3
+                ) and _ids is not None:
                     tag_expected_center_locations = sort_tag_expected_center_locations(
                         tag_expected_center_locations, vft_layout, _ids
                     )
-
                 status, value_read = image_parse(
                     img,
                     luma_threshold,
