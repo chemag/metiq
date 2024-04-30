@@ -371,10 +371,13 @@ def video_parse(
             dim = (width, height)
             img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
             status = -1
-            retry = 0
             threshold = luma_threshold
-            while status != 0 and retry < 2:
-                # the slow part is the decode so let us spend som emore time on failures
+            while status != 0 and threshold > 1 and previous_value >= 0:
+                # The slow part is the decode so let us spend some more time on failures.
+                # To prevent the `first value from being garbage wait until there is something stable.
+                # We can accept some instability later on since the check on large jumps will prevent
+                # errors (small errors are unlikely - large ones very likely).
+
                 status, value_read = image_parse(
                     img,
                     threshold,
@@ -384,8 +387,7 @@ def video_parse(
                     debug,
                 )
                 if status != 0:
-                    threshold = threshold // 2 + 1
-                    retry += 1
+                    threshold = threshold / 2
 
         current_time = time.monotonic_ns()
         time_per_iteration = (current_time - start) / (frame_num + 1)
@@ -409,6 +411,7 @@ def video_parse(
             if status != ERROR_SINGLE_GRAYCODE_BIT:
                 # parse image
                 _vft_id = None
+                _ids = None
                 if not tag_manual:
                     _vft_id, _tag_center_locations, _borders, _ids = vft.detect_tags(
                         img, debug=0
@@ -417,8 +420,15 @@ def video_parse(
                     vft_layout = vft.VFTLayout(width, height, _vft_id)
                     vft_id = _vft_id
                     tag_center_locations = _tag_center_locations
+
                 elif not vtc.are_tags_frozen() and tag_manual:
                     tag_center_locations = vtc.tag_frame(img)
+
+                if len(tag_center_locations) == 3 and _ids is not None:
+                    tag_expected_center_locations = sort_tag_expected_center_locations(
+                        tag_expected_center_locations, vft_layout, _ids
+                    )
+
                 status, value_read = image_parse(
                     img,
                     luma_threshold,
@@ -655,6 +665,14 @@ def calc_alignment(infile, width, height, pixel_format, debug):
     return perc
 
 
+def sort_tag_expected_center_locations(tag_expected_center_locations, vft_layout, ids):
+    tag_order = [nbr for nbr, id_ in enumerate(vft_layout.tag_ids) if id_ in ids]
+    tag_expected_center_locations = [
+        tag_expected_center_locations[i] for i in tag_order
+    ]
+    return tag_expected_center_locations
+
+
 def find_first_valid_tag(infile, width, height, pixel_format, debug):
     video_capture = get_video_capture(infile, width, height, pixel_format)
     if not video_capture.isOpened():
@@ -679,11 +697,9 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
     tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
 
     if len(tag_center_locations) == 3 and ids is not None:
-        tag_order = [nbr for nbr, id_ in enumerate(vft_layout.tag_ids) if id_ in ids]
-        tag_expected_center_locations = [
-            tag_expected_center_locations[i] for i in tag_order
-        ]
-
+        tag_expected_center_locations = sort_tag_expected_center_locations(
+            tag_expected_center_locations, vft_layout, ids
+        )
     try:
         video_capture.release()
     except Exception as exc:
