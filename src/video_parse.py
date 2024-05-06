@@ -347,6 +347,7 @@ def video_parse(
     start = time.monotonic_ns()
     accumulated_decode_time = 0
     failed_parses = 0
+    vft_layout = None
     while True:
         # get image
         decstart = time.monotonic_ns()
@@ -424,9 +425,10 @@ def video_parse(
                 elif not vtc.are_tags_frozen() and tag_manual:
                     tag_center_locations = vtc.tag_frame(img)
 
-                tag_expected_center_locations = (
-                    vft_layout.get_tag_expected_center_locations()
-                )
+                if vft_layout:
+                    tag_expected_center_locations = (
+                        vft_layout.get_tag_expected_center_locations()
+                    )
                 if (
                     len(tag_expected_center_locations) == 3
                     or len(tag_center_locations) == 3
