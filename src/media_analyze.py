@@ -314,8 +314,7 @@ def match_video_to_sources_beep(
     offset = best_match["value_read"] - next_beep_frame
     latency = best_match["timestamp"] - ts - offset * frame_time
 
-    # Find the closest frame to the expected beep
-
+    video_results.drop(columns=["distance_frames"], inplace=True)
     if not closest and latency < 0:
         if debug > 0:
             print("ERROR: negative latency")
@@ -684,7 +683,6 @@ def av_sync_function(**kwargs):
         # Filter residues to get echoes
         residue = audio_results[~audio_results.index.isin(clean_audio.index)]
         clean_audio = filter_echoes(pd.DataFrame(residue), beep_period_sec, margin)
-
     else:
         print("No echoes, simple source use case")
 
