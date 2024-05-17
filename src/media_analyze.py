@@ -16,6 +16,7 @@ import sys
 
 def calculate_frames_moving_average(video_results, windowed_stats_sec):
     # frame, ts, video_result_frame_num_read_int
+    video_results = video_results.dropna(subset=["value_read"])
 
     video_results = video_results.dropna()
     if len(video_results) == 0:
