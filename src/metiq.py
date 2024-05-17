@@ -460,6 +460,15 @@ input_args = {
             "help": "Filter all echoes",
         },
     },
+    "cleanup_video": {
+        "func": ANALYZE,
+        "short": "",
+        "long": "--cleanup_video",
+        "args": {
+            "action": "store_true",
+            "help": "Cleanup video parsing by removing 'obvious' errors.",
+        },
+    },
 }
 
 
@@ -607,6 +616,7 @@ def main(argv):
             filter_all_echoes=options.filter_all_echoes,
             z_filter=options.z_filter,
             windowed_stats_sec=options.windowed_stats_sec,
+            cleanup_video=options.cleanup_video,
             debug=options.debug,
         )
 

@@ -765,6 +765,37 @@ def calculate_video_playouts(video_results):
     return video_results
 
 
+def filter_ambigous_framenumber(video_results):
+    # one frame cannot have a different value than two adjacent frames.
+    # this is only true if the capture fps is at least twice the draw frame rate (i.e. 240fps at 120Hz display).
+    # Use next value
+
+    # no holes please
+    video_results["value_read"].fillna(method="ffill", inplace=True)
+    # Maybe some values in the beginning are bad as well.
+    video_results["value_read"].fillna(method="bfill", inplace=True)
+    video_results["value_clean"] = video_results["value_read"].astype(int)
+    video_results["val_m1"] = video_results["value_clean"].shift(-1)
+    video_results["val_p1"] = video_results["value_clean"].shift(1)
+    video_results["val_m1"].fillna(method="ffill", inplace=True)
+    video_results["val_p1"].fillna(method="bfill", inplace=True)
+
+    video_results["singles"] = (
+        video_results["value_clean"] != video_results["val_m1"]
+    ) & (video_results["value_clean"] != video_results["val_p1"])
+    video_results.loc[video_results["singles"], "value_clean"] = np.NaN
+    video_results["value_clean"].fillna(method="ffill", inplace=True)
+    video_results["value_clean"] = video_results["value_clean"].astype(int)
+    video_results["value_before_clean"] = video_results["value_read"]
+
+    # use the new values in subsequent analysis
+    video_results["value_read"] = video_results["value_clean"]
+    video_results.drop(
+        columns=["val_m1", "val_p1", "singles", "value_clean"], inplace=True
+    )
+    return video_results
+
+
 def quality_stats_function(**kwargs):
     audio_results = kwargs.get("audio_results")
     video_results = kwargs.get("video_results")
@@ -773,6 +804,7 @@ def quality_stats_function(**kwargs):
     if not outfile:
         infile = kwargs.get("input_video", None)
         outfile = create_output_filename(infile, "quality_stats_function")
+
     quality_stats_results = calculate_measurement_quality_stats(
         audio_results, video_results
     )
@@ -833,14 +865,21 @@ def media_analyze(
     filter_all_echoes,
     z_filter,
     windowed_stats_sec,
-    debug,
+    cleanup_video=False,
+    debug=0,
 ):
     # read inputs
     video_results = None
     try:
         video_results = pd.read_csv(input_video)
+
+        # Remove obvious errors
+        if cleanup_video:
+            video_results = filter_ambigous_framenumber(video_results)
     except ValueError:
         # ignore in case the analysis does not need it
+        if debug > 0:
+            print("No video data")
         pass
     audio_results = None
     try:
