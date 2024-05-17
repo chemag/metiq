@@ -20,9 +20,11 @@ import multiprocessing as mp
 VIDEO_ENDING = ".video.csv"
 
 
-def combined_calculations(source_files, outfile):
+def combined_calculations(options):
     # video latency and avsync latency share original frame
     # video latency and audio latency share timestamp
+    source_files = options.infile_list
+    outfile = options.output
 
     all_audio_latency = pd.DataFrame()
     all_video_latency = pd.DataFrame()
@@ -31,6 +33,7 @@ def combined_calculations(source_files, outfile):
     all_quality_stats = pd.DataFrame()
     all_frame_duration = pd.DataFrame()
     all_avsyncs = pd.DataFrame()
+    all_windowed_stats = pd.DataFrame()
 
     for file in source_files:
         if file.endswith(VIDEO_ENDING):
@@ -43,6 +46,7 @@ def combined_calculations(source_files, outfile):
         av_sync = pd.DataFrame()
         quality_stats = pd.DataFrame()
         frame_duration = pd.DataFrame()
+        windowed_frame_stats = pd.DataFrame()
 
         if os.path.isfile(file + ".audio.latency.csv"):
             audio_latency = pd.read_csv(file + ".audio.latency.csv")
@@ -54,6 +58,8 @@ def combined_calculations(source_files, outfile):
             quality_stats = pd.read_csv(file + ".measurement.quality.csv")
         if os.path.isfile(file + ".frame.duration.csv"):
             frame_duration = pd.read_csv(file + ".frame.duration.csv")
+        if os.path.isfile(file + ".windowed.stats.csv"):
+            windowed_frame_stats = pd.read_csv(file + ".windowed.stats.csv")
 
         combined = []
         # If all three latency measure exists
@@ -103,6 +109,10 @@ def combined_calculations(source_files, outfile):
             quality_stats["file"] = file
             all_quality_stats = pd.concat([all_quality_stats, quality_stats])
 
+        if not windowed_frame_stats.empty:
+            windowed_frame_stats["file"] = file
+            all_windowed_stats = pd.concat([all_windowed_stats, windowed_frame_stats])
+
         # Maybe a combined avsync
         if not av_sync.empty:
             av_sync["file"] = file
@@ -122,7 +132,11 @@ def combined_calculations(source_files, outfile):
                 av_sync["file"] = file
                 all_av_sync = pd.concat([all_av_sync, av_sync])
 
-    if len(source_files) > 1:
+    if len(source_files) > 0:
+        aggregated_string = "Aggregated stats"
+        per_file_string = " -- per file stats --"
+        if options.stats:
+            print("\n *** All stats **")
         if len(all_audio_latency) > 0:
             path = f"{outfile}.audio_latency.csv"
             all_audio_latency.to_csv(path, index=False)
@@ -136,6 +150,19 @@ def combined_calculations(source_files, outfile):
             simple = simple.droplevel(0, axis=1)
             path = f"{outfile}.audio_latency.stats.csv"
             simple.to_csv(path)
+            if options.stats:
+                mean = all_audio_latency["audio_latency_sec"].mean()
+                std = all_audio_latency["audio_latency_sec"].std()
+                min = all_audio_latency["audio_latency_sec"].min()
+                max = all_audio_latency["audio_latency_sec"].max()
+                # Print error stats
+                descr = "\nAudio latency: "
+                aggregated_string += f"{descr:<24} {mean:+.2f} std dev: {std:+.2f}, min/max: {min:+.2f}/{max:+.2f}"
+
+                if len(source_files) > 1:
+                    per_file_string += "\n* audio latency *"
+                    for file in simple.index:
+                        per_file_string += f"\n{file:<30} av_sync mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
 
         if len(all_video_latency) > 0:
             path = f"{outfile}.video_latency.csv"
@@ -150,6 +177,45 @@ def combined_calculations(source_files, outfile):
             simple = simple.droplevel(0, axis=1)
             path = f"{outfile}.video_latency.stats.csv"
             simple.to_csv(path)
+            if options.stats:
+                mean = all_video_latency["video_latency_sec"].mean()
+                std = all_video_latency["video_latency_sec"].std()
+                min = all_video_latency["video_latency_sec"].min()
+                max = all_video_latency["video_latency_sec"].max()
+                descr = "\nVideo latency:: "
+                aggregated_string += f"{descr:<24} {mean:+.2f} std dev: {std:+.2f}, min/max: {min:+.2f}/{max:+.2f}"
+
+                if len(source_files) > 1:
+                    per_file_string += "\n* Video latency *"
+                    for file in simple.index:
+                        per_file_string += f"\n{file:<30} av_sync mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
+
+        if len(all_av_sync) > 0:
+            path = f"{outfile}.avsync.csv"
+            all_av_sync.to_csv(path, index=False)
+
+            # Calc stats and make an aggregated summary
+            simple = (
+                all_av_sync[["file", "av_sync_sec"]]
+                .groupby("file")
+                .agg(["mean", "std", "min", "max"])
+            )
+            simple = simple.droplevel(0, axis=1)
+            simple.to_csv(path)
+
+            if options.stats:
+                mean = all_av_sync["av_sync_sec"].mean()
+                std = all_av_sync["av_sync_sec"].std()
+                min = all_av_sync["av_sync_sec"].min()
+                max = all_av_sync["av_sync_sec"].max()
+                # Print error stats
+                descr = "\nAudio/Video sync: "
+                aggregated_string += f"{descr:<24} {mean:+.2f} std dev: {std:+.2f}, min/max: {min:+.2f}/{max:+.2f}"
+
+                if len(source_files) > 1:
+                    per_file_string += "\n* Av sync *"
+                    for file in simple.index:
+                        per_file_string += f"\n{file:<30} av_sync mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
 
         if len(all_combined) > 0:
             path = f"{outfile}.latencies.csv"
@@ -181,26 +247,53 @@ def combined_calculations(source_files, outfile):
             path = f"{outfile}.latencies.stats.csv"
             simple.to_csv(path)
 
+        if len(all_windowed_stats) > 0:
+            path = f"{outfile}.windowed.stats.data.csv"
+            all_windowed_stats.to_csv(path, index=False)
+
+            # Calc stats and make an aggregated summary
+            fields = ["frames", "shown", "drops", "window"]
+            all_data = pd.DataFrame()
+            for field in fields:
+                simple = (
+                    all_windowed_stats[["file", field]]
+                    .groupby("file")
+                    .agg(["median", "mean", "std", "min", "max"])
+                )
+                simple = simple.droplevel(0, axis=1)
+                simple["field"] = field
+                all_data = pd.concat([all_data, simple])
+
+            path = f"{outfile}.windowed.aggr.stats.csv"
+            all_data.to_csv(path)
+
         if len(all_quality_stats) > 0:
             path = f"{outfile}.measurement.quality.csv"
             all_quality_stats.to_csv(path, index=False)
+
+            if options.stats:
+                mean = all_quality_stats["video_frames_metiq_errors_percentage"].mean()
+                std = all_quality_stats["video_frames_metiq_errors_percentage"].std()
+                min = all_quality_stats["video_frames_metiq_errors_percentage"].min()
+                max = all_quality_stats["video_frames_metiq_errors_percentage"].max()
+                descr = "\nMean parsing error: "
+                aggregated_string += f"{descr:<24} {mean:+.2f} std dev: {std:+.2f}, min/max: {min:+.2f}/{max:+.2f}"
+
+                if len(source_files) > 1:
+                    per_file_string += "\n* Parsing quality *"
+                    for file in all_quality_stats["file"].unique():
+                        per_file_string += f"\n{file:<30} parsing error: {all_quality_stats[all_quality_stats['file'] == file]['video_frames_metiq_errors_percentage'].mean():+.3f}"
 
         if len(all_frame_duration) > 0:
             path = f"{outfile}.frame_duration.csv"
             all_frame_duration.to_csv(path, index=False)
 
-        if len(all_av_sync) > 0:
-            path = f"{outfile}.avsync.csv"
-            all_av_sync.to_csv(path, index=False)
-
-            # Calc stats and make an aggregated summary
-            simple = (
-                all_av_sync[["file", "av_sync_sec"]]
-                .groupby("file")
-                .agg(["mean", "std", "min", "max"])
-            )
-            simple = simple.droplevel(0, axis=1)
-            simple.to_csv(path)
+        if options.stats:
+            print(aggregated_string)
+            
+            if len(source_files) > 1:
+                print("-" * 20)
+                print(per_file_string)
 
 
 def get_options(argv):
@@ -270,6 +363,11 @@ def get_options(argv):
         help="Filter all echoes from the audio, essentially only do avsync analysis,",
     )
     parser.add_argument(
+        "--stats",
+        action="store_true",
+        help="Print stats in the console.",
+    )
+    parser.add_argument(
         "--surpress-video-cleanup",
         action="store_false",
         dest="surpress_cleanup_video",
@@ -306,6 +404,7 @@ def run_file(args):
     min_separation_msec = metiq.default_values["min_separation_msec"]
     audio_sample = metiq.default_values["audio_sample"]
     vft_id = metiq.default_values["vft_id"]
+
     # TODO(johan): remove
     force_fps = 30
     z_filter = 3
@@ -409,7 +508,7 @@ def main(argv):
     with mp.Pool(processes=options.max_parallel) as p:
         results = p.map(run_file, args, chunksize=1)
 
-    combined_calculations(options.infile_list, options.output)
+    combined_calculations(options)
 
 
 if __name__ == "__main__":
