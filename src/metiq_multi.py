@@ -269,6 +269,12 @@ def get_options(argv):
         action="store_true",
         help="Filter all echoes from the audio, essentially only do avsync analysis,",
     )
+    parser.add_argument(
+        "--surpress-video-cleanup",
+        action="store_false",
+        dest="surpress_cleanup_video",
+        help="Do not cleanup parsed values.",
+    )
     options = parser.parse_args()
     return options
 
@@ -279,6 +285,7 @@ def run_file(args):
     parse_video = args.get("parse_video", False)
     audio_offset = args.get("audio_offset", 0.0)
     filter_all_echoes = args.get("filter_all_echoes", False)
+    cleanup_video = args.get("cleanup_video", False)
 
     # We assume default settings on/ everything.
     # TODO(johan): expose more settings to the user
@@ -370,6 +377,7 @@ def run_file(args):
             z_filter=z_filter,
             windowed_stats_sec=windowed_stats_sec,
             filter_all_echoes=filter_all_echoes,
+            cleanup_video=cleanup_video,
             debug=debug,
         )
     except Exception as e:
@@ -393,6 +401,7 @@ def main(argv):
                 "parse_video": parse_video,
                 "audio_offset": audio_offset,
                 "filter_all_echoes": options.filter_all_echoes,
+                "cleanup_video": ~options.surpress_cleanup_video,
             }
         )
         for x in options.infile_list
