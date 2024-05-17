@@ -777,7 +777,7 @@ def frame_duration_function(**kwargs):
     frame_duration_results.to_csv(outfile, index=False)
 
 
-def video_playout_fun(**kwargs):
+def video_playout_function(**kwargs):
     video_results = kwargs.get("video_results")
     outfile = kwargs.get("outfile")
 
@@ -877,7 +877,7 @@ MEDIA_ANALYSIS = {
         ".frame.duration.csv",
     ),
     "video_playout": (
-        video_playout_fun,
+        video_playout_function,
         "Analyze video playout issues",
         ".video.playout.csv",
     ),
