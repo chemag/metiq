@@ -9,6 +9,7 @@ A VFT (Video Fine-Grained Timing) 2D Barcode Library.
 import argparse
 import cv2
 import dataclasses
+import enum
 import graycode
 import itertools
 import operator
@@ -25,19 +26,19 @@ import copy
 __version__ = "0.1"
 
 
-class NoValidTag(Exception):
-    def __init__(self):
-        super().__init__("error: frame has no valid set of tags")
+class VFTReading(enum.Enum):
+    ok = 0
+    single_graycode = 1
+    invalid_graycode = 2
+    single_graycode_unfixable = 3
+    large_delta = 4
+    no_input = 5
+    no_tags = 6
+    other = 7
 
-
-class InvalidGrayCode(Exception):
-    def __init__(self, message):
-        super().__init__(message)
-
-
-class SingleGraycodeBitError(Exception):
-    def __init__(self, message):
-        super().__init__(message)
+    @classmethod
+    def readable(cls, val):
+        return val in (cls.ok, cls.single_graycode)
 
 
 VFT_IDS = ("9x8", "9x6", "7x5", "5x4")
@@ -137,9 +138,9 @@ def graycode_parse(
     else:
         bit_stream, vft_id = do_parse(img, frame_id, luma_threshold, debug=debug)
     # convert gray code in bit_stream to a number
-    num_read = gray_bitstream_to_num(bit_stream)
+    num_read, status = gray_bitstream_to_num(bit_stream)
 
-    return num_read, vft_id
+    return num_read, status, vft_id
 
 
 # File-based API
@@ -619,13 +620,12 @@ def bit_stream_to_number(bit_stream):
 
 def gray_bitstream_to_num(bit_stream):
     if bit_stream is None:
-        return None
+        return None, VFTReading.no_input
     if bit_stream.count("X") == 0:
         gray_num = bit_stream_to_number(bit_stream)
-        return graycode.gray_code_to_tc(gray_num)
+        return graycode.gray_code_to_tc(gray_num), VFTReading.ok
     elif bit_stream.count("X") > 1:
-        raise InvalidGrayCode(f"{bit_stream = }")
-        return None
+        return -1, VFTReading.invalid_graycode
     # slightly degenerated case: a single non-read bit
     b0 = [0 if b == "X" else b for b in bit_stream]
     g0 = bit_stream_to_number(b0)
@@ -635,9 +635,8 @@ def gray_bitstream_to_num(bit_stream):
     n1 = graycode.gray_code_to_tc(g1)
     if abs(n0 - n1) == 1:
         # error produces consecutive numbers
-        return (n1 + n0) / 2
-    raise SingleGraycodeBitError(f"{bit_stream = }")
-    return None
+        return (n1 + n0) / 2, VFTReading.single_graycode
+    return f"{bit_stream = }", VFTReading.single_graycode_unfixable
 
 
 def get_options(argv):
@@ -813,14 +812,14 @@ def main(argv):
         if options.infile == "-":
             options.infile = "/dev/fd/0"
         assert options.infile is not None, "error: need a valid in file"
-        num_read, vft_id = parse_file(
+        num_read, status, vft_id = parse_file(
             options.infile,
             options.luma_threshold,
             options.width,
             options.height,
             debug=options.debug,
         )
-        print(f"read: {num_read = } ({vft_id = })")
+        print(f"read: {num_read = } {status = } ({vft_id = })")
 
 
 if __name__ == "__main__":

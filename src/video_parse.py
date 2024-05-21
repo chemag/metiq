@@ -25,26 +25,9 @@ COLOR_BLACK = (0, 0, 0)
 COLOR_BACKGROUND = (128, 128, 128)
 COLOR_WHITE = (255, 255, 255)
 
-ERROR_NO_VALID_TAG = 1
-ERROR_INVALID_GRAYCODE = 2
-ERROR_SINGLE_GRAYCODE_BIT = 3
-ERROR_LARGE_DELTA = 4
-ERROR_UNKNOWN = 100
-
 HW_DECODER_ENABLE = True
 TEN_TO_NINE = 1000000000.0
 COMMON_FPS = [7.0, 15.0, 29.97, 30.0, 59.94, 60.0, 119.88, 120.0, 239.76]
-
-ERROR_TYPES = {
-    # error_id: ("short message", "long message"),
-    ERROR_NO_VALID_TAG: ("no_valid_tag", "Frame has no valid set of tags"),
-    ERROR_INVALID_GRAYCODE: ("invalid_graycode", "Invalid gray code read"),
-    ERROR_SINGLE_GRAYCODE_BIT: (
-        "single_graycode_bit",
-        "Single non-read bit not in gray position",
-    ),
-    ERROR_UNKNOWN: ("unknown", "Unknown error"),
-}
 
 default_values = {
     "debug": 0,
@@ -255,29 +238,16 @@ def image_parse(
     tag_expected_center_locations,
     debug,
 ):
-    status = 0
-    value_read = None
-    try:
-        value_read = image_parse_raw(
-            img,
-            frame_id,
-            luma_threshold,
-            vft_id=vft_id,
-            tag_center_locations=tag_center_locations,
-            tag_expected_center_locations=tag_expected_center_locations,
-            debug=debug,
-        )
-    except vft.NoValidTag as ex:
-        status = ERROR_NO_VALID_TAG
-    except vft.InvalidGrayCode as ex:
-        status = ERROR_INVALID_GRAYCODE
-    except vft.SingleGraycodeBitError as ex:
-        status = ERROR_SINGLE_GRAYCODE_BIT
-    except Exception as ex:
-        if debug > 0:
-            print(f"{str(ex)}")
-        status = ERROR_UNKNOWN
-    return status, value_read
+    value_read, status = image_parse_raw(
+        img,
+        frame_id,
+        luma_threshold,
+        vft_id=vft_id,
+        tag_center_locations=tag_center_locations,
+        tag_expected_center_locations=tag_expected_center_locations,
+        debug=debug,
+    )
+    return value_read, status
 
 
 # Returns a list with one tuple per frame in the distorted video
@@ -373,16 +343,20 @@ def video_parse(
         if width > 0 and height > 0:
             dim = (width, height)
             img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-            status = -1
+            status = vft.VFTReading.other
             threshold = luma_threshold
-            while status != 0 and threshold > 1 and previous_value >= 0:
+            while (
+                not vft.VFTReading.readable(status)
+                and threshold > 1
+                and previous_value >= 0
+            ):
                 # The slow part is the decode so let us spend some more time on failures.
                 # To prevent the `first value from being garbage wait until there is something stable.
                 # We can accept some instability later on since the check on large jumps will prevent
                 # errors (small errors are unlikely - large ones very likely).
 
                 frame_id = f"{infile}.frame_{frame_num}"
-                status, value_read = image_parse(
+                value_read, status = image_parse(
                     img,
                     frame_id,
                     threshold,
@@ -391,7 +365,7 @@ def video_parse(
                     tag_expected_center_locations,
                     debug,
                 )
-                if status != 0:
+                if not vft.VFTReading.readable(status):
                     threshold = threshold / 2
 
         current_time = time.monotonic_ns()
@@ -409,11 +383,11 @@ def video_parse(
             speed_text = f"{speed_text}, dec. time:{decode_time_per_iteration/1000000:=5.2f} ms, calc, time: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms"
 
         print(
-            f"-- {round(100 * frame_num/total_nbr_of_frames, 2):5.2f} %, {estimation}{speed_text} {error_ratio}{' ' * 20}",
+            f"-- {round(100 * frame_num/total_nbr_of_frames, 2):5.2f} % frame_num: {frame_num} {estimation}{speed_text} {error_ratio}{' ' * 20}",
             end="\r",
         )
-        if status != 0:
-            if status != ERROR_SINGLE_GRAYCODE_BIT:
+        if status != vft.VFTReading.ok:
+            if status != vft.VFTReading.single_graycode:
                 # parse image
                 _vft_id = None
                 _ids = None
@@ -441,7 +415,7 @@ def video_parse(
                         tag_expected_center_locations, vft_layout, _ids
                     )
                 frame_id = f"{infile}.frame_{frame_num}"
-                status, value_read = image_parse(
+                value_read, status = image_parse(
                     img,
                     frame_id,
                     luma_threshold,
@@ -451,16 +425,16 @@ def video_parse(
                     debug,
                 )
 
-        if status != 0:
+        if not vft.VFTReading.readable(status):
             print(f"failed parsing frame {frame_num=}")
             failed_parses += 1
-            if status == ERROR_UNKNOWN:
+            if status == vft.VFTReading.other:
                 continue
 
         # Filter huge leaps (indicating erronous parsing)
         leap_max = 20  # secs
         if (
-            value_read is not None
+            isinstance(value_read, int)
             and value_read >= 0
             and previous_value >= 0
             and ref_fps > 0
@@ -471,19 +445,19 @@ def video_parse(
                     f"Big leap. {previous_value=}, {value_read=}, {abs(value_read - previous_value)}, {ref_fps=}"
                 )
                 value_read = None
-                status = ERROR_LARGE_DELTA
-        if value_read is not None:
+                status = vft.VFTReading.large_delta
+        if isinstance(value_read, int):
             previous_value = value_read
 
         if debug > 2:
             print(f"video_parse: read image value: {value_read}")
-            if value_read is None:
+            if not isinstance(value_read, int):
                 cv2.imwrite(f"debug/{infile}_{frame_num}.png", img)
         video_results.loc[len(video_results.index)] = (
             frame_num,
             timestamp,
             frame_num_expected,
-            status,
+            status.value,
             value_read,
         )
 
@@ -579,7 +553,7 @@ def image_parse_raw(
     tag_expected_center_locations=None,
     debug=0,
 ):
-    num_read, vft_id = vft.graycode_parse(
+    num_read, status, vft_id = vft.graycode_parse(
         img,
         frame_id,
         luma_threshold,
@@ -588,7 +562,7 @@ def image_parse_raw(
         tag_expected_center_locations=tag_expected_center_locations,
         debug=debug,
     )
-    return num_read
+    return num_read, status
 
 
 def dump_video_results(video_results, outfile, debug):
@@ -611,7 +585,6 @@ def calc_alignment(infile, width, height, pixel_format, debug):
     tag_center_locations = None
     while tag_center_locations is None:
         status, img = video_capture.read()
-
         if not status:
             print(f"error: {infile = } could not read frame")
             sys.exit(-1)

@@ -9,6 +9,7 @@ import os
 
 import audio_parse
 import media_parse
+import vft
 import video_parse
 import time
 import sys
@@ -94,9 +95,9 @@ def calculate_measurement_quality_stats(audio_results, video_results):
     )
 
     # video metiq errors
-    for error, (short, _) in video_parse.ERROR_TYPES.items():
-        stats["video_frames_metiq_error." + short] = len(
-            video_results.loc[video_results["status"] == error]
+    for vft_error in vft.VFTReading:
+        stats["video_frames_metiq_error." + vft_error.name] = len(
+            video_results.loc[video_results["status"] == vft_error.value]
         )
 
     # Audio signal
@@ -200,9 +201,9 @@ def calculate_stats(
     #    100 * video_frames_metiq_errors / video_frames_capture_total, 2
     # )
     # video metiq errors
-    # for error, (short, _) in video_parse.ERROR_TYPES.items():
-    #     stats["video_frames_metiq_error." + short] = len(
-    #         video_metiq_errors.loc[video_metiq_errors["error_type"] == error]
+    # for vft_error in vft.VFTReading:
+    #     stats["video_frames_metiq_error." + vft_error.name] = len(
+    #         video_results.loc[video_results["status"] == vft_error.value]
     #     )
     # 7. calculate consecutive frame distribution
     capt_group = video_results.groupby("value_read_int")  # .count()
