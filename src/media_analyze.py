@@ -765,7 +765,7 @@ def calculate_video_playouts(video_results):
     return video_results
 
 
-def filter_ambigous_framenumber(video_results):
+def filter_ambiguous_framenumber(video_results):
     # one frame cannot have a different value than two adjacent frames.
     # this is only true if the capture fps is at least twice the draw frame rate (i.e. 240fps at 120Hz display).
     # Use next value
@@ -875,7 +875,7 @@ def media_analyze(
 
         # Remove obvious errors
         if cleanup_video:
-            video_results = filter_ambigous_framenumber(video_results)
+            video_results = filter_ambiguous_framenumber(video_results)
     except ValueError:
         # ignore in case the analysis does not need it
         if debug > 0:
