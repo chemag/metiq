@@ -12,6 +12,7 @@ import dataclasses
 import graycode
 import itertools
 import operator
+import os
 import random
 import sys
 import typing
@@ -110,6 +111,7 @@ vft_layout = None
 
 def graycode_parse(
     img,
+    frame_id,
     luma_threshold,
     vft_id=None,
     tag_center_locations=None,
@@ -124,6 +126,7 @@ def graycode_parse(
 
         bit_stream = locked_parse(
             img,
+            frame_id,
             luma_threshold,
             vft_id,
             vft_layout,
@@ -132,7 +135,7 @@ def graycode_parse(
             debug,
         )
     else:
-        bit_stream, vft_id = do_parse(img, luma_threshold, debug=debug)
+        bit_stream, vft_id = do_parse(img, frame_id, luma_threshold, debug=debug)
     # convert gray code in bit_stream to a number
     num_read = gray_bitstream_to_num(bit_stream)
 
@@ -164,7 +167,8 @@ def parse_file(infile, luma_threshold, width=0, height=0, debug=0):
         gmean = int(np.mean(gray))
         gstd = int(np.std(gray))
         print(f"min/max luminance: {gmin}/{gmax}, mean: {gmean} +/- {gstd}")
-    return graycode_parse(img, luma_threshold, debug=debug)
+    frame_id = infile
+    return graycode_parse(img, frame_id, luma_threshold, debug=debug)
 
 
 # Generic Number-based API
@@ -208,6 +212,7 @@ def generate(width, height, vft_id, tag_border_size, value, debug):
 
 def locked_parse(
     img,
+    frame_id,
     luma_threshold,
     vft_id=None,
     vft_layout=None,
@@ -234,12 +239,12 @@ def locked_parse(
         k = cv2.waitKey(-1)
 
     bit_stream = parse_read_bits(
-        img_transformed, vft_layout, luma_threshold, debug=debug
+        img_transformed, frame_id, vft_layout, luma_threshold, debug=debug
     )
     return bit_stream
 
 
-def do_parse(img, luma_threshold, debug=0):
+def do_parse(img, frame_id, luma_threshold, debug=0):
     ids = None
     # 1. get VFT id and tag locations
     vft_id, tag_center_locations, borders, ids = detect_tags(img, debug=debug)
@@ -291,7 +296,7 @@ def do_parse(img, luma_threshold, debug=0):
 
     # 4. read the bits
     bit_stream = parse_read_bits(
-        img_transformed, vft_layout, luma_threshold, debug=debug
+        img_transformed, frame_id, vft_layout, luma_threshold, debug=debug
     )
     return bit_stream, vft_id
 
@@ -522,7 +527,7 @@ def affine_transformation(img, tag_center_locations, tag_expected_locations, deb
 last_min_diff = -1
 
 
-def parse_read_bits(img, vft_layout, luma_threshold, debug):
+def parse_read_bits(img, frame_id, vft_layout, luma_threshold, debug):
     global last_min_diff
     # 1. extract the luma
     img_luma = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -566,7 +571,13 @@ def parse_read_bits(img, vft_layout, luma_threshold, debug):
     bit_stream.reverse()
     if debug > 1:
         # 4. write annotated image to file
-        outfile = "/tmp/vft_debug." + "".join(str(bit) for bit in bit_stream) + ".png"
+        outfile = (
+            "/tmp/vft_debug."
+            + os.path.normpath(frame_id).split(os.sep)[-1]
+            + ".value_"
+            + "".join(str(bit) for bit in bit_stream)
+            + ".png"
+        )
         if diff != last_min_diff:
             print(f"minimum diff was {diff}")
             last_min_diff = diff

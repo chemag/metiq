@@ -248,6 +248,7 @@ def video_parse(
 
 def image_parse(
     img,
+    frame_id,
     luma_threshold,
     vft_id,
     tag_center_locations,
@@ -259,6 +260,7 @@ def image_parse(
     try:
         value_read = image_parse_raw(
             img,
+            frame_id,
             luma_threshold,
             vft_id=vft_id,
             tag_center_locations=tag_center_locations,
@@ -379,8 +381,10 @@ def video_parse(
                 # We can accept some instability later on since the check on large jumps will prevent
                 # errors (small errors are unlikely - large ones very likely).
 
+                frame_id = f"{infile}.frame_{frame_num}"
                 status, value_read = image_parse(
                     img,
+                    frame_id,
                     threshold,
                     vft_id,
                     tag_center_locations,
@@ -436,8 +440,10 @@ def video_parse(
                     tag_expected_center_locations = sort_tag_expected_center_locations(
                         tag_expected_center_locations, vft_layout, _ids
                     )
+                frame_id = f"{infile}.frame_{frame_num}"
                 status, value_read = image_parse(
                     img,
+                    frame_id,
                     luma_threshold,
                     vft_id,
                     tag_center_locations,
@@ -566,6 +572,7 @@ def video_parse_delta_info(video_results):
 
 def image_parse_raw(
     img,
+    frame_id,
     luma_threshold,
     vft_id=None,
     tag_center_locations=None,
@@ -574,6 +581,7 @@ def image_parse_raw(
 ):
     num_read, vft_id = vft.graycode_parse(
         img,
+        frame_id,
         luma_threshold,
         vft_id=vft_id,
         tag_center_locations=tag_center_locations,
