@@ -290,7 +290,7 @@ def combined_calculations(options):
 
         if options.stats:
             print(aggregated_string)
-            
+
             if len(source_files) > 1:
                 print("-" * 20)
                 print(per_file_string)
