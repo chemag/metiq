@@ -200,35 +200,6 @@ def estimate_video_smoothness(video_results, fps):
     return video_speed_list
 
 
-def video_parse(
-    infile,
-    width,
-    height,
-    pixel_format,
-    ref_fps=-1,
-    luma_threshold=vft.DEFAULT_LUMA_THRESHOLD,
-    lock_layout=False,
-    tag_manual=False,
-    threaded=False,
-    debug=0,
-):
-
-    # If we do not know the source fps we can still do the parsing.
-    # Ignore delta calculations and guessing frames, i.e. the parsing
-    return video_parse(
-        infile,
-        width,
-        height,
-        ref_fps,
-        pixel_format,
-        luma_threshold,
-        lock_layout,
-        tag_manual,
-        threaded,
-        debug=debug,
-    )
-
-
 def image_parse(
     img,
     frame_id,
