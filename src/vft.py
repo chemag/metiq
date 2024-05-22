@@ -498,11 +498,11 @@ def detect_tags(img, debug):
 
 
 def perspective_transformation(
-    img, tag_center_locations, tag_expected_locations, debug
+    img, tag_center_locations, tag_expected_center_locations, debug
 ):
     # process the image
     s0, s1, s2, s3 = tag_center_locations
-    d0, d1, d2, d3 = tag_expected_locations
+    d0, d1, d2, d3 = tag_expected_center_locations
     src_locs = np.array([s0, s1, s2, s3]).astype(np.float32)
     dst_locs = np.array([d0, d1, d2, d3]).astype(np.float32)
     transform_matrix = cv2.getPerspectiveTransform(src_locs, dst_locs)
@@ -512,10 +512,12 @@ def perspective_transformation(
     return outimg
 
 
-def affine_transformation(img, tag_center_locations, tag_expected_locations, debug):
+def affine_transformation(
+    img, tag_center_locations, tag_expected_center_locations, debug
+):
     # process the image
     s0, s1, s2 = tag_center_locations
-    d0, d1, d2 = tag_expected_locations
+    d0, d1, d2 = tag_expected_center_locations
     src_trio = np.array([s0, s1, s2]).astype(np.float32)
     dst_trio = np.array([d0, d1, d2]).astype(np.float32)
     transform_matrix = cv2.getAffineTransform(src_trio, dst_trio)
