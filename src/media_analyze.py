@@ -16,7 +16,7 @@ import sys
 
 def calculate_frames_moving_average(video_results, windowed_stats_sec):
     # frame, ts, video_result_frame_num_read_int
-    video_results = video_results.dropna(subset=["value_read"])
+    video_results = pd.DataFrame(video_results.dropna(subset=["value_read"]))
 
     video_results = video_results.dropna()
     if len(video_results) == 0:
@@ -68,7 +68,7 @@ def calculate_frames_moving_average(video_results, windowed_stats_sec):
 
 def calculate_frame_durations(video_results):
     # Calculate how many times a source frame is shown in capture frames/time
-    video_results = video_results.replace([np.inf, -np.inf], np.nan)
+    video_results = pd.DataFrame(video_results.replace([np.inf, -np.inf], np.nan))
     video_results = video_results.dropna(subset=["value_read"])
 
     ref_fps, capture_fps = video_parse.estimate_fps(video_results)
@@ -237,6 +237,7 @@ def match_video_to_sources_beep(
     match_distance_frames=-1,
     debug=1,
 ):
+    video_results = video_results.copy()
     # The algorithm is as follows:
     # 1) find the frame in video that match the closest to ts
     # 2) Check the value parsed and compare to the expected beep frame time
@@ -872,7 +873,6 @@ def media_analyze(
     video_results = None
     try:
         video_results = pd.read_csv(input_video)
-
         # Remove obvious errors
         if cleanup_video:
             video_results = filter_ambiguous_framenumber(video_results)
