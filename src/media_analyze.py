@@ -731,37 +731,36 @@ def av_sync_function(**kwargs):
 
 
 def calculate_video_playouts(video_results):
-    # calculate the delta of the value read between consecutive frames
+    # 1 add value_read_delta (difference between the value read between consecutive frames)
     video_results["value_read_delta"] = [
         0,
     ] + list(
         y - x
         for (x, y) in zip(video_results.value_read[:-1], video_results.value_read[1:])
     )
-    # remove consecutive frames with the same value read
+    # 2. remove consecutive frames with the same value read
     video_results = video_results.drop(
         video_results[video_results.value_read_delta == 0].index
     )
-    # add column assuming the average delta
+    # 3. add value_read_delta_minus_mean (column assuming the average delta)
     average_delta = round(video_results.value_read_delta.mean())
     video_results["value_read_delta_minus_mean"] = (
         video_results.value_read_delta - average_delta
     )
-    # remove unused columns
+    # 4. remove unused columns
     # TODO: or keep wanted?
-    unused = (
+    unused_col_names = (
         "frame_num_expected",
         "status",
-        "value_read",
         "delta_frame",
         "value_before_clean",
         "value_read_delta",
     )
-
-    unused = [col for col in unused if col in video_results.columns.values]
-
+    unused_col_names = [
+        col for col in unused_col_names if col in video_results.columns.values
+    ]
     video_results = video_results.drop(
-        columns=unused,
+        columns=unused_col_names,
         axis=1,
     )
     return video_results
