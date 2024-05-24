@@ -281,9 +281,9 @@ def video_parse(
         height = 0
 
     frame_num = -1
-    video_results = pd.DataFrame(
-        columns=("frame_num", "timestamp", "frame_num_expected", "status", "value_read")
-    )
+    columns = ("frame_num", "timestamp", "frame_num_expected", "status", "value_read")
+    video_results = pd.DataFrame(columns=columns)
+
     previous_value = -1
     total_nbr_of_frames = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
 
@@ -474,7 +474,8 @@ def video_parse(
         print(
             f"Total time: {total_time/1000000000:.2f} sec, processing {total_nbr_of_frames/total_time*1000000000:.2f} fps {' '*30} - {error_ratio}"
         )
-
+    # fix the column types
+    video_results = video_results.astype({"frame_num": int, "status": int})
     return video_results
 
 
