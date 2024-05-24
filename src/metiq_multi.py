@@ -377,13 +377,13 @@ def get_options(argv):
     return options
 
 
-def run_file(args):
-    file = args.get("file", None)
-    parse_audio = args.get("parse_audio", False)
-    parse_video = args.get("parse_video", False)
-    audio_offset = args.get("audio_offset", 0.0)
-    filter_all_echoes = args.get("filter_all_echoes", False)
-    cleanup_video = args.get("cleanup_video", False)
+def run_file(kwargs):
+    file = kwargs.get("file", None)
+    parse_audio = kwargs.get("parse_audio", False)
+    parse_video = kwargs.get("parse_video", False)
+    audio_offset = kwargs.get("audio_offset", 0.0)
+    filter_all_echoes = kwargs.get("filter_all_echoes", False)
+    cleanup_video = kwargs.get("cleanup_video", False)
 
     # We assume default settings on/ everything.
     # TODO(johan): expose more settings to the user
@@ -492,10 +492,10 @@ def main(argv):
     audio_offset = options.audio_offset
 
     # TODO(johan): Add more options
-    args = [
+    kwargs_list = [
         (
             {
-                "file": x,
+                "file": infile,
                 "parse_audio": parse_audio,
                 "parse_video": parse_video,
                 "audio_offset": audio_offset,
@@ -503,10 +503,15 @@ def main(argv):
                 "cleanup_video": ~options.surpress_cleanup_video,
             }
         )
-        for x in options.infile_list
+        for infile in options.infile_list
     ]
-    with mp.Pool(processes=options.max_parallel) as p:
-        results = p.map(run_file, args, chunksize=1)
+    if options.max_parallel == 0:
+        # do not use multiprocessing
+        for kwargs in kwargs_list:
+            results = run_file(kwargs)
+    else:
+        with mp.Pool(processes=options.max_parallel) as p:
+            results = p.map(run_file, kwargs_list, chunksize=1)
 
     combined_calculations(options)
 
