@@ -766,7 +766,27 @@ def calculate_video_playouts(video_results):
     return video_results
 
 
+def filter_halfsteps(video_results):
+    # Halfsteps are the result of the video signal being read in between frames
+    # We cannot know what it really should be. Let us do the following:
+    # If the value is .5 from previous value, use previous value.
+    # If the value is .5 from next value, use next value.
+    # else use round up (time moves forward most of the time).
+    video_results = pd.DataFrame(video_results)
+    half_values = video_results.loc[video_results["value_read"].mod(1) == 0.5]
+    for index, row in half_values.iterrows():
+        if  abs(row["value_read"] - video_results.at[index -1, "value_read"]) == 0.5:
+            video_results.at[index, "value_read"] = video_results.at[index -1, "value_read"]
+        elif abs(row["value_read"] - video_results.at[index +1, "value_read"]) == 0.5:
+            video_results.at[index, "value_read"] = video_results.at[index +1, "value_read"]
+        else:
+            video_results.at[index, "value_read"] = math.floor(row["value_read"])
+    return video_results
+
+
 def filter_ambiguous_framenumber(video_results):
+    video_results = filter_halfsteps(video_results)
+
     # one frame cannot have a different value than two adjacent frames.
     # this is only true if the capture fps is at least twice the draw frame rate (i.e. 240fps at 120Hz display).
     # Use next value
