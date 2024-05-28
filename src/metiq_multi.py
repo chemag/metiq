@@ -384,7 +384,7 @@ def run_file(kwargs):
     audio_offset = kwargs.get("audio_offset", 0.0)
     filter_all_echoes = kwargs.get("filter_all_echoes", False)
     cleanup_video = kwargs.get("cleanup_video", False)
-
+    debug = kwargs.get("debug", 0)
     # We assume default settings on/ everything.
     # TODO(johan): expose more settings to the user
     width = metiq.default_values["width"]
@@ -413,7 +413,6 @@ def run_file(kwargs):
 
     videocsv = file + VIDEO_ENDING
     audiocsv = file + ".audio.csv"
-    debug = 0
     # Allow us to run a reanalysis of a fiel without reprocessing the video
     if not file.endswith(VIDEO_ENDING):
         # files exist
@@ -501,6 +500,7 @@ def main(argv):
                 "audio_offset": audio_offset,
                 "filter_all_echoes": options.filter_all_echoes,
                 "cleanup_video": ~options.surpress_cleanup_video,
+                "debug": options.debug,
             }
         )
         for infile in options.infile_list
