@@ -604,23 +604,30 @@ def remove_non_doubles(audio_results, clean_audio):
     for source_index, matching_index in enumerate(closest):
         if closest.count(matching_index) > 1:
             first = clean_audio.iloc[source_index]["timestamp"]
-            second = residue.loc[residue.index == matching_index]["timestamp"].values[0]
-
-            diff = abs(first - second)
-            if matching_index in multis:
-                match = multis[matching_index]
-                if diff < match[1]:
-                    # remove the previous match
-                    drop.append(clean_audio.index[match[0]])
-                    multis[matching_index] = (source_index, diff)
+            second = None
+            try:
+                second = residue.loc[residue.index == matching_index][
+                    "timestamp"
+                ].values[0]
+                diff = abs(first - second)
+                if matching_index in multis:
+                    match = multis[matching_index]
+                    if diff < match[1]:
+                        # remove the previous match
+                        drop.append(clean_audio.index[match[0]])
+                        multis[matching_index] = (source_index, diff)
+                    else:
+                        # remove this match
+                        clean_audio.drop(
+                            clean_audio.index[[source_index]], inplace=True
+                        )
+                        drop.append(clean_audio.index[source_index])
                 else:
-                    # remove this match
-                    clean_audio.drop(clean_audio.index[[source_index]], inplace=True)
-                    drop.append(clean_audio.index[source_index])
-            else:
-                # First match for this row
-                multis[matching_index] = (source_index, diff, first)
+                    # First match for this row
+                    multis[matching_index] = (source_index, diff, first)
 
+            except Exception as ex:
+                print(f"ERROR: not match for residue (remove non doubles)")
     return clean_audio.drop(drop)
 
 
