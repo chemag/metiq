@@ -49,17 +49,39 @@ def combined_calculations(options):
         windowed_frame_stats = pd.DataFrame()
 
         if os.path.isfile(file + ".audio.latency.csv"):
-            audio_latency = pd.read_csv(file + ".audio.latency.csv")
+            try:
+                audio_latency = pd.read_csv(file + ".audio.latency.csv")
+            except pd.errors.EmptyDataError:
+                print("Empty audio latency file: " + file + ".audio.latency.csv")
+                pass
         if os.path.isfile(file + ".video.latency.csv"):
-            video_latency = pd.read_csv(file + ".video.latency.csv")
+            try:
+                video_latency = pd.read_csv(file + ".video.latency.csv")
+            except pd.errors.EmptyDataError:
+                print("Empty video latency file: " + file + ".video.latency.csv")
+                pass
         if os.path.isfile(file + ".avsync.csv"):
-            av_sync = pd.read_csv(file + ".avsync.csv")
+            try:
+                av_sync = pd.read_csv(file + ".avsync.csv")
+            except pd.errors.EmptyDataError:
+                print("Empty avsync file: " + file + ".avsync.csv")
+                pass
         if os.path.isfile(file + ".measurement.quality.csv"):
-            quality_stats = pd.read_csv(file + ".measurement.quality.csv")
+            try:
+                quality_stats = pd.read_csv(file + ".measurement.quality.csv")
+            except pd.errors.EmptyDataError:
+                print("Empty quality stats file:" + file + ".measurement.quality.csv")
+                pass
         if os.path.isfile(file + ".frame.duration.csv"):
-            frame_duration = pd.read_csv(file + ".frame.duration.csv")
+            try:
+                frame_duration = pd.read_csv(file + ".frame.duration.csv")
+            except pd.errors.EmptyDataError:
+                pass
         if os.path.isfile(file + ".windowed.stats.csv"):
-            windowed_frame_stats = pd.read_csv(file + ".windowed.stats.csv")
+            try:
+                windowed_frame_stats = pd.read_csv(file + ".windowed.stats.csv")
+            except pd.errors.EmptyDataError:
+                pass
 
         combined = []
         # If all three latency measure exists
@@ -374,7 +396,8 @@ def get_options(argv):
         help="Do not cleanup parsed values.",
     )
     parser.add_argument(
-        "-z", "--z-filter",
+        "-z",
+        "--z-filter",
         type=float,
         default=3.0,
         help="Z-filter threshold for audio",
