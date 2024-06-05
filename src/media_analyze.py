@@ -87,7 +87,15 @@ def calculate_frame_durations(video_results):
 
 def calculate_measurement_quality_stats(audio_results, video_results):
     stats = {}
-    frame_errors = video_results.loc[video_results["status"] > 0]
+
+    # Count only unrecoverable errors
+    readable = (
+        video_results["status"]
+        .apply(lambda x: vft.VFTReading.readable(x))
+        .value_counts()
+    )
+
+    frame_errors = len(video_results) - readable
     video_frames_capture_total = len(video_results)
 
     stats["video_frames_metiq_errors_percentage"] = round(
