@@ -388,7 +388,7 @@ input_args = {
         "short": "",
         "long": "--z-filter",
         "args": {
-            "type": str,
+            "type": float,
             "help": "Z filter",
             "default": default_values["z_filter"],
         },

@@ -373,6 +373,13 @@ def get_options(argv):
         dest="surpress_cleanup_video",
         help="Do not cleanup parsed values.",
     )
+    parser.add_argument(
+        "-z", "--z-filter",
+        type=float,
+        default=3.0,
+        help="Z-filter threshold for audio",
+        dest="z_filter",
+    )
     options = parser.parse_args()
     return options
 
@@ -384,6 +391,7 @@ def run_file(kwargs):
     audio_offset = kwargs.get("audio_offset", 0.0)
     filter_all_echoes = kwargs.get("filter_all_echoes", False)
     cleanup_video = kwargs.get("cleanup_video", False)
+    z_filter = kwargs.get("z_filter", 3.0)
     debug = kwargs.get("debug", 0)
     # We assume default settings on/ everything.
     # TODO(johan): expose more settings to the user
@@ -407,7 +415,6 @@ def run_file(kwargs):
 
     # TODO(johan): remove
     force_fps = 30
-    z_filter = 3
     windowed_stats_sec = metiq.default_values["windowed_stats_sec"]
     analysis_type = "all"
 
@@ -500,6 +507,7 @@ def main(argv):
                 "audio_offset": audio_offset,
                 "filter_all_echoes": options.filter_all_echoes,
                 "cleanup_video": ~options.surpress_cleanup_video,
+                "z_filter": options.z_filter,
                 "debug": options.debug,
             }
         )
