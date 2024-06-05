@@ -139,7 +139,6 @@ def graycode_parse(
         bit_stream, vft_id = do_parse(img, frame_id, luma_threshold, debug=debug)
     # convert gray code in bit_stream to a number
     num_read, status = gray_bitstream_to_num(bit_stream)
-
     return num_read, status, vft_id
 
 
@@ -620,14 +619,32 @@ def bit_stream_to_number(bit_stream):
     return num
 
 
+previous_value = -1
+
+
 def gray_bitstream_to_num(bit_stream):
+    """
+    If the bit_stream does not have any failed bits just
+        1. convert the bitstream to a gray code number
+        2. convert the gray code number to a conventional number
+
+    If there is more than one bit parsing failure: give up
+    With exactly one bit error:
+    Check previous value and compare both possible binary values
+    Take the smallest difference
+    In the case we do not have a previous value look at the difference
+    between the number.
+    The latter should only happen in early in the parsing.
+    """
+    global previous_value
     if bit_stream is None:
         return None, VFTReading.no_input
     if bit_stream.count("X") == 0:
         gray_num = bit_stream_to_number(bit_stream)
-        return graycode.gray_code_to_tc(gray_num), VFTReading.ok
+        previous_value = graycode.gray_code_to_tc(gray_num)
+        return previous_value, VFTReading.ok
     elif bit_stream.count("X") > 1:
-        return -1, VFTReading.invalid_graycode
+        return None, VFTReading.invalid_graycode
     # slightly degenerated case: a single non-read bit
     b0 = [0 if b == "X" else b for b in bit_stream]
     g0 = bit_stream_to_number(b0)
@@ -635,10 +652,20 @@ def gray_bitstream_to_num(bit_stream):
     b1 = [1 if b == "X" else b for b in bit_stream]
     g1 = bit_stream_to_number(b1)
     n1 = graycode.gray_code_to_tc(g1)
-    if abs(n0 - n1) == 1:
-        # error produces consecutive numbers
-        return (n1 + n0) / 2, VFTReading.single_graycode
-    return f"{bit_stream = }", VFTReading.single_graycode_unfixable
+    if previous_value > -1:
+        d0 = abs(n0 - previous_value)
+        d1 = abs(n1 - previous_value)
+        if d0 < d1 and d0 <= 1:
+            previous_value = n0
+            return n0, VFTReading.single_graycode
+        elif d1 <= 1:
+            previous_value = n1
+            return n1, VFTReading.single_graycode
+    elif abs(n0 - n1) == 1:
+        # error produces consecutive number
+        previous_value = (n1 + n0) / 2
+        return previous_value, VFTReading.single_graycode
+    return None, VFTReading.single_graycode_unfixable
 
 
 def get_options(argv):
