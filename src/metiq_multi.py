@@ -529,7 +529,7 @@ def main(argv):
                 "parse_video": parse_video,
                 "audio_offset": audio_offset,
                 "filter_all_echoes": options.filter_all_echoes,
-                "cleanup_video": ~options.surpress_cleanup_video,
+                "cleanup_video": not options.surpress_cleanup_video,
                 "z_filter": options.z_filter,
                 "debug": options.debug,
             }
