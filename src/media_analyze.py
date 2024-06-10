@@ -19,19 +19,19 @@ def calculate_frames_moving_average(video_results, windowed_stats_sec):
     # frame, ts, video_result_frame_num_read_int
     video_results = pd.DataFrame(video_results.dropna(subset=["value_read"]))
 
-    video_results = video_results.dropna()
     if len(video_results) == 0:
         return pd.DataFrame()
     # only one testcase and one situation so no filter is needed.
     startframe = video_results.iloc[0]["value_read"]
     endframe = video_results.iloc[-1]["value_read"]
 
-    frame = startframe
+    frame = int(startframe)
     window_sum = 0
     tmp = 0
     average = []
     while frame < endframe:
-        current = video_results.loc[video_results["value_read"] == frame]
+        current = video_results.loc[video_results["value_read"].astype(int) == frame]
+
         if len(current) == 0:
             frame += 1
             continue
