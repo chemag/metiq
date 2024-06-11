@@ -44,8 +44,8 @@ def get_correlation_indices(haystack, needle, **kwargs):
     # get optional input parameters
     max_values = kwargs.get("max_values", audio_common.DEFAULT_MAX_VALUES)
     debug = kwargs.get("debug", audio_common.DEFAULT_DEBUG)
-    min_separation_samples = int(kwargs.get("min_separation_samples", 1))
-    min_match_threshold = float(kwargs.get("min_match_threshold", 0))
+    min_separation_samples = int(kwargs.get("min_separation_samples", DEFAULT_MIN_SEPARATION_MSEC))
+    min_match_threshold = float(kwargs.get("min_match_threshold", DEFAULT_MIN_MATCH_THRESHOLD))
 
     # calculate the correlation in FP numbers to avoid saturation
     needlesize = len(needle)
