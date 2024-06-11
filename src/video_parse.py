@@ -378,6 +378,10 @@ def video_parse(
                     tag_expected_center_locations = (
                         vft_layout.get_tag_expected_center_locations()
                     )
+                if tag_expected_center_locations == None and tag_center_locations == None:
+                    print("No tags found")
+                    failed_parses += 1
+                    continue
                 if (
                     len(tag_expected_center_locations) == 3
                     or len(tag_center_locations) == 3
