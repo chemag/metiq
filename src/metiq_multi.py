@@ -403,6 +403,13 @@ def get_options(argv):
         help="Z-filter threshold for audio",
         dest="z_filter",
     )
+    parser.add_argument(
+        "--min-match-threshold",
+        type=float,
+        default= metiq.default_values["min_match_threshold"],
+        dest = "min_match_threshold",
+        help="Minimum audio correlation threshold",
+    )
     options = parser.parse_args()
     return options
 
@@ -416,6 +423,8 @@ def run_file(kwargs):
     cleanup_video = kwargs.get("cleanup_video", False)
     z_filter = kwargs.get("z_filter", 3.0)
     debug = kwargs.get("debug", 0)
+    min_match_threshold = kwargs.get("min_match_threshold", metiq.default_values["min_match_threshold"])
+    print(f"{min_match_threshold=}")
     # We assume default settings on/ everything.
     # TODO(johan): expose more settings to the user
     width = metiq.default_values["width"]
@@ -431,7 +440,7 @@ def run_file(kwargs):
     num_frames = -1
     kwargs = {"lock_layout": True, "threaded": False}
 
-    min_match_threshold = metiq.default_values["min_match_threshold"]
+
     min_separation_msec = metiq.default_values["min_separation_msec"]
     audio_sample = metiq.default_values["audio_sample"]
     vft_id = metiq.default_values["vft_id"]
@@ -457,7 +466,8 @@ def run_file(kwargs):
                 scale,
                 file,
                 audiocsv,
-                debug,
+                min_match_threshold=min_match_threshold,
+                debug = debug,
                 **kwargs,
             )
 
@@ -506,6 +516,7 @@ def run_file(kwargs):
             windowed_stats_sec=windowed_stats_sec,
             filter_all_echoes=filter_all_echoes,
             cleanup_video=cleanup_video,
+            min_match_threshold=min_match_threshold,
             debug=debug,
         )
     except Exception as e:
@@ -531,6 +542,7 @@ def main(argv):
                 "filter_all_echoes": options.filter_all_echoes,
                 "cleanup_video": not options.surpress_cleanup_video,
                 "z_filter": options.z_filter,
+                "min_match_threshold": options.min_match_threshold,
                 "debug": options.debug,
             }
         )
