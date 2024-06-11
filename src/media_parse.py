@@ -32,8 +32,8 @@ def media_parse_audio(
     debug,
     **kwargs,
 ):
-    min_separation_msec = kwargs.get("min_separation_msec", 50)
-    min_match_threshold = kwargs.get("min_match_threshold", 10)
+    min_separation_msec = kwargs.get("min_separation_msec", Metiq.DEFAULT_MIN_SEPARATION_MSEC)
+    min_match_threshold = kwargs.get("min_match_threshold", Metiq.DEFAULT_MIN_MATCH_THRESHOLD)
     audio_sample = kwargs.get("audio_sample", "")
 
     audio_results = audio_parse.audio_parse(
