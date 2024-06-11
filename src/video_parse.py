@@ -11,6 +11,7 @@ import numpy as np
 import scipy
 import pandas as pd
 import video_common
+import audio_common
 import video_tag_coordinates as vtc
 import vft
 import time
@@ -657,13 +658,20 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
         # parse image
         vft_id, tag_center_locations, borders, ids = vft.detect_tags(img, debug=0)
 
-    vft_layout = vft.VFTLayout(width, height, vft_id)
-    tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
+        # bail if we are reading to far ahead (three times the beep?)
+        current_time = video_capture.get(cv2.CAP_PROP_POS_MSEC)
+        # compare with beep time
+        if current_time > audio_common.DEFAULT_BEEP_PERIOD_SEC * 3000:
+            print(f"error: {infile = } could not find a tag in the first {current_time} ms")
+            break
+    if vft_id != None:
+        vft_layout = vft.VFTLayout(width, height, vft_id)
+        tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
 
-    if len(tag_center_locations) == 3 and ids is not None:
-        tag_expected_center_locations = sort_tag_expected_center_locations(
-            tag_expected_center_locations, vft_layout, ids
-        )
+        if len(tag_center_locations) == 3 and ids is not None:
+            tag_expected_center_locations = sort_tag_expected_center_locations(
+                tag_expected_center_locations, vft_layout, ids
+            )
     try:
         video_capture.release()
     except Exception as exc:
@@ -672,7 +680,7 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
     video_capture = None
 
     if tag_center_locations is None:
-        raise vft.NoValidTagFoundError()
+        raise ValueError(f"error: {infile = } could not find a tag")
 
     if debug > 0:
         print(f"Found tags: {len(tag_center_locations) = }")
