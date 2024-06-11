@@ -907,6 +907,7 @@ def media_analyze(
     z_filter,
     windowed_stats_sec,
     cleanup_video=False,
+    min_match_threshold=None,
     debug=0,
 ):
     # read inputs
@@ -928,6 +929,9 @@ def media_analyze(
         # ignore in case the analysis does not need it
         pass
 
+    # filter audio thresholds
+    if audio_results is not None and min_match_threshold is not None:
+        audio_results = audio_results.loc[audio_results["correlation"] >= min_match_threshold]
     # estimate the video framerate
     # TODO: capture fps should be available
     ref_fps, capture_fps = video_parse.estimate_fps(video_results)
