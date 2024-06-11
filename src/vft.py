@@ -125,7 +125,7 @@ def graycode_parse(
         if vft_layout is None:
             vft_layout = VFTLayout(img.shape[1], img.shape[0], vft_id)
 
-        bit_stream = locked_parse(
+        bit_stream, vft_id = locked_parse(
             img,
             frame_id,
             luma_threshold,
@@ -138,8 +138,12 @@ def graycode_parse(
     else:
         bit_stream, vft_id = do_parse(img, frame_id, luma_threshold, debug=debug)
     # convert gray code in bit_stream to a number
-    num_read, status = gray_bitstream_to_num(bit_stream)
-    return num_read, status, vft_id
+    if bit_stream is not None:
+        num_read, status = gray_bitstream_to_num(bit_stream)
+
+        return num_read, status, vft_id
+    return None, VFTReading.invalid_graycode, vft_id
+
 
 
 # File-based API
@@ -241,7 +245,7 @@ def locked_parse(
     bit_stream = parse_read_bits(
         img_transformed, frame_id, vft_layout, luma_threshold, debug=debug
     )
-    return bit_stream
+    return bit_stream, vft_id
 
 
 def do_parse(img, frame_id, luma_threshold, debug=0):
@@ -253,7 +257,6 @@ def do_parse(img, frame_id, luma_threshold, debug=0):
             print(f"{vft_id=} {tag_center_locations=} {borders=}")
 
         # could not read the 3x tags properly: stop here
-        raise NoValidTag()
         return None, None
 
     # 2. set the layout
