@@ -519,7 +519,8 @@ def affine_transformation(
 ):
     # process the image
     s0, s1, s2 = tag_center_locations
-    d0, d1, d2 = tag_expected_center_locations
+    # Should never be less than three but occasionally four - skip the last
+    d0, d1, d2 = tag_expected_center_locations[0:3]
     src_trio = np.array([s0, s1, s2]).astype(np.float32)
     dst_trio = np.array([d0, d1, d2]).astype(np.float32)
     transform_matrix = cv2.getAffineTransform(src_trio, dst_trio)
