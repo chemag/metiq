@@ -9,7 +9,9 @@ import numpy as np
 import pandas as pd
 import scipy.io.wavfile
 import scipy.signal
+from scipy.fft import fft, fftfreq
 import tempfile
+import matplotlib.pyplot as plt
 
 import common
 import audio_common
@@ -24,6 +26,71 @@ default_values = {
     "outfile": None,
     "audio_sample": None,
 }
+
+
+def bpFilterSignal(data, hp, lp, order, samplerate, verbose):
+    """Band pass filter the signal
+
+    Bandpass with butterworth filter with hp and lp
+
+    intputArgs:
+        data: input data
+        hp: -3dB frequency for high pass
+        lp: -3dB frequency for low pass
+        samplerate: samplerate of data
+
+    Returns:
+        data: filtered version of data
+    """
+
+    n = len(data)
+    t = 1.0 / samplerate
+    if hp is None:
+        hp = 0
+    if lp is None:
+        lp = int(samplerate / 2)
+    if verbose:
+        fig, (ax1, ax2) = plt.subplots(2)
+        yf = fft(data)
+        xf = fftfreq(n, t)
+        peak = np.argmax(np.abs(yf))
+        peakf = int(np.abs(xf[peak]))
+        ax1.plot(xf[: int(n / 2)], 1.0 / n * np.abs(yf[: int(n / 2)]))
+        ax1.plot(xf[peak], 1.0 / n * np.abs(yf[peak]), "o", color="red")
+        ax1.vlines(x=lp, ymax=1.0 / n * max(np.abs(yf)), ymin=0, color="green")
+        ax1.vlines(x=hp, ymax=1.0 / n * max(np.abs(yf)), ymin=0, color="green")
+        ax1.grid()
+        ax1.set_xscale("log")
+        ax1.set_yscale("log")
+        ax1.set_xlabel("Frequency (Hz)")
+        ax1.set_ylabel("magnitude")
+        fig.suptitle(f"FFT non filter vs filtered peak {peakf} Hz")
+        print(f"peak: {peakf} Hz")
+
+    sos = scipy.signal.butter(order, [hp, lp], "band", fs=samplerate, output="sos")
+    data = scipy.signal.sosfilt(sos, data)
+    if verbose:
+        yf = fft(data)
+        xf = fftfreq(n, t)
+        prevPeakf = peakf
+        peak = np.argmax(np.abs(yf))
+        peakf = int(np.abs(xf[peak]))
+        ax2.plot(xf[: int(n / 2)], 1.0 / n * np.abs(yf[: int(n / 2)]))
+        ax2.plot(xf[peak], 1.0 / n * np.abs(yf[peak]), "o", color="red")
+        ax2.vlines(x=lp, ymax=1.0 / n * max(np.abs(yf)), ymin=0, color="green")
+        ax2.vlines(x=hp, ymax=1.0 / n * max(np.abs(yf)), ymin=0, color="green")
+        ax2.grid()
+        ax2.set_xscale("log")
+        ax2.set_yscale("log")
+        ax2.set_xlabel("Frequency (Hz)")
+        ax2.set_ylabel("magnitude")
+        print(f"new peak: {peakf} Hz")
+        fig.suptitle(
+            f"FFT non filter vs filteres, original peak "
+            f"{prevPeakf} Hz, filtered {peakf} Hz"
+        )
+        plt.show()
+    return data
 
 
 def get_correlation_indices(haystack, needle, **kwargs):
@@ -44,11 +111,27 @@ def get_correlation_indices(haystack, needle, **kwargs):
     # get optional input parameters
     max_values = kwargs.get("max_values", audio_common.DEFAULT_MAX_VALUES)
     debug = kwargs.get("debug", audio_common.DEFAULT_DEBUG)
-    min_separation_samples = int(kwargs.get("min_separation_samples", DEFAULT_MIN_SEPARATION_MSEC))
-    min_match_threshold = float(kwargs.get("min_match_threshold", DEFAULT_MIN_MATCH_THRESHOLD))
+    min_separation_samples = int(
+        kwargs.get("min_separation_samples", DEFAULT_MIN_SEPARATION_MSEC)
+    )
+    min_match_threshold = float(
+        kwargs.get("min_match_threshold", DEFAULT_MIN_MATCH_THRESHOLD)
+    )
 
     # calculate the correlation in FP numbers to avoid saturation
     needlesize = len(needle)
+    # bandpass the input
+    # TODO: variable samplerate?
+    # TODO: we should have a different definition
+    chirp_low = audio_common.DEFAULT_BEEP_FREQ
+    chirp_high = audio_common.DEFAULT_BEEP_FREQ * 10
+    low_freq = int(chirp_low - chirp_low / 4)
+    hi_freq = int(chirp_high + chirp_high / 4)
+    if debug:
+        print(f"{low_freq}= {hi_freq=}")
+    haystack = bpFilterSignal(
+        haystack, low_freq, hi_freq, 4, audio_common.DEFAULT_SAMPLERATE, debug
+    )
     # add a needle length to the front
     haystack = np.concatenate((np.zeros(needlesize), haystack))
     correlation = np.correlate(haystack.astype(np.float32), needle.astype(np.float32))
