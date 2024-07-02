@@ -469,6 +469,16 @@ input_args = {
             "help": "Cleanup video parsing by removing 'obvious' errors.",
         },
     },
+    "min_match_threshold": {
+        "func": f"{PARSE}, {ANALYZE}",
+        "short": "",
+        "long": "--min-match-threshold",
+        "args": {
+            "type": float,
+            "help": f"Sets the minimal correlation coefficient threshold for an audio signal to be detected. Default is {default_values['min_match_threshold']}.",
+            "default": default_values["min_match_threshold"],
+        },
+    },
 }
 
 
@@ -597,6 +607,7 @@ def main(argv):
             lock_layout=options.lock_layout,
             threaded=options.threaded,
             tag_manual=options.tag_manual,
+            min_match_threshold=options.min_match_threshold,
             debug=options.debug,
         )
 
