@@ -20,11 +20,13 @@ from _version import __version__
 DEFAULT_MIN_SEPARATION_MSEC = -1
 DEFAULT_MAX_VALUES = 10000
 DEFAULT_MIN_MATCH_THRESHOLD = 20
+
 default_values = {
     "debug": 0,
     "infile": None,
     "outfile": None,
     "audio_sample": None,
+    "bandpass_filter": False,
 }
 
 
@@ -117,21 +119,23 @@ def get_correlation_indices(haystack, needle, **kwargs):
     min_match_threshold = float(
         kwargs.get("min_match_threshold", DEFAULT_MIN_MATCH_THRESHOLD)
     )
+    bandpass_filter = kwargs.get("bandpass_filter", False)
 
     # calculate the correlation in FP numbers to avoid saturation
     needlesize = len(needle)
     # bandpass the input
     # TODO: variable samplerate?
     # TODO: we should have a different definition
-    chirp_low = audio_common.DEFAULT_BEEP_FREQ
-    chirp_high = audio_common.DEFAULT_BEEP_FREQ * 10
-    low_freq = int(chirp_low - chirp_low / 4)
-    hi_freq = int(chirp_high + chirp_high / 4)
-    if debug:
-        print(f"{low_freq}= {hi_freq=}")
-    haystack = bpFilterSignal(
-        haystack, low_freq, hi_freq, 4, audio_common.DEFAULT_SAMPLERATE, debug
-    )
+    if bandpass_filter:
+        chirp_low = audio_common.DEFAULT_BEEP_FREQ
+        chirp_high = audio_common.DEFAULT_BEEP_FREQ * 10
+        low_freq = int(chirp_low - chirp_low / 2)
+        hi_freq = int(chirp_high + chirp_high / 4)
+        if debug > 0:
+            print(f"{low_freq}= {hi_freq=}")
+        haystack = bpFilterSignal(
+            haystack, low_freq, hi_freq, 1, audio_common.DEFAULT_SAMPLERATE, debug
+        )
     # add a needle length to the front
     haystack = np.concatenate((np.zeros(needlesize), haystack))
     correlation = np.correlate(haystack.astype(np.float32), needle.astype(np.float32))
@@ -169,6 +173,7 @@ def audio_parse(infile, **kwargs):
         print(f"warn: no audio stream in {infile}")
         return None
     # parse audio file
+
     audio_results = audio_parse_wav(wav_filename, **kwargs)
     # sort the index by timestamp
     audio_results = audio_results.sort_values(by=["audio_sample"])
@@ -203,6 +208,7 @@ def audio_parse_wav(infile, **kwargs):
     min_separation_samples = int(int(min_separation_msec) * int(samplerate) / 1000)
     min_match_threshold = kwargs.get("min_match_threshold")
     audio_sample = kwargs.get("audio_sample", "")
+    bandpass_filter = kwargs.get("bandpass_filter", False)
     # open the input
     haystack_samplerate, inaud = scipy.io.wavfile.read(infile)
 
@@ -243,6 +249,7 @@ def audio_parse_wav(infile, **kwargs):
         needle_target,
         min_separation_samples=min_separation_samples,
         min_match_threshold=min_match_threshold,
+        bandpass_filter=bandpass_filter,
         debug=debug,
     )
     # add a samplerate-based timestamp
@@ -330,6 +337,15 @@ def get_options(argv):
         dest="audio_sample",
         default=default_values["audio_sample"],
     )
+    parser.add_argument(
+        "-bp",
+        "--bandpass-filter",
+        dest="bandpass_filter",
+        action="store_true",
+        default=metiq.default_values["bandpass_filter"],
+        help="Gentle butterworth bandpass filter. Sometimes low correlation hits can improve. Before lowering correlation threshold try filtering.",
+    )
+
     # do the parsing
     options = parser.parse_args(argv[1:])
     if options.version:
@@ -366,6 +382,7 @@ def main(argv):
         min_separation_msec=options.min_separation_msec,
         min_match_threshold=options.min_match_threshold,
         audio_sample=options.audio_sample,
+        bandpass_filter=bandpass_filter,
     )
     dump_audio_results(audio_results, options.outfile, options.debug)
     # get audio duration

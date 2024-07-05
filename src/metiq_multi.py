@@ -406,9 +406,17 @@ def get_options(argv):
     parser.add_argument(
         "--min-match-threshold",
         type=float,
-        default= metiq.default_values["min_match_threshold"],
-        dest = "min_match_threshold",
+        default=metiq.default_values["min_match_threshold"],
+        dest="min_match_threshold",
         help="Minimum audio correlation threshold",
+    )
+    parser.add_argument(
+        "-bp",
+        "--bandpass-filter",
+        dest="bandpass_filter",
+        action="store_true",
+        default=metiq.default_values["bandpass_filter"],
+        help="Gentle butterworth bandpass filter. Sometimes low correlation hits can improve. Before lowering correlation threshold try filtering.",
     )
     options = parser.parse_args()
     return options
@@ -423,7 +431,9 @@ def run_file(kwargs):
     cleanup_video = kwargs.get("cleanup_video", False)
     z_filter = kwargs.get("z_filter", 3.0)
     debug = kwargs.get("debug", 0)
-    min_match_threshold = kwargs.get("min_match_threshold", metiq.default_values["min_match_threshold"])
+    min_match_threshold = kwargs.get(
+        "min_match_threshold", metiq.default_values["min_match_threshold"]
+    )
     print(f"{min_match_threshold=}")
     # We assume default settings on/ everything.
     # TODO(johan): expose more settings to the user
@@ -434,12 +444,14 @@ def run_file(kwargs):
     beep_freq = metiq.default_values["beep_freq"]
     beep_period_sec = metiq.default_values["beep_period_sec"]
     beep_duration_samples = metiq.default_values["beep_duration_samples"]
+    bandpass_filter = kwargs.get(
+        "bandpass_filter", metiq.default_values["bandpass_filter"]
+    )
     scale = metiq.default_values["scale"]
     pixel_format = metiq.default_values["pixel_format"]
     luma_threshold = metiq.default_values["luma_threshold"]
     num_frames = -1
     kwargs = {"lock_layout": True, "threaded": False}
-
 
     min_separation_msec = metiq.default_values["min_separation_msec"]
     audio_sample = metiq.default_values["audio_sample"]
@@ -466,8 +478,9 @@ def run_file(kwargs):
                 scale,
                 file,
                 audiocsv,
+                bandpass_filter=bandpass_filter,
                 min_match_threshold=min_match_threshold,
-                debug = debug,
+                debug=debug,
                 **kwargs,
             )
 
@@ -543,6 +556,7 @@ def main(argv):
                 "cleanup_video": not options.surpress_cleanup_video,
                 "z_filter": options.z_filter,
                 "min_match_threshold": options.min_match_threshold,
+                "bandpass_filter": options.bandpass_filter,
                 "debug": options.debug,
             }
         )
