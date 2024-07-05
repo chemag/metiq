@@ -479,6 +479,15 @@ input_args = {
             "default": default_values["min_match_threshold"],
         },
     },
+    "bandpass_filter": {
+        "func": PARSE,
+        "short": "-bp",
+        "long": "--bandpass-filter",
+        "args": {
+            "action": "store_true",
+            "help": "Gentle butterworth bandpass filter. Sometimes low correlation hits can improve. Before lowering correlation threshold try filtering.",
+        },
+    },
 }
 
 
@@ -588,7 +597,6 @@ def main(argv):
             )
 
     elif options.func == PARSE:
-        print(f"parse: {options}")
         media_parse.media_parse(
             width=options.width,
             height=options.height,
@@ -608,6 +616,7 @@ def main(argv):
             threaded=options.threaded,
             tag_manual=options.tag_manual,
             min_match_threshold=options.min_match_threshold,
+            bandpass_filter=options.bandpass_filter,
             debug=options.debug,
         )
 

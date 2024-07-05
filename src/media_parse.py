@@ -32,9 +32,16 @@ def media_parse_audio(
     debug,
     **kwargs,
 ):
-    min_separation_msec = kwargs.get("min_separation_msec", audio_parse.DEFAULT_MIN_SEPARATION_MSEC)
-    min_match_threshold = kwargs.get("min_match_threshold", audio_parse.DEFAULT_MIN_MATCH_THRESHOLD)
+    min_separation_msec = kwargs.get(
+        "min_separation_msec", audio_parse.DEFAULT_MIN_SEPARATION_MSEC
+    )
+    min_match_threshold = kwargs.get(
+        "min_match_threshold", audio_parse.DEFAULT_MIN_MATCH_THRESHOLD
+    )
     audio_sample = kwargs.get("audio_sample", "")
+    bandpass_filter = kwargs.get(
+        "bandpass_filter", audio_parse.default_values["bandpass_filter"]
+    )
 
     audio_results = audio_parse.audio_parse(
         infile,
@@ -47,6 +54,7 @@ def media_parse_audio(
         min_separation_msec=min_separation_msec,
         min_match_threshold=min_match_threshold,
         audio_sample=audio_sample,
+        bandpass_filter=bandpass_filter,
         debug=debug,
     )
     if audio_results is None or len(audio_results) == 0:
