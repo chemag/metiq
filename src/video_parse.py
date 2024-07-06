@@ -379,7 +379,10 @@ def video_parse(
                     tag_expected_center_locations = (
                         vft_layout.get_tag_expected_center_locations()
                     )
-                if tag_expected_center_locations == None and tag_center_locations == None:
+                if (
+                    tag_expected_center_locations == None
+                    and tag_center_locations == None
+                ):
                     print("No tags found")
                     failed_parses += 1
                     continue
@@ -662,7 +665,9 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
         current_time = video_capture.get(cv2.CAP_PROP_POS_MSEC)
         # compare with beep time
         if current_time > audio_common.DEFAULT_BEEP_PERIOD_SEC * 3000:
-            print(f"error: {infile = } could not find a tag in the first {current_time} ms")
+            print(
+                f"error: {infile = } could not find a tag in the first {current_time} ms"
+            )
             break
     if vft_id != None:
         vft_layout = vft.VFTLayout(width, height, vft_id)

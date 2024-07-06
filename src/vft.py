@@ -145,7 +145,6 @@ def graycode_parse(
     return None, VFTReading.invalid_graycode, vft_id
 
 
-
 # File-based API
 def generate_file(width, height, vft_id, tag_border_size, value, outfile, debug):
     # create the tag
