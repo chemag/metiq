@@ -481,7 +481,7 @@ input_args = {
     },
     "bandpass_filter": {
         "func": PARSE,
-        "short": "-bp",
+        "short": "",
         "long": "--bandpass-filter",
         "args": {
             "action": "store_true",
