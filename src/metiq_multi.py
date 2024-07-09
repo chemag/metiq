@@ -13,6 +13,7 @@ import argparse
 import time
 import pandas as pd
 import metiq
+import audio_parse
 import media_parse
 import media_analyze
 import multiprocessing as mp
@@ -415,7 +416,7 @@ def get_options(argv):
         "--bandpass-filter",
         dest="bandpass_filter",
         action="store_true",
-        default=metiq.default_values["bandpass_filter"],
+        default=audio_parse.default_values["bandpass_filter"],
         help="Gentle butterworth bandpass filter. Sometimes low correlation hits can improve. Before lowering correlation threshold try filtering.",
     )
     options = parser.parse_args()
@@ -445,7 +446,7 @@ def run_file(kwargs):
     beep_period_sec = metiq.default_values["beep_period_sec"]
     beep_duration_samples = metiq.default_values["beep_duration_samples"]
     bandpass_filter = kwargs.get(
-        "bandpass_filter", metiq.default_values["bandpass_filter"]
+        "bandpass_filter", audio_parse.default_values["bandpass_filter"]
     )
     scale = metiq.default_values["scale"]
     pixel_format = metiq.default_values["pixel_format"]
