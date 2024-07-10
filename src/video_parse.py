@@ -662,6 +662,8 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
     tag_expected_center_locations = None
     ids = None
     vft_id = None
+    cached_ids = []
+    cached_corners = []
     while tag_center_locations is None:
         status, img = video_capture.read()
         dim = (width, height)
@@ -670,7 +672,9 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
             print(f"error: {infile = } could not read frame")
             sys.exit(-1)
         # parse image
-        vft_id, tag_center_locations, borders, ids = vft.detect_tags(img, debug=0)
+        vft_id, tag_center_locations, borders, ids = vft.detect_tags(
+            img, cached_ids, cached_corners, debug
+        )
 
         # bail if we are reading to far ahead (three times the beep?)
         current_time = video_capture.get(cv2.CAP_PROP_POS_MSEC)
