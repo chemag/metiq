@@ -66,6 +66,8 @@ default_values = {
     "audio_sample": audio_common.DEFAULT_AUDIO_SAMPLE,
     "z_filter": 3,
     "force_fps": 30,
+    "contrast": 1,
+    "brightness": 0,
 }
 
 
@@ -488,6 +490,33 @@ input_args = {
             "help": "Gentle butterworth bandpass filter. Sometimes low correlation hits can improve. Before lowering correlation threshold try filtering.",
         },
     },
+    "sharpen": {
+        "func": PARSE,
+        "short": "",
+        "long": "--sharpen",
+        "args": {
+            "action": "store_true",
+            "help": "Sharpen the image before calculating",
+        },
+    },
+    "contrast": {
+        "func": PARSE,
+        "short": "",
+        "long": "--contrast",
+        "args": {
+            "type": float,
+            "help": "Contrast value. Keep this value positive and less than 2 (most likely). It is a multiplication of the actual pixel values so for anything above 127 a contrast of 2 would clip.",
+        },
+    },
+    "brightness": {
+        "func": PARSE,
+        "short": "",
+        "long": "--brightness",
+        "args": {
+            "type": int,
+            "help": "Brightness value. Keep this value between -255 and 255 for 8bit, probaly much less i.e. +/20. It is a simple addition to the pixel values.",
+        },
+    },
 }
 
 
@@ -617,6 +646,9 @@ def main(argv):
             tag_manual=options.tag_manual,
             min_match_threshold=options.min_match_threshold,
             bandpass_filter=options.bandpass_filter,
+            sharpen=options.sharpen,
+            contrast=options.contrast,
+            brightness=options.brightness,
             debug=options.debug,
         )
 
