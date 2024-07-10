@@ -383,7 +383,6 @@ def video_parse(
                     tag_expected_center_locations == None
                     and tag_center_locations == None
                 ):
-                    print("No tags found")
                     failed_parses += 1
                     continue
                 if (
@@ -405,7 +404,8 @@ def video_parse(
                 )
 
         if not vft.VFTReading.readable(status):
-            print(f"failed parsing frame {frame_num=}")
+            if debug > 0:
+                print(f"\nfailed parsing frame {frame_num=}")
             failed_parses += 1
             if status == vft.VFTReading.other:
                 continue
@@ -420,10 +420,12 @@ def video_parse(
         ):
             # OK we had something before, compare the diff
             if abs(value_read - previous_value) > ref_fps * leap_max:
-                print(
-                    f"Big leap. {previous_value=}, {value_read=}, {abs(value_read - previous_value)}, {ref_fps=}"
-                )
+                if debug > 0:
+                    print(
+                        f"\nBig leap. {previous_value=}, {value_read=}, {abs(value_read - previous_value)}, {ref_fps=}"
+                    )
                 value_read = None
+                failed_parses += 1
                 status = vft.VFTReading.large_delta
         if isinstance(value_read, int):
             previous_value = value_read
@@ -688,7 +690,9 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
         raise ValueError(f"error: {infile = } could not find a tag")
 
     if debug > 0:
-        print(f"Found tags: {len(tag_center_locations) = }")
+        print(
+            f"Found tags: {len(tag_center_locations) = }, in the first {current_time:.2f} ms\n--\n"
+        )
     return vft_id, tag_center_locations, tag_expected_center_locations
 
 
