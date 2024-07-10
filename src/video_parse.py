@@ -456,14 +456,21 @@ def video_parse(
         video_results["value_read"] - video_results["frame_num_expected"]
     )
     # calculate the mode of the delta between frames
-    delta_mode = scipy.stats.mode(delta_list, keepdims=True).mode[0]
+    delta_mode = []
+    if delta_mode and delta_mode.any():
+        delta_mode = scipy.stats.mode(delta_list, keepdims=True).mode[0]
     # 4. calculate the delta column
     # simplify the results: substract the mode, and keep the None
     # * value_read - (frame_num_expected + delta_mode)  # if value_read is not None
     # * None  # otherwise
-    video_results["delta_frame"] = round_to_nearest_half(
-        video_results["value_read"] - video_results["frame_num_expected"] - delta_mode
-    )
+    if len(delta_mode) > 0:
+        video_results["delta_frame"] = round_to_nearest_half(
+            video_results["value_read"]
+            - video_results["frame_num_expected"]
+            - delta_mode
+        )
+    else:
+        video_results["delta_frame"] = None
 
     current_time = time.monotonic_ns()
     total_time = current_time - start
@@ -497,7 +504,9 @@ def video_parse_delta_info(video_results):
         video_results["value_read"] - video_results["frame_num_expected"]
     )
     # calculate the mode of the delta between frames
-    delta_mode = scipy.stats.mode(delta_list, keepdims=True).mode[0]
+    delta_mode = []
+    if delta_mode and delta_mode.any():
+        delta_mode = scipy.stats.mode(delta_list, keepdims=True).mode[0]
     ok_frames = (video_results["delta_frame"] == 0.0).sum()
     sok_frames = (video_results["delta_frame"].between(-0.5, 0.5)).sum()
     unknown_frames = video_results["delta_frame"].isna().sum()
