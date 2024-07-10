@@ -447,9 +447,20 @@ def get_tag_center_locations(ids, corners, debug=0):
     return tag_center_locations
 
 
-def detect_tags(img, debug):
+def detect_tags(img, cached_ids=None, cached_corners=None, debug=0):
+    """Detect tags in img with optional known tags
+
+    The cached_ids and cached_cornes are lists containing earlier finds.
+    This way knowledge can be accumulated (assuming a fixed position).
+    """
+
     # 1. detect tags
-    corners, ids = aruco_common.detect_aruco_tags(img)
+    if cached_ids == None or len(cached_ids) < 4:
+        corners, ids = aruco_common.detect_aruco_tags(img)
+    else:
+        corners = cached_corners
+        ids = np.asarray(cached_ids)
+
     if debug > 2:
         print(f"{corners=} {ids=}")
 
@@ -457,19 +468,31 @@ def detect_tags(img, debug):
         if debug > 2:
             print("error: cannot detect any tags in image")
         return None, None, None, None
+
+    if cached_ids != None and corners != None:
+        for i, corner in enumerate(corners):
+            id_ = ids[i]
+            if id_ not in cached_ids and id_ < 10:
+                cached_ids.append(id_)
+                cached_corners.append(corner)
+
+        if debug > 1:
+            img2 = img.copy()
+            if len(ids) > 0:
+                img2 = cv2.aruco.drawDetectedMarkers(img2, corners, ids, (255, 255, 0))
+
+            # draw already detected
+            img2 = cv2.aruco.drawDetectedMarkers(
+                img2, cached_corners, np.asarray(cached_ids), (255, 0, 255)
+            )
+            cv2.imshow("found", img2)
+            cv2.waitKey(1)
+
     if len(ids) < 3:
         if debug > 2:
             print(f"error: image has {len(ids)} tag(s) (should have 3)")
-        if debug > 2:
-            tag_center_locations = get_tag_center_locations(ids, corners, debug=debug)
-            for tag in tag_center_locations:
-                cv2.circle(img, (int(tag[0]), int(tag[1])), 5, (0, 255, 0), 2)
-                cv2.imshow("Failed identification, showing succesful ids", img)
-                k = cv2.waitKey(-1)
         return None, None, None, None
-    if len(ids) >= 3:
-        if debug > 2:
-            print(f"error: image has {len(ids)} tag(s) (should have 3)")
+    else:
         # check tag list last number VFT_LAYOUT last number 2-5
         ids = [id[0] for id in ids if id in [0, 1, 2, 3, 4, 5, 6, 7]]
 
