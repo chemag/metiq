@@ -90,6 +90,10 @@ def media_parse_video(
     lock_layout = kwargs.get("lock_layout", False)
     tag_manual = kwargs.get("tag_manual", False)
     threaded = kwargs.get("threaded", False)
+    sharpen = kwargs.get("sharpen", False)
+    contrast = kwargs.get("contrast", 1)
+    brightness = kwargs.get("brightness", 0)
+
     # recalculate the video results
     video_results = video_parse.video_parse(
         infile,
@@ -101,6 +105,9 @@ def media_parse_video(
         lock_layout=lock_layout,
         tag_manual=tag_manual,
         threaded=threaded,
+        sharpen=sharpen,
+        contrast=contrast,
+        brightness=brightness,
         debug=debug,
     )
     if debug > 0:

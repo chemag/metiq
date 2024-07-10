@@ -419,6 +419,23 @@ def get_options(argv):
         default=audio_parse.default_values["bandpass_filter"],
         help="Gentle butterworth bandpass filter. Sometimes low correlation hits can improve. Before lowering correlation threshold try filtering.",
     )
+    parser.add_argument(
+        "--sharpen",
+        action="store_true",
+        help = "Sharpen the image before calculating",
+    )
+    parser.add_argument(
+        "--contrast",
+        type=float,
+        default=1,
+        help="Contrast value. Keep this value positive and less than 2 (most likely). It is a multiplication of the actual pixel values so for anything above 127 a contrast of 2 would clip.",
+    )
+    parser.add_argument(
+        "--brightness",
+        type=int,
+        default=0,
+        help="Brightness value. Keep this value between -255 and 255 for 8bit, probaly much less i.e. +/20. It is a simple addition to the pixel values.",
+    )
     options = parser.parse_args()
     return options
 
@@ -435,7 +452,9 @@ def run_file(kwargs):
     min_match_threshold = kwargs.get(
         "min_match_threshold", metiq.default_values["min_match_threshold"]
     )
-    print(f"{min_match_threshold=}")
+    sharpen = kwargs.get("sharpen", False)
+    contrast = kwargs.get("contrast", 1)
+    brightness = kwargs.get("brightness", 0)
     # We assume default settings on/ everything.
     # TODO(johan): expose more settings to the user
     width = metiq.default_values["width"]
@@ -501,7 +520,10 @@ def run_file(kwargs):
                 scale,
                 file,
                 videocsv,
-                debug,
+                sharpen=sharpen,
+                contrast=contrast,
+                brightness=brightness,
+                debug=debug,
                 **kwargs,
             )
     else:
@@ -558,6 +580,9 @@ def main(argv):
                 "z_filter": options.z_filter,
                 "min_match_threshold": options.min_match_threshold,
                 "bandpass_filter": options.bandpass_filter,
+                "sharpen": options.sharpen,
+                "contrast": options.contrast,
+                "brightness": options.brightness,
                 "debug": options.debug,
             }
         )

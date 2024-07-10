@@ -245,6 +245,9 @@ def video_parse(
     lock_layout=False,
     tag_manual=False,
     threaded=False,
+    sharpen=False,
+    contrast=1,
+    brightness=0,
     debug=0,
 ):
     # reset and latch onto a fresh layout config
@@ -266,7 +269,9 @@ def video_parse(
             vft_id,
             tag_center_locations,
             tag_expected_center_locations,
-        ) = find_first_valid_tag(infile, width, height, pixel_format, debug)
+        ) = find_first_valid_tag(
+            infile, width, height, pixel_format, sharpen, contrast, brightness, debug
+        )
     video_capture = get_video_capture(infile, width, height, pixel_format, threaded)
     if not video_capture.isOpened():
         print(f"error: {infile = } is not open")
@@ -292,12 +297,22 @@ def video_parse(
     accumulated_decode_time = 0
     failed_parses = 0
     vft_layout = None
+
     while True:
         # get image
         decstart = time.monotonic_ns()
         status, img = video_capture.read()
+        ids = None
         if not status:
             break
+
+        # Not interested in color anyways...
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        if contrast != 1 or brightness != 0:
+            img = adjust_image(img, 1.3, -10)
+        # sharpen image
+        if sharpen:
+            imn = sharpen_multi(img, "sharpen")
         frame_num += 1
         accumulated_decode_time += time.monotonic_ns() - decstart
         # this (wrongly) assumes frames are perfectly separated
@@ -306,6 +321,7 @@ def video_parse(
         timestamp = video_capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
         # the frame_num we expect to see for this timestamp
         frame_num_expected = timestamp * ref_fps
+
         if debug > 2:
             print(
                 f"video_parse: parsing {frame_num = } {timestamp = } {ref_fps = } {in_fps = }"
@@ -582,7 +598,6 @@ def calc_alignment(infile, width, height, pixel_format, debug):
 
         # parse image
         vft_id, tag_center_locations, borders, ids = vft.detect_tags(img, debug=0)
-
     # transform
     vft_layout = vft.VFTLayout(width, height, vft_id)
     tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
@@ -652,7 +667,31 @@ def sort_tag_expected_center_locations(tag_expected_center_locations, vft_layout
     return tag_expected_center_locations
 
 
-def find_first_valid_tag(infile, width, height, pixel_format, debug):
+def adjust_image(img, contrast, brightness):
+    return cv2.addWeighted(img, contrast, np.zeros(img.shape, img.dtype), 0, brightness)
+
+
+def sharpen_multi(img, method):
+    if method == "sharpen":
+        kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+        return cv2.filter2D(img, -1, kernel)
+    elif method == "unsharp_mask":
+        blur = cv2.GaussianBlur(img, (5, 5), 10.0)
+        return cv2.addWeighted(img, 1.5, blur, -0.5, 0)
+
+    print("Unknown sharpening method")
+    return img
+
+
+def find_first_valid_tag(
+    infile, width, height, pixel_format, sharpen, contrast, brightness, debug
+):
+    if debug > 0:
+        print(f"\n--\nFind first valid tag")
+        print(f"{infile = }")
+        print(f"processing resolution: {width}x{height}")
+        print(f"pixel_format: {pixel_format}")
+        print(f"{sharpen = }, {contrast = } , {brightness = }")
     video_capture = get_video_capture(infile, width, height, pixel_format)
     if not video_capture.isOpened():
         print(f"error: {infile = } is not open")
@@ -671,6 +710,13 @@ def find_first_valid_tag(infile, width, height, pixel_format, debug):
         if not status:
             print(f"error: {infile = } could not read frame")
             sys.exit(-1)
+        # Not interested in color anyways...
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        if contrast != 1 or brightness != 0:
+            img = adjust_image(img, contrast, brightness)
+        # sharpen image
+        if sharpen:
+            img = sharpen_multi(img, "sharpen")
         # parse image
         vft_id, tag_center_locations, borders, ids = vft.detect_tags(
             img, cached_ids, cached_corners, debug
@@ -891,6 +937,23 @@ def get_options(argv):
         "--threaded",
         action="store_true",
     )
+    parser.add_argument(
+        "--sharpen",
+        action="store_true",
+        help="Sharpen the image before calculating",
+    )
+    parser.add_argument(
+        "--contrast",
+        type=float,
+        default=1,
+        help="Contrast value. Keep this value positive and less than 2 (most likely). It is a multiplication of the actual pixel values so for anything above 127 a contrast of 2 would clip.",
+    )
+    parser.add_argument(
+        "--brightness",
+        type=int,
+        default=0,
+        help="Brightness value. Keep this value between -255 and 255 for 8bit, probaly much less i.e. +/20. It is a simple addition to the pixel values.",
+    )
 
     # do the parsing
     options = parser.parse_args(argv[1:])
@@ -937,6 +1000,9 @@ def main(argv):
         options.lock_layout,
         tag_manual=options.tag_manual,
         threaded=options.threaded,
+        sharpen=options.sharpen,
+        contrast=options.contrast,
+        brightness=options.brightness,
         debug=options.debug,
     )
     dump_video_results(video_results, options.outfile, options.debug)
