@@ -535,7 +535,10 @@ last_min_diff = -1
 def parse_read_bits(img, frame_id, vft_layout, luma_threshold, debug):
     global last_min_diff
     # 1. extract the luma
-    img_luma = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if len(img.shape) == 3:
+        img_luma = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
+        img_luma = img
     # 2. read the per-block luma average value
     block_luma_avgs = []
     for row, col in itertools.product(
