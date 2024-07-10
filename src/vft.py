@@ -564,6 +564,7 @@ def parse_read_bits(img, frame_id, vft_layout, luma_threshold, debug):
         img_luma = img
     # 2. read the per-block luma average value
     block_luma_avgs = []
+    pixels_per_block = vft_layout.block_width * vft_layout.block_height
     for row, col in itertools.product(
         range(vft_layout.numrows), range(vft_layout.numcols)
     ):
@@ -578,7 +579,8 @@ def parse_read_bits(img, frame_id, vft_layout, luma_threshold, debug):
         y0 = vft_layout.y[row]
         y1 = y0 + vft_layout.block_height
         img_luma_block = img_luma[y0:y1, x0:x1]
-        block_luma_avg = np.mean(img_luma_block)
+        # calling np.mean is slower
+        block_luma_avg = np.sum(img_luma_block) / pixels_per_block
         block_luma_avgs.append(block_luma_avg)
     # 3. convert per-block luma averages to bits
     # TODO(chema): what we really want here is an adaptive luma
