@@ -6,7 +6,6 @@
 import cv2
 import numpy as np
 
-
 # use fiduciarial markers from this dictionary
 ARUCO_DICT_ID = cv2.aruco.DICT_4X4_50
 
@@ -32,6 +31,7 @@ def generate_aruco_tag(tag_size, aruco_id, border_size=0, aruco_dict_id=ARUCO_DI
         img_tag = cv2.aruco.generateImageMarker(
             aruco_dict, aruco_id, tag_height, img_tag, 1
         )
+
     # print(f"tag {aruco_id} size: {tag_height} / {tag_size}")
     # add border if needed
     if border_size > 0:
@@ -55,9 +55,15 @@ def generate_aruco_tag(tag_size, aruco_id, border_size=0, aruco_dict_id=ARUCO_DI
     return img_tag
 
 
-def detect_aruco_tags(img, aruco_dict_id=ARUCO_DICT_ID):
-    # convert input to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+def detect_aruco_tags(
+    img,
+    aruco_dict_id=ARUCO_DICT_ID,
+):
+    # convert input to grayscale, if needed
+    if len(img.shape) == 3:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = img
     # locate the aruco markers
     if CV_VERSION[0] <= 4 and CV_VERSION[1] < 7:
         aruco_dict = cv2.aruco.Dictionary_get(aruco_dict_id)
@@ -70,6 +76,8 @@ def detect_aruco_tags(img, aruco_dict_id=ARUCO_DICT_ID):
         # https://stackoverflow.com/a/74975523
         aruco_dict = cv2.aruco.getPredefinedDictionary(aruco_dict_id)
         parameters = cv2.aruco.DetectorParameters()
+
         detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
         corners, ids, _rejectedImgPoints = detector.detectMarkers(gray)
+
     return corners, ids
