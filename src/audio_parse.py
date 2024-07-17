@@ -342,7 +342,7 @@ def get_options(argv):
         "--bandpass-filter",
         dest="bandpass_filter",
         action="store_true",
-        default=metiq.default_values["bandpass_filter"],
+        default=default_values["bandpass_filter"],
         help="Gentle butterworth bandpass filter. Sometimes low correlation hits can improve. Before lowering correlation threshold try filtering.",
     )
 
@@ -382,7 +382,7 @@ def main(argv):
         min_separation_msec=options.min_separation_msec,
         min_match_threshold=options.min_match_threshold,
         audio_sample=options.audio_sample,
-        bandpass_filter=bandpass_filter,
+        bandpass_filter=options.bandpass_filter,
     )
     dump_audio_results(audio_results, options.outfile, options.debug)
     # get audio duration
