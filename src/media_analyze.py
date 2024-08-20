@@ -763,7 +763,6 @@ def calculate_video_playouts(video_results):
     # TODO: or keep wanted?
     unused_col_names = (
         "frame_num_expected",
-        "status",
         "delta_frame",
         "value_before_clean",
         "value_read_delta",
