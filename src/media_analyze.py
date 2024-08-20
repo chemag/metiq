@@ -541,13 +541,12 @@ def z_filter_function(data, field, z_val):
     return data.drop(data[data[field] > mean + z_val * std].index)
 
 
-def create_output_filename(input_filename, function):
+def create_output_filename(input_filename, analysis_name):
     # We either have a XX.mov/mp4 or a XX.mov.video.csv
     name = input_filename.lower()
     if name[-10:] == ".video.csv":
         name = name[:-10]
-
-    name = f"{name}{MEDIA_ANALYSIS[function][2]}"
+    name = f"{name}{MEDIA_ANALYSIS[analysis_name][2]}"
     return name
 
 
@@ -556,12 +555,12 @@ def all_analysis_function(**kwargs):
     if not outfile:
         outfile = kwargs.get("input_video", None)
 
-    for function in MEDIA_ANALYSIS:
-        if function == "all":
+    for analysis_name in MEDIA_ANALYSIS:
+        if analysis_name == "all":
             # prevent a loop :)
             continue
-        kwargs["outfile"] = create_output_filename(outfile, function)
-        results = MEDIA_ANALYSIS[function][0](**kwargs)
+        kwargs["outfile"] = create_output_filename(outfile, analysis_name)
+        results = MEDIA_ANALYSIS[analysis_name][0](**kwargs)
 
 
 def audio_latency_function(**kwargs):
@@ -574,7 +573,7 @@ def audio_latency_function(**kwargs):
 
     if not outfile:
         infile = kwargs.get("input_video", None)
-        outfile = create_output_filename(infile, "audio_latency_function")
+        outfile = create_output_filename(infile, "audio_latency")
 
     audio_latency_results = calculate_audio_latency(
         audio_results,
@@ -652,7 +651,7 @@ def video_latency_function(**kwargs):
 
     if not outfile:
         infile = kwargs.get("input_video", None)
-        outfile = create_output_filename(infile, "video_latency_function")
+        outfile = create_output_filename(infile, "video_latency")
 
     # Assuming that the source frame is played out when the audio signal
     # is first heard, video latency is the difference between the video frame
@@ -704,7 +703,7 @@ def av_sync_function(**kwargs):
 
     if not outfile:
         infile = kwargs.get("input_video", None)
-        outfile = create_output_filename(infile, "av_sync_function")
+        outfile = create_output_filename(infile, "av_sync")
 
     margin = 0.7
     clean_audio = filter_echoes(audio_results, beep_period_sec, margin)
@@ -844,7 +843,7 @@ def quality_stats_function(**kwargs):
 
     if not outfile:
         infile = kwargs.get("input_video", None)
-        outfile = create_output_filename(infile, "quality_stats_function")
+        outfile = create_output_filename(infile, "quality_stats")
 
     quality_stats_results = calculate_measurement_quality_stats(
         audio_results, video_results
@@ -859,7 +858,7 @@ def windowed_stats_function(**kwargs):
 
     if not outfile:
         infile = kwargs.get("input_video", None)
-        outfile = create_output_filename(infile, "windowed_stats_function")
+        outfile = create_output_filename(infile, "windowed_stats")
 
     windowed_stats_results = calculate_frames_moving_average(
         video_results, windowed_stats_sec
@@ -873,7 +872,7 @@ def frame_duration_function(**kwargs):
 
     if not outfile:
         infile = kwargs.get("input_video", None)
-        outfile = create_output_filename(infile, "frame_duration_function")
+        outfile = create_output_filename(infile, "frame_duration")
 
     frame_duration_results = calculate_frame_durations(video_results)
     frame_duration_results.to_csv(outfile, index=False)
@@ -885,7 +884,7 @@ def video_playout_function(**kwargs):
 
     if not outfile:
         infile = kwargs.get("input_video", None)
-        outfile = create_output_filename(infile, "video_playout_function")
+        outfile = create_output_filename(infile, "video_playout")
 
     video_playout_results = calculate_video_playouts(video_results)
     video_playout_results.to_csv(outfile, index=False)
