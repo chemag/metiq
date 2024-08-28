@@ -582,8 +582,11 @@ def audio_latency_function(**kwargs):
         beep_period_sec=beep_period_sec,
         debug=debug,
     )
-    audio_latency_results.to_csv(outfile, index=False)
-
+    if len(audio_latency_results) > 0:
+        audio_latency_results.to_csv(outfile, index=False)
+    else:
+        if debug > 0:
+            print("Warning. No audio latency results")
 
 def remove_non_doubles(audio_results, clean_audio):
     # Find all echoes and match with the original signal
@@ -681,7 +684,12 @@ def video_latency_function(**kwargs):
         video_latency_results = z_filter_function(
             video_latency_results, "video_latency_sec", z_filter
         )
-    video_latency_results.to_csv(outfile, index=False)
+
+    if len(video_latency_results) > 0:
+        video_latency_results.to_csv(outfile, index=False)
+    else:
+        if debug > 0:
+            print("Warning. No video latency results")
 
 
 def av_sync_function(**kwargs):
@@ -710,7 +718,7 @@ def av_sync_function(**kwargs):
     # Check residue
     signal_ratio = len(clean_audio) / len(audio_results)
     if signal_ratio < 1:
-        print(f"Removed {signal_ratio * 100:.2f}% echoes, transmission use case")
+        print(f"\nRemoved {signal_ratio * 100:.2f}% echoes, transmission use case. Video latency can be calculated.\n")
         if signal_ratio < 0.2:
             print("Few echoes, recheck thresholds")
 
@@ -719,7 +727,7 @@ def av_sync_function(**kwargs):
         clean_audio = filter_echoes(pd.DataFrame(residue), beep_period_sec, margin)
 
     else:
-        print("No echoes, simple source use case")
+        print("\nWarning, no echoes, simple source use case. No video latency calculation possible.\n")
 
     av_sync_results = calculate_av_sync(
         clean_audio,
@@ -862,8 +870,10 @@ def windowed_stats_function(**kwargs):
     windowed_stats_results = calculate_frames_moving_average(
         video_results, windowed_stats_sec
     )
-    windowed_stats_results.to_csv(outfile, index=False)
-
+    if len(windowed_stats_results) > 0:
+        windowed_stats_results.to_csv(outfile, index=False)
+    else:
+        print("No windowed stats to write")
 
 def frame_duration_function(**kwargs):
     video_results = kwargs.get("video_results")
@@ -874,7 +884,10 @@ def frame_duration_function(**kwargs):
         outfile = create_output_filename(infile, "frame_duration")
 
     frame_duration_results = calculate_frame_durations(video_results)
-    frame_duration_results.to_csv(outfile, index=False)
+    if len(frame_duration_results) > 0:
+        frame_duration_results.to_csv(outfile, index=False)
+    else:
+        print("No frame durations to write")
 
 
 def video_playout_function(**kwargs):
@@ -886,7 +899,10 @@ def video_playout_function(**kwargs):
         outfile = create_output_filename(infile, "video_playout")
 
     video_playout_results = calculate_video_playouts(video_results)
-    video_playout_results.to_csv(outfile, index=False)
+    if len(video_playout_results) > 0:
+        video_playout_results.to_csv(outfile, index=False)
+    else:
+        print("No video playouts to write")
 
 
 def media_analyze(
