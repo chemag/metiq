@@ -271,7 +271,7 @@ def match_video_to_sources_beep(
 
     # sort by time difference
     closematch = closematch.sort_values("distance")
-    closematch.fillna(method="bfill", inplace=True)
+    closematch.bfill(inplace=True)
     best_match = closematch.iloc[0]
 
     # 2) Check the value parsed and compare to the expected beep frame
@@ -316,7 +316,7 @@ def match_video_to_sources_beep(
 
     # sort by time difference
     closematch = closematch.sort_values("distance_frames")
-    closematch.fillna(method="bfill", inplace=True)
+    closematch.bfill(inplace=True)
     best_match = closematch.iloc[0]
 
     # get offset if not perfect match
@@ -819,20 +819,20 @@ def filter_ambiguous_framenumber(video_results):
     # Use next value
 
     # no holes please
-    video_results["value_read"].fillna(method="ffill", inplace=True)
+    video_results["value_read"].ffill(inplace=True)
     # Maybe some values in the beginning are bad as well.
-    video_results["value_read"].fillna(method="bfill", inplace=True)
+    video_results["value_read"].bfill(inplace=True)
     video_results["value_clean"] = video_results["value_read"].astype(int)
     video_results["val_m1"] = video_results["value_clean"].shift(-1)
     video_results["val_p1"] = video_results["value_clean"].shift(1)
-    video_results["val_m1"].fillna(method="ffill", inplace=True)
-    video_results["val_p1"].fillna(method="bfill", inplace=True)
+    video_results["val_m1"].ffill(inplace=True)
+    video_results["val_p1"].bfill(inplace=True)
 
     video_results["singles"] = (
         video_results["value_clean"] != video_results["val_m1"]
     ) & (video_results["value_clean"] != video_results["val_p1"])
     video_results.loc[video_results["singles"], "value_clean"] = np.NaN
-    video_results["value_clean"].fillna(method="ffill", inplace=True)
+    video_results["value_clean"].ffill(inplace=True)
     video_results["value_clean"] = video_results["value_clean"].astype(int)
     video_results["value_before_clean"] = video_results["value_read"]
 
