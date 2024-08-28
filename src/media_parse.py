@@ -43,27 +43,32 @@ def media_parse_audio(
         "bandpass_filter", audio_parse.default_values["bandpass_filter"]
     )
 
-    audio_results = audio_parse.audio_parse(
-        infile,
-        pre_samples=pre_samples,
-        samplerate=samplerate,
-        beep_freq=beep_freq,
-        beep_duration_samples=beep_duration_samples,
-        beep_period_sec=beep_period_sec,
-        scale=scale,
-        min_separation_msec=min_separation_msec,
-        min_match_threshold=min_match_threshold,
-        audio_sample=audio_sample,
-        bandpass_filter=bandpass_filter,
-        debug=debug,
-    )
-    if audio_results is None or len(audio_results) == 0:
-        # without audio there is not point in running the video parsing
-        raise Exception(
-            "ERROR: audio calculation failed. Verify that there are signals in audio stream."
+    try:
+        audio_results = audio_parse.audio_parse(
+            infile,
+            pre_samples=pre_samples,
+            samplerate=samplerate,
+            beep_freq=beep_freq,
+            beep_duration_samples=beep_duration_samples,
+            beep_period_sec=beep_period_sec,
+            scale=scale,
+            min_separation_msec=min_separation_msec,
+            min_match_threshold=min_match_threshold,
+            audio_sample=audio_sample,
+            bandpass_filter=bandpass_filter,
+            debug=debug,
         )
-    # write up the results to disk
-    audio_results.to_csv(outfile, index=False)
+        if audio_results is None or len(audio_results) == 0:
+            # without audio there is not point in running the video parsing
+            raise Exception(
+                "ERROR: audio calculation failed. Verify that there are signals in audio stream."
+            )
+        # write up the results to disk
+        audio_results.to_csv(outfile, index=False)
+        return audio_results
+    except Exception as e:
+        print(f"ERROR: failed parsing audio, {e}")
+        return None
 
 
 def media_parse_video(
@@ -94,26 +99,31 @@ def media_parse_video(
     contrast = kwargs.get("contrast", 1)
     brightness = kwargs.get("brightness", 0)
 
-    # recalculate the video results
-    video_results = video_parse.video_parse(
-        infile,
-        width,
-        height,
-        ref_fps,
-        pixel_format,
-        luma_threshold,
-        lock_layout=lock_layout,
-        tag_manual=tag_manual,
-        threaded=threaded,
-        sharpen=sharpen,
-        contrast=contrast,
-        brightness=brightness,
-        debug=debug,
-    )
-    if debug > 0:
-        print(f"Done parsing, write csv, size: {len(video_results)} to {outfile}")
-    # write up the results to disk
-    video_results.to_csv(outfile, index=False)
+    try:
+        # recalculate the video results
+        video_results = video_parse.video_parse(
+            infile,
+            width,
+            height,
+            ref_fps,
+            pixel_format,
+            luma_threshold,
+            lock_layout=lock_layout,
+            tag_manual=tag_manual,
+            threaded=threaded,
+            sharpen=sharpen,
+            contrast=contrast,
+            brightness=brightness,
+            debug=debug,
+        )
+        if debug > 0:
+            print(f"Done parsing, write csv, size: {len(video_results)} to {outfile}")
+        # write up the results to disk
+        video_results.to_csv(outfile, index=False)
+        return video_results
+    except Exception as e:
+        print(f"Error: failed parsing video, {e}")
+        return None
 
 
 def media_parse(
@@ -137,7 +147,7 @@ def media_parse(
     # 1. parse the audio stream
     if output_audio is None:
         output_audio = infile + ".audio.csv"
-    media_parse_audio(
+    audio_results = media_parse_audio(
         pre_samples,
         samplerate,
         beep_freq,
@@ -150,10 +160,14 @@ def media_parse(
         **kwargs,
     )
 
+    if audio_results is None:
+        print("ERROR: audio parsing failed. Exiting.")
+        return None
+
     # 2. parse the video stream
     if output_video is None:
         output_video = infile + ".video.csv"
-    media_parse_video(
+    video_results = media_parse_video(
         width,
         height,
         num_frames,

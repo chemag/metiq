@@ -86,6 +86,12 @@ def combined_calculations(options):
 
         combined = []
         # If all three latency measure exists
+        if audio_latency is None or audio_latency.empty:
+            print("Warning. No audio latency values calculated.")
+        if video_latency is None or video_latency.empty:
+            print("Warning. No video latency values calculated.")
+        if av_sync is None or av_sync.empty:
+            print("Warning. No av sync values calculated.")
         if not video_latency.empty and not audio_latency.empty and not av_sync.empty:
             frames = video_latency["original_frame"].values
             for frame in frames:
@@ -422,7 +428,7 @@ def get_options(argv):
     parser.add_argument(
         "--sharpen",
         action="store_true",
-        help = "Sharpen the image before calculating",
+        help="Sharpen the image before calculating",
     )
     parser.add_argument(
         "--contrast",
@@ -489,7 +495,7 @@ def run_file(kwargs):
         # files exist
         if not os.path.exists(audiocsv) or parse_audio:
             # 1. parse the audio stream
-            media_parse.media_parse_audio(
+            audio_result = media_parse.media_parse_audio(
                 pre_samples,
                 samplerate,
                 beep_freq,
@@ -503,6 +509,9 @@ def run_file(kwargs):
                 debug=debug,
                 **kwargs,
             )
+        if audio_result is None:
+            print("Audio parsing failed. Quitting.")
+            return
 
         if not os.path.exists(videocsv) or parse_video:
             # 2. parse the video stream
