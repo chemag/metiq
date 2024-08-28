@@ -493,6 +493,7 @@ def run_file(kwargs):
     # Allow us to run a reanalysis of a fiel without reprocessing the video
     if not file.endswith(VIDEO_ENDING):
         # files exist
+        audio_result = None
         if not os.path.exists(audiocsv) or parse_audio:
             # 1. parse the audio stream
             audio_result = media_parse.media_parse_audio(
