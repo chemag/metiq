@@ -543,8 +543,8 @@ def z_filter_function(data, field, z_val):
 
 def create_output_filename(input_filename, analysis_name):
     # We either have a XX.mov/mp4 or a XX.mov.video.csv
-    name = input_filename.lower()
-    if name[-10:] == ".video.csv":
+    name = input_filename
+    if name[-10:].lower() == ".video.csv":
         name = name[:-10]
     name = f"{name}{MEDIA_ANALYSIS[analysis_name][2]}"
     return name
@@ -587,6 +587,7 @@ def audio_latency_function(**kwargs):
     else:
         if debug > 0:
             print("Warning. No audio latency results")
+
 
 def remove_non_doubles(audio_results, clean_audio):
     # Find all echoes and match with the original signal
@@ -874,6 +875,7 @@ def windowed_stats_function(**kwargs):
         windowed_stats_results.to_csv(outfile, index=False)
     else:
         print("No windowed stats to write")
+
 
 def frame_duration_function(**kwargs):
     video_results = kwargs.get("video_results")
