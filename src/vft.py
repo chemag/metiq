@@ -27,13 +27,21 @@ __version__ = "0.1"
 
 
 class VFTReading(enum.Enum):
+    # all VFT blocks were read correctly (ok)
     ok = 0
+    # all VFT blocks but 1 were read correctly (ok)
     single_graycode = 1
+    # could not read the bit stream in the VFT
     invalid_graycode = 2
+    # could not fix a 1-block issue in the VFT
     single_graycode_unfixable = 3
+    # large difference between 2x consecutive frames [parsing error]
     large_delta = 4
+    # could not read the VFT
     no_input = 5
+    # could not read the VFT tags
     no_tags = 6
+    # other issue
     other = 7
 
     @classmethod
@@ -655,26 +663,38 @@ previous_value = -1
 
 def gray_bitstream_to_num(bit_stream):
     """
-    If the bit_stream does not have any failed bits just
-        1. convert the bitstream to a gray code number
-        2. convert the gray code number to a conventional number
+    @brief Converts a bitstream read from a metiq image into a number.
 
-    If there is more than one bit parsing failure: give up
-    With exactly one bit error:
-    Check previous value and compare both possible binary values
-    Take the smallest difference
-    In the case we do not have a previous value look at the difference
-    between the number.
-    The latter should only happen in early in the parsing.
+    @param[in] bit_stream Bit stream resulting from parsing a metiq image.
+      Parameter is a string, so value can be "10001101001010", "1X0010010",
+      etc.
+
+    @return Conversion output.
+
+    If the bit_stream does not have any failed bits (no "X" values), the
+    function converts the bitstream to a gray code number, and then to a
+    conventional number.
+
+    If the bit_stream has 2+ failed bits, then it gives up and returns
+    "invalid_graycode".
+
+    If there is exactly 1 failed bit, then it checks the previous value,
+    and tests replacing the "X" with both "0" and "1". It chooses the value
+    with the smallest absolute difference to the previous value, and marks
+    it as "single_graycode". If no previous value, it returns the average
+    of the 2 possible values.
     """
     global previous_value
     if bit_stream is None:
+        # broken case: no bit stream at all
         return None, VFTReading.no_input
     if bit_stream.count("X") == 0:
+        # perfect case: can read all bits
         gray_num = bit_stream_to_number(bit_stream)
         previous_value = graycode.gray_code_to_tc(gray_num)
         return previous_value, VFTReading.ok
     elif bit_stream.count("X") > 1:
+        # broken case: cannot read 2+ bits
         return None, VFTReading.invalid_graycode
     # slightly degenerated case: a single non-read bit
     b0 = [0 if b == "X" else b for b in bit_stream]
@@ -683,7 +703,7 @@ def gray_bitstream_to_num(bit_stream):
     b1 = [1 if b == "X" else b for b in bit_stream]
     g1 = bit_stream_to_number(b1)
     n1 = graycode.gray_code_to_tc(g1)
-    if previous_value > -1:
+    if previous_value > -1:  # no previous value
         d0 = abs(n0 - previous_value)
         d1 = abs(n1 - previous_value)
         if d0 < d1 and d0 <= 1:
