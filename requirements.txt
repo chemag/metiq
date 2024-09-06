@@ -1,5 +1,8 @@
 numpy
 scipy
 graycode
-opencv-python==4.6.0.66
-opencv-contrib-python==4.6.0.66
+opencv-python
+opencv-contrib-python
+pandas
+Shapely
+matplotlib
