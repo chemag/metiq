@@ -510,9 +510,10 @@ def run_file(kwargs):
                 debug=debug,
                 **kwargs,
             )
-        if audio_result is None:
-            print("Audio parsing failed. Quitting.")
-            return
+
+            if audio_result is None:
+                print("Audio parsing failed. Quitting.")
+                return
 
         if not os.path.exists(videocsv) or parse_video:
             # 2. parse the video stream
