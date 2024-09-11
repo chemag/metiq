@@ -17,6 +17,16 @@ plots = {
     "measurement-quality": "Plot measurement quality using the 'x.measurement.quality.csv' analysis output (or the all.measurement.quality.csv)",
 }
 
+extensions = {
+    "latencies": "latencies.csv",
+    "windowed-frame-stats": "windowed.stats.csv",
+    "frame-duration-hist": "frame.duration.csv",
+    "avsync": "avsync.csv",
+    "video-latency": "video.latency.csv",
+    "audio-latency": "audio.latency.csv",
+    "measurement-quality": "measurement.quality.csv",
+}
+
 
 def configure_axis(ax, title, xlabel, ylabel):
     ax.set_title(title)
@@ -360,7 +370,7 @@ def main():
         type=str,
         help=f"Type of the plot: \n"
         + "".join([f"\t{k} : {v}\n" for k, v in plots.items()]),
-        required=True,
+        required=False,
     )
     parser.add_argument("-s", "--show", action="store_true", help="Show the plot")
     parser.add_argument(
@@ -372,14 +382,27 @@ def main():
 
     args = parser.parse_args()
     _data = []
+
     for file in args.input:
+        # Guess the type
+        if args.type == None or len(args.type) == 0:
+            # find the type
+            for key, ending in extensions.items():
+                if file.endswith(ending):
+                    args.type = key
+                    break
+        if file[-3:] != "csv":
+            # Assume this is the videofile and instead add default extensions
+            if args.type != None and len(args.type) > 0:
+                extension = extensions[args.type]
+            file = f"{file}.{extension}"
+
         if file[-3:] == "csv" and os.path.exists(file):
             _tmp = pd.read_csv(file)
             _tmp["file"] = file
             _data.append(_tmp)
 
-    data = pd.concat(_data)
-
+        data = pd.concat(_data)
     if args.type == "windowed-frame-stats":
         plot_windowed_framestats(data, args)
     elif args.type == "frame-duration-hist":
