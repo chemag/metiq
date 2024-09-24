@@ -17,6 +17,7 @@ import audio_parse
 import media_parse
 import media_analyze
 import multiprocessing as mp
+import video_tag_coordinates
 
 VIDEO_ENDING = ".video.csv"
 
@@ -442,6 +443,12 @@ def get_options(argv):
         default=0,
         help="Brightness value. Keep this value between -255 and 255 for 8bit, probaly much less i.e. +/20. It is a simple addition to the pixel values.",
     )
+    parser.add_argument(
+        "--tag-manual",
+        dest="tag_manual",
+        action="store_true",
+        help="Find tags manually",
+    )
     options = parser.parse_args()
     return options
 
@@ -477,7 +484,11 @@ def run_file(kwargs):
     pixel_format = metiq.default_values["pixel_format"]
     luma_threshold = metiq.default_values["luma_threshold"]
     num_frames = -1
-    kwargs = {"lock_layout": True, "threaded": False}
+    kwargs = {
+        "lock_layout": True,
+        "threaded": False,
+        "tag_manual": kwargs.get("tag_manual"),
+    }
 
     min_separation_msec = metiq.default_values["min_separation_msec"]
     audio_sample = metiq.default_values["audio_sample"]
@@ -594,20 +605,34 @@ def main(argv):
                 "sharpen": options.sharpen,
                 "contrast": options.contrast,
                 "brightness": options.brightness,
+                "tag_manual": options.tag_manual,
                 "debug": options.debug,
             }
         )
         for infile in options.infile_list
     ]
+
+    start_index = 0
+    video_tag_coordinates.use_cache()
+    video_tag_coordinates.clear_cache()
+    if options.tag_manual:
+        # Run the first file manually, save the parsed positions and use that for the subsequent ones.
+        # remove .tag_freeze if existing (aborted previous run?).
+        if os.path.exists(".tag_freeze"):
+            os.remove(".tag_freeze")
+        start_index = 1
+        results = run_file(kwargs_list[0])
+
     if options.max_parallel == 0:
         # do not use multiprocessing
-        for kwargs in kwargs_list:
+        for kwargs in kwargs_list[start_index:]:
             results = run_file(kwargs)
     else:
         with mp.Pool(processes=options.max_parallel) as p:
-            results = p.map(run_file, kwargs_list, chunksize=1)
+            results = p.map(run_file, kwargs_list[start_index:], chunksize=1)
 
     combined_calculations(options)
+    video_tag_coordinates.clear_cache()
 
 
 if __name__ == "__main__":
