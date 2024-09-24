@@ -4,11 +4,24 @@
 import cv2
 import argparse
 import time
+import os
 
 
 coords = []
 clicked_coords = []
 freeze_tags = False
+use_cache_enabled = False
+tag_name = ".tag_freeze"
+
+
+def clear_cache():
+    if os.path.exists(tag_name):
+        os.remove(tag_name)
+
+
+def use_cache():
+    global use_cache_enabled
+    use_cache_enabled = True
 
 
 def are_tags_frozen():
@@ -27,6 +40,7 @@ def mouse_callback(event, x, y, flags, param):
 
 def tag_frame(frame):
     global coords, clicked_coords, freeze_tags
+
     name = "Tag coordinates"
 
     clicked_coords = []
@@ -69,11 +83,23 @@ def tag_frame(frame):
     # tl, tr, bl, br
     coords = sorted(coords, key=lambda x: x[0] + x[1])
     coords = [coords[0], coords[2], coords[1], coords[3]]
+
     return coords
 
 
 def tag_video(video_path, width=-1, height=-1):
-    global coords
+    global coords, freeze_tags, use_cache_enabled
+
+    if os.path.exists(tag_name):
+        # Check if there is a freeze tag saved.
+        # open the .tag_freeze and read coordinates
+        try:
+            with open(tag_name, "r") as f:
+                coords = eval(f.read())
+                freeze_tags = True
+                return coords
+        except FileNotFoundError:
+            pass
     cap = cv2.VideoCapture(video_path)
 
     ret, frame = cap.read()
@@ -90,6 +116,12 @@ def tag_video(video_path, width=-1, height=-1):
         hratio = height / sheight
 
         coords = [(int(x * wratio), int(y * hratio)) for x, y in coords]
+
+        # add support for session wide freeze
+        # Write coords to .tag_freeze
+        if use_cache_enabled:
+            with open(tag_name, "w") as f:
+                f.write(str(coords))
     cap.release()
 
     return coords

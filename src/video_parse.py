@@ -381,7 +381,8 @@ def video_parse(
                 _ids = None
                 if not tag_manual and not lock_layout:
                     _vft_id, _tag_center_locations, _borders, _ids = vft.detect_tags(
-                        img, debug=debug,
+                        img,
+                        debug=debug,
                     )
                 if _vft_id:
                     vft_layout = vft.VFTLayout(width, height, _vft_id)
