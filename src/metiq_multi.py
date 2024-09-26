@@ -192,7 +192,7 @@ def combined_calculations(options):
                 if len(source_files) > 1:
                     per_file_string += "\n* audio latency *"
                     for file in simple.index:
-                        per_file_string += f"\n{file:<30} av_sync mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
+                        per_file_string += f"\n{file:<30} mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
 
         if len(all_video_latency) > 0:
             path = f"{outfile}.video_latency.csv"
@@ -218,7 +218,7 @@ def combined_calculations(options):
                 if len(source_files) > 1:
                     per_file_string += "\n* Video latency *"
                     for file in simple.index:
-                        per_file_string += f"\n{file:<30} av_sync mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
+                        per_file_string += f"\n{file:<30} mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
 
         if len(all_av_sync) > 0:
             path = f"{outfile}.avsync.csv"
@@ -245,7 +245,7 @@ def combined_calculations(options):
                 if len(source_files) > 1:
                     per_file_string += "\n* Av sync *"
                     for file in simple.index:
-                        per_file_string += f"\n{file:<30} av_sync mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
+                        per_file_string += f"\n{file:<30} mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
 
         if len(all_combined) > 0:
             path = f"{outfile}.latencies.csv"
@@ -312,7 +312,7 @@ def combined_calculations(options):
                 if len(source_files) > 1:
                     per_file_string += "\n* Parsing quality *"
                     for file in all_quality_stats["file"].unique():
-                        per_file_string += f"\n{file:<30} parsing error: {all_quality_stats[all_quality_stats['file'] == file]['video_frames_metiq_errors_percentage'].mean():+.3f}"
+                        per_file_string += f"\n{file:<30} parsing error: {all_quality_stats[all_quality_stats['file'] == file]['video_frames_metiq_errors_percentage'].mean():+.3f} %"
 
         if len(all_frame_duration) > 0:
             path = f"{outfile}.frame_duration.csv"
