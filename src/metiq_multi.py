@@ -11,6 +11,7 @@ import os
 import sys
 import argparse
 import time
+import numpy as np
 import pandas as pd
 import metiq
 import audio_parse
@@ -175,9 +176,19 @@ def combined_calculations(options):
             simple = (
                 all_audio_latency[["file", "audio_latency_sec"]]
                 .groupby("file")
-                .agg(["mean", "std", "min", "max"])
+                .agg(
+                    [
+                        "mean",
+                        "std",
+                        "min",
+                        "max",
+                        lambda x: np.percentile(x, q=50),
+                        lambda x: np.percentile(x, q=90),
+                    ]
+                )
             )
             simple = simple.droplevel(0, axis=1)
+            simple.columns = ["file", "mean", "std", "min", "max", "p50", "p90"]
             path = f"{outfile}.audio_latency.stats.csv"
             simple.to_csv(path)
             if options.stats:
@@ -185,6 +196,9 @@ def combined_calculations(options):
                 std = all_audio_latency["audio_latency_sec"].std()
                 min = all_audio_latency["audio_latency_sec"].min()
                 max = all_audio_latency["audio_latency_sec"].max()
+                p50 = all_audio_latency["audio_latency_sec"].quantile(0.5)
+                p90 = all_audio_latency["audio_latency_sec"].quantile(0.9)
+
                 # Print error stats
                 descr = "\nAudio latency: "
                 aggregated_string += f"{descr:<24} {mean:+.2f} std dev: {std:+.2f}, min/max: {min:+.2f}/{max:+.2f}"
@@ -192,7 +206,10 @@ def combined_calculations(options):
                 if len(source_files) > 1:
                     per_file_string += "\n* audio latency *"
                     for file in simple.index:
-                        per_file_string += f"\n{file:<30} mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
+                        per_file_string += (
+                            f"\n{file:<30} mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f},"
+                            f"p50: {simple.loc[file]['p50']:+.3f}, p90 {simple.loc[file]['p90']:+.3f},  min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
+                        )
 
         if len(all_video_latency) > 0:
             path = f"{outfile}.video_latency.csv"
@@ -202,9 +219,19 @@ def combined_calculations(options):
             simple = (
                 all_video_latency[["file", "video_latency_sec"]]
                 .groupby("file")
-                .agg(["mean", "std", "min", "max"])
+                .agg(
+                    [
+                        "mean",
+                        "std",
+                        "min",
+                        "max",
+                        lambda x: np.percentile(x, q=50),
+                        lambda x: np.percentile(x, q=90),
+                    ]
+                )
             )
             simple = simple.droplevel(0, axis=1)
+            simple.columns = ["file", "mean", "std", "min", "max", "p50", "p90"]
             path = f"{outfile}.video_latency.stats.csv"
             simple.to_csv(path)
             if options.stats:
@@ -212,13 +239,18 @@ def combined_calculations(options):
                 std = all_video_latency["video_latency_sec"].std()
                 min = all_video_latency["video_latency_sec"].min()
                 max = all_video_latency["video_latency_sec"].max()
+                p50 = all_video_latency["video_latency_sec"].quantile(0.5)
+                p90 = all_video_latency["video_latency_sec"].quantile(0.9)
                 descr = "\nVideo latency:: "
-                aggregated_string += f"{descr:<24} {mean:+.2f} std dev: {std:+.2f}, min/max: {min:+.2f}/{max:+.2f}"
+                aggregated_string += f"{descr:<24} {mean:+.2f} std dev: {std:+.2f}, p50: {p50:+.2f}, p90 {p90:+.2f} `min/max: {min:+.2f}/{max:+.2f}"
 
                 if len(source_files) > 1:
                     per_file_string += "\n* Video latency *"
                     for file in simple.index:
-                        per_file_string += f"\n{file:<30} mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
+                        per_file_string += (
+                            f"\n{file:<30} mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f},"
+                            f"p50: {simple.loc[file]['p50']:+.3f}, p90 {simple.loc[file]['p90']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
+                        )
 
         if len(all_av_sync) > 0:
             path = f"{outfile}.avsync.csv"
@@ -228,9 +260,19 @@ def combined_calculations(options):
             simple = (
                 all_av_sync[["file", "av_sync_sec"]]
                 .groupby("file")
-                .agg(["mean", "std", "min", "max"])
+                .agg(
+                    [
+                        "mean",
+                        "std",
+                        "min",
+                        "max",
+                        lambda x: np.percentile(x, q=50),
+                        lambda x: np.percentile(x, q=90),
+                    ]
+                )
             )
             simple = simple.droplevel(0, axis=1)
+            simple.columns = ["mean", "std", "min", "max", "p50", "p90"]
             simple.to_csv(path)
 
             if options.stats:
@@ -238,6 +280,9 @@ def combined_calculations(options):
                 std = all_av_sync["av_sync_sec"].std()
                 min = all_av_sync["av_sync_sec"].min()
                 max = all_av_sync["av_sync_sec"].max()
+                p50 = all_av_sync["av_sync_sec"].quantile(0.5)
+                p90 = all_av_sync["av_sync_sec"].quantile(0.9)
+
                 # Print error stats
                 descr = "\nAudio/Video sync: "
                 aggregated_string += f"{descr:<24} {mean:+.2f} std dev: {std:+.2f}, min/max: {min:+.2f}/{max:+.2f}"
@@ -245,7 +290,10 @@ def combined_calculations(options):
                 if len(source_files) > 1:
                     per_file_string += "\n* Av sync *"
                     for file in simple.index:
-                        per_file_string += f"\n{file:<30} mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
+                        per_file_string += (
+                            f"\n{file:<30} mean: {simple.loc[file]['mean']:+.3f}, std: {simple.loc[file]['std']:+.3f}"
+                            f", p50: {simple.loc[file]['p50']:+.3f}, p90 {simple.loc[file]['p90']:+.3f}, min: {simple.loc[file]['min']:+.3f}, max: {simple.loc[file]['max']:+.3f}"
+                        )
 
         if len(all_combined) > 0:
             path = f"{outfile}.latencies.csv"
@@ -257,7 +305,16 @@ def combined_calculations(options):
                     ["file", "audio_latency_sec", "video_latency_sec", "av_sync_sec"]
                 ]
                 .groupby("file")
-                .agg(["mean", "std", "min", "max"])
+                .agg(
+                    [
+                        "mean",
+                        "std",
+                        "min",
+                        "max",
+                        lambda x: np.percentile(x, q=50),
+                        lambda x: np.percentile(x, q=90),
+                    ]
+                )
             )
             simple = simple.droplevel(0, axis=1)
             simple.columns = [
@@ -265,14 +322,20 @@ def combined_calculations(options):
                 "audio_latency_sec_std",
                 "audio_latency_sec_min",
                 "audio_latency_sec_max",
+                "audio_latency_sec_p50",
+                "audio_latency_sec_p90",
                 "video_latency_sec_mean",
                 "video_latency_sec_std",
                 "video_latency_sec_min",
                 "video_latency_sec_max",
+                "video_latency_sec_p50",
+                "video_latency_sec_p90",
                 "av_sync_sec_mean",
                 "av_sync_sec_std",
                 "av_sync_sec_min",
                 "av_sync_sec_max",
+                "av_sync_sec_p50",
+                "av_sync_sec_p90",
             ]
             path = f"{outfile}.latencies.stats.csv"
             simple.to_csv(path)
