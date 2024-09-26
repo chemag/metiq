@@ -139,7 +139,9 @@ def plot_av_sync(data, options):
 
 def plot_measurement_quality(data, options):
     # video_frames_metiq_errors_percentage | video_frames_metiq_error.no_valid_tag | video_frames_metiq_error.invalid_graycode | video_frames_metiq_error.single_graycode_bit | video_frames_metiq_error.unknown | signal_distance_sec | max_correlation | min_correlation | mean_correlation | index
+    # video_frames_metiq_errors_percentage  | video_frames_metiq_error.ok,video_frames_metiq_error.single_graycode,video_frames_metiq_error.invalid_graycode,video_frames_metiq_error.single_graycode_unfixable,video_frames_metiq_error.large_delta,video_frames_metiq_error.no_input,video_frames_metiq_error.no_tags,video_frames_metiq_error.other,signal_distance_sec,max_correlation,min_correlation,mean_correlation,index
 
+    print(data.columns)
     if (
         len(
             [
@@ -156,16 +158,22 @@ def plot_measurement_quality(data, options):
     title = options.title if options.title else "Measurement quality - Parsing errors"
     if options.rolling and not options.aggregate:
         title = f"{title} (rolling window: {options.rolling} frames)"
+    # filter columns with zero errors:
+    columns = [
+        "video_frames_metiq_errors_percentage",
+        "video_frames_metiq_error.invalid_graycode",
+        "video_frames_metiq_error.single_graycode",
+        "video_frames_metiq_error.single_graycode_unfixable",
+        "video_frames_metiq_error.large_delta",
+        "video_frames_metiq_error.no_tags",
+        "video_frames_metiq_error.other",
+    ]
+    # remove columns with 0 errors
+    columns = [col for col in columns if data[col].sum() > 0]
     plot_columns(
         data,
         "file",
-        [
-            "video_frames_metiq_errors_percentage",
-            "video_frames_metiq_error.no_valid_tag",
-            "video_frames_metiq_error.invalid_graycode",
-            "video_frames_metiq_error.single_graycode_bit",
-            "video_frames_metiq_error.unknown",
-        ],
+        columns,
         ["File"] * 6,
         [
             "Percentage",
