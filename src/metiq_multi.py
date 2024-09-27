@@ -188,7 +188,7 @@ def combined_calculations(options):
                 )
             )
             simple = simple.droplevel(0, axis=1)
-            simple.columns = ["file", "mean", "std", "min", "max", "p50", "p90"]
+            simple.columns = ["mean", "std", "min", "max", "p50", "p90"]
             path = f"{outfile}.audio_latency.stats.csv"
             simple.to_csv(path)
             if options.stats:
@@ -231,7 +231,7 @@ def combined_calculations(options):
                 )
             )
             simple = simple.droplevel(0, axis=1)
-            simple.columns = ["file", "mean", "std", "min", "max", "p50", "p90"]
+            simple.columns = ["mean", "std", "min", "max", "p50", "p90"]
             path = f"{outfile}.video_latency.stats.csv"
             simple.to_csv(path)
             if options.stats:

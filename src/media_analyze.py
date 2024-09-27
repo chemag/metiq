@@ -719,7 +719,9 @@ def av_sync_function(**kwargs):
     # Check residue
     signal_ratio = len(clean_audio) / len(audio_results)
     if signal_ratio < 1:
-        print(f"\nRemoved {signal_ratio * 100:.2f}% echoes, transmission use case. Video latency can be calculated.\n")
+        print(
+            f"\nRemoved {signal_ratio * 100:.2f}% echoes, transmission use case. Video latency can be calculated.\n"
+        )
         if signal_ratio < 0.2:
             print("Few echoes, recheck thresholds")
 
@@ -728,7 +730,9 @@ def av_sync_function(**kwargs):
         clean_audio = filter_echoes(pd.DataFrame(residue), beep_period_sec, margin)
 
     else:
-        print("\nWarning, no echoes, simple source use case. No video latency calculation possible.\n")
+        print(
+            "\nWarning, no echoes, simple source use case. No video latency calculation possible.\n"
+        )
 
     av_sync_results = calculate_av_sync(
         clean_audio,
@@ -746,8 +750,11 @@ def av_sync_function(**kwargs):
     # print statistics
     avsync_sec_average = np.average(av_sync_results["av_sync_sec"])
     avsync_sec_stddev = np.std(av_sync_results["av_sync_sec"])
+    avsync_sec_p50 = np.percentile(av_sync_results["av_sync_sec"], 50)
+    avsync_sec_p90 = np.percentile(av_sync_results["av_sync_sec"], 90)
+
     print(
-        f"avsync_sec average: {avsync_sec_average} stddev: {avsync_sec_stddev} size: {len(av_sync_results)}"
+        f"avsync_sec average: {avsync_sec_average:.3f} stddev: {avsync_sec_stddev:.3f} p50: {avsync_sec_p50:.3f} p90: {avsync_sec_p90:.3f} size: {len(av_sync_results)}"
     )
 
 
