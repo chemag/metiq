@@ -225,17 +225,17 @@ def calculate_stats(
     return pd.DataFrame(stats, columns=stats.keys(), index=[0]), cg
 
 
-# Function searches for the video_results row whose timestamp
-# is closer to ts
-# It returns a tuple containing:
-# (a) the frame_num of the selected row,
-# (b) the searched (input) timestamp,
-# (c) the value read in the selected frame,
-# (d) the frame_num of the next frame where a beep is expected,
-# (e) the latency assuming the initial frame_time.
-# (f) if the value read is extrapolated (or perfect match)
-def match_video_to_sources_beep(
-    ts,
+# Searches for the video_results row whose timestamp is closer to
+# `audio_timestamp`.
+# Returns a tuple containing:
+# (a) the frame_num of the selected video row,
+# (b) the searched (input, video) timestamp,
+# (c) the matched (audio) timestamp,
+# (d) the value read in the the selected video frame,
+# (e) the frame_num of the next frame where a beep is expected,
+# (f) the latency (assuming the initial frame_time).
+def match_video_to_audio_timestamp(
+    audio_timestamp,
     video_results,
     beep_period_frames,
     frame_time,
@@ -245,12 +245,12 @@ def match_video_to_sources_beep(
     debug=1,
 ):
     video_results = video_results.copy()
-    # The algorithm is as follows:
-    # 1) find the frame in video that match the closest to ts
-    # 2) Check the value parsed and compare to the expected beep frame time
+    # The algorithm works as follows:
+    # 1) find the frame in video that match the closest to audio_timestamp
+    # 2) check the value parsed and compare to the expected beep frame time
     #    given the value just read.
-    # 3) Find the frame matching the beep number
-    # 3) If the match in (1) was not exact adjust for it.
+    # 3) find the frame matching the beep number
+    # 4) if the match in (1) was not exact adjust for it.
 
     # Limit errors (audio offset and errors)
     if match_distance_frames < 0:
@@ -259,14 +259,14 @@ def match_video_to_sources_beep(
 
     closematch = None
     # Just find the closes match to the timestamp
-    video_results["distance"] = np.abs(video_results["timestamp"] - ts)
+    video_results["distance"] = np.abs(video_results["timestamp"] - audio_timestamp)
     # The purpose of this is just to find the beep source
     closematch = video_results.loc[video_results["distance"] < beep_period_frames]
 
     # remove non valid values
     closematch = closematch.loc[closematch["value_read"].notna()]
     if len(closematch) == 0:
-        print(f"Warning. No match for {ts} within a beep period is found")
+        print(f"Warning. No match for {audio_timestamp} within a beep period is found")
         return None
 
     # sort by time difference
@@ -311,7 +311,7 @@ def match_video_to_sources_beep(
     # remove non valid values
     closematch = closematch.loc[closematch["value_read"].notna()]
     if len(closematch) == 0:
-        print(f"Warning. No match for {ts} is found")
+        print(f"Warning. No match for {audio_timestamp} is found")
         return None
 
     # sort by time difference
@@ -321,7 +321,8 @@ def match_video_to_sources_beep(
 
     # get offset if not perfect match
     offset = best_match["value_read"] - next_beep_frame
-    latency = best_match["timestamp"] - ts - offset * frame_time
+    latency = best_match["timestamp"] - audio_timestamp - offset * frame_time
+    video_timestamp = best_match["timestamp"]
 
     # Find the closest frame to the expected beep
 
@@ -331,7 +332,8 @@ def match_video_to_sources_beep(
     else:
         vlat = [
             best_match["frame_num"],
-            ts,
+            video_timestamp,
+            audio_timestamp,
             best_match["value_read"],
             next_beep_frame,
             latency,
@@ -446,7 +448,8 @@ def calculate_video_relation(
     video_latency_results = pd.DataFrame(
         columns=[
             "frame_num",
-            "timestamp",
+            "video_timestamp",
+            "audio_timestamp",
             "frame_num_read",
             "original_frame",
             "video_latency_sec",
@@ -458,8 +461,9 @@ def calculate_video_relation(
         # calculate video latency based on the
         # timestamp of the first (prev) audio match
         # vs. the timestamp of the video frame.
-        vmatch = match_video_to_sources_beep(
-            match[audio_anchor],
+        audio_timestamp = match[audio_anchor]
+        vmatch = match_video_to_audio_timestamp(
+            audio_timestamp,
             video_results,
             beep_period_frames,
             frame_time,
@@ -513,9 +517,8 @@ def calculate_av_sync(
     ignore_match_order=True,
     debug=False,
 ):
-
     # av sync is the difference between when a signal is heard and when the frame is shown
-    # If there is a second ssignal, use that one.
+    # If there is a second signal, use that one.
     timefield = "timestamp2"
     if timefield not in audio_results.columns:
         timefield = "timestamp"
