@@ -123,7 +123,7 @@ def calculate_measurement_quality_stats(audio_results, video_results):
 def calculate_stats(
     audio_latency_results,
     video_latency_results,
-    av_syncs,
+    avsync_list,
     video_results,
     audio_duration_samples,
     audio_duration_seconds,
@@ -132,7 +132,7 @@ def calculate_stats(
 ):
     stats = {}
     ignore_latency = False
-    if len(av_syncs) == 0 or len(video_results) == 0:
+    if len(avsync_list) == 0 or len(video_results) == 0:
         print(f"Failure - no data")
         return None, None
 
@@ -175,10 +175,10 @@ def calculate_stats(
         else np.std(audio_latency_results["audio_latency_sec"].values)
     )
 
-    # 4. av_sync statistics
-    stats["av_sync_sec.num_samples"] = len(av_syncs)
-    stats["av_sync_sec.mean"] = np.mean(av_syncs["av_sync_sec"])
-    stats["av_sync_sec.std_dev"] = np.std(av_syncs["av_sync_sec"].values)
+    # 4. avsync statistics
+    stats["avsync_sec.num_samples"] = len(avsync_list)
+    stats["avsync_sec.mean"] = np.mean(avsync_list["avsync_sec"])
+    stats["avsync_sec.std_dev"] = np.std(avsync_list["avsync_sec"].values)
 
     # 5. video source (metiq) stats
     video_results["value_read_int"] = video_results["value_read"].dropna().astype(int)
@@ -473,7 +473,7 @@ def calculate_video_relation(
 
         if vmatch is not None and (
             vmatch[4] >= 0 or closest_reference
-        ):  # av_sync can be negative
+        ):  # avsync can be negative
             video_latency_results.loc[len(video_latency_results.index)] = vmatch
             previous_matches.append(vmatch[3])
         elif vmatch is None:
@@ -509,7 +509,7 @@ def calculate_video_latency(
     )
 
 
-def calculate_av_sync(
+def calculate_avsync(
     audio_results,
     video_results,
     beep_period_sec,
@@ -522,7 +522,7 @@ def calculate_av_sync(
     timefield = "timestamp2"
     if timefield not in audio_results.columns:
         timefield = "timestamp"
-    av_sync_results = calculate_video_relation(
+    avsync_results = calculate_video_relation(
         audio_results,
         video_results,
         timefield,
@@ -532,10 +532,8 @@ def calculate_av_sync(
         ignore_match_order=ignore_match_order,
         debug=debug,
     )
-    av_sync_results = av_sync_results.rename(
-        columns={"video_latency_sec": "av_sync_sec"}
-    )
-    return av_sync_results
+    avsync_results = avsync_results.rename(columns={"video_latency_sec": "avsync_sec"})
+    return avsync_results
 
 
 def z_filter_function(data, field, z_val):
@@ -696,7 +694,7 @@ def video_latency_function(**kwargs):
             print("Warning. No video latency results")
 
 
-def av_sync_function(**kwargs):
+def avsync_function(**kwargs):
     audio_results = kwargs.get("audio_results")
     video_results = kwargs.get("video_results")
     ref_fps = kwargs.get("ref_fps")
@@ -715,7 +713,7 @@ def av_sync_function(**kwargs):
 
     if not outfile:
         infile = kwargs.get("input_video", None)
-        outfile = create_output_filename(infile, "av_sync")
+        outfile = create_output_filename(infile, "avsync")
 
     margin = 0.7
     clean_audio = filter_echoes(audio_results, beep_period_sec, margin)
@@ -737,7 +735,7 @@ def av_sync_function(**kwargs):
             "\nWarning, no echoes, simple source use case. No video latency calculation possible.\n"
         )
 
-    av_sync_results = calculate_av_sync(
+    avsync_results = calculate_avsync(
         clean_audio,
         video_results,
         fps=ref_fps,
@@ -746,18 +744,18 @@ def av_sync_function(**kwargs):
     )
     # filter the a/v sync values
     if z_filter > 0:
-        av_sync_results = z_filter_function(av_sync_results, "av_sync_sec", z_filter)
-    if len(av_sync_results) > 0:
-        av_sync_results.to_csv(outfile, index=False)
+        avsync_results = z_filter_function(avsync_results, "avsync_sec", z_filter)
+    if len(avsync_results) > 0:
+        avsync_results.to_csv(outfile, index=False)
 
     # print statistics
-    avsync_sec_average = np.average(av_sync_results["av_sync_sec"])
-    avsync_sec_stddev = np.std(av_sync_results["av_sync_sec"])
-    avsync_sec_p50 = np.percentile(av_sync_results["av_sync_sec"], 50)
-    avsync_sec_p90 = np.percentile(av_sync_results["av_sync_sec"], 90)
+    avsync_sec_average = np.average(avsync_results["avsync_sec"])
+    avsync_sec_stddev = np.std(avsync_results["avsync_sec"])
+    avsync_sec_p50 = np.percentile(avsync_results["avsync_sec"], 50)
+    avsync_sec_p90 = np.percentile(avsync_results["avsync_sec"], 90)
 
     print(
-        f"avsync_sec average: {avsync_sec_average:.3f} stddev: {avsync_sec_stddev:.3f} p50: {avsync_sec_p50:.3f} p90: {avsync_sec_p90:.3f} size: {len(av_sync_results)}"
+        f"avsync_sec average: {avsync_sec_average:.3f} stddev: {avsync_sec_stddev:.3f} p50: {avsync_sec_p50:.3f} p90: {avsync_sec_p90:.3f} size: {len(avsync_results)}"
     )
 
 
@@ -1000,8 +998,8 @@ MEDIA_ANALYSIS = {
         "Calculate video latency",
         ".video.latency.csv",
     ),
-    "av_sync": (
-        av_sync_function,
+    "avsync": (
+        avsync_function,
         "Calculate audio/video synchronization offset using audio timestamps and video frame numbers",
         ".avsync.csv",
     ),
