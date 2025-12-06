@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 import queue
 import threading
-from typing import Optional, Tuple
+import typing
 
 import metiq_reader_generic
 
@@ -40,7 +40,7 @@ class VideoReaderCV2(metiq_reader_generic.VideoReaderBase):
         input_file: str,
         width: int = 0,
         height: int = 0,
-        pixel_format: Optional[str] = None,
+        pixel_format: typing.Optional[str] = None,
         threaded: bool = False,
         debug: int = 0,
     ):
@@ -64,9 +64,9 @@ class VideoReaderCV2(metiq_reader_generic.VideoReaderBase):
 
         self._video_capture = None
         self._frame_num = 0
-        self._width: Optional[int] = None
-        self._height: Optional[int] = None
-        self._fps: Optional[float] = None
+        self._width: typing.Optional[int] = None
+        self._height: typing.Optional[int] = None
+        self._fps: typing.Optional[float] = None
         self._num_frames: int = -1
         self._duration: float = -1.0
         self._started = False
@@ -141,7 +141,9 @@ class VideoReaderCV2(metiq_reader_generic.VideoReaderBase):
                 print(f"VideoReaderCV2: error opening {self.input_file}: {e}")
             return False
 
-    def read(self) -> Tuple[bool, Optional[metiq_reader_generic.VideoFrame]]:
+    def read(
+        self,
+    ) -> typing.Tuple[bool, typing.Optional[metiq_reader_generic.VideoFrame]]:
         """Read the next video frame.
 
         Returns:
@@ -172,7 +174,7 @@ class VideoReaderCV2(metiq_reader_generic.VideoReaderBase):
         self._frame_num += 1
         return True, frame
 
-    def get_metadata(self) -> Optional[metiq_reader_generic.VideoMetadata]:
+    def get_metadata(self) -> typing.Optional[metiq_reader_generic.VideoMetadata]:
         """Get video metadata.
 
         Returns:
@@ -368,7 +370,7 @@ class _VideoCaptureYUV:
             return (self._frame_num / self._fps) * 1000.0 if self._fps > 0 else 0.0
         return 0.0
 
-    def read(self) -> Tuple[bool, Optional[np.ndarray]]:
+    def read(self) -> typing.Tuple[bool, typing.Optional[np.ndarray]]:
         """Read the next frame and convert to BGR.
 
         Returns:
@@ -387,7 +389,7 @@ class _VideoCaptureYUV:
         self._frame_num += 1
         return True, bgr
 
-    def _read_raw(self) -> Tuple[bool, Optional[np.ndarray]]:
+    def _read_raw(self) -> typing.Tuple[bool, typing.Optional[np.ndarray]]:
         """Read raw YUV data for one frame."""
         try:
             raw = self._file.read(self._frame_len)

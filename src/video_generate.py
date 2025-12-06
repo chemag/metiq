@@ -12,7 +12,7 @@ import numpy as np
 
 import video_common
 import vft
-from _version import __version__
+import _version
 
 
 VFT_ID = "7x5"
@@ -278,7 +278,7 @@ def main(argv):
     # parse options
     options = get_options(argv)
     if options.version:
-        print("version: %s" % __version__)
+        print("version: %s" % _version.__version__)
         sys.exit(0)
 
     # get outfile

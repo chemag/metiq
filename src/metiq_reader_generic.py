@@ -14,7 +14,7 @@ Concrete implementations are in:
 import abc
 import dataclasses
 import numpy as np
-from typing import Optional, Tuple
+import typing
 
 
 @dataclasses.dataclass
@@ -66,8 +66,8 @@ class AudioFrame:
 class MediaMetadata:
     """Combined metadata for the media file."""
 
-    video: Optional[VideoMetadata]
-    audio: Optional[AudioMetadata]
+    video: typing.Optional[VideoMetadata]
+    audio: typing.Optional[AudioMetadata]
 
 
 class VideoReaderBase(abc.ABC):
@@ -83,7 +83,7 @@ class VideoReaderBase(abc.ABC):
     """
 
     @abc.abstractmethod
-    def read(self) -> Tuple[bool, Optional[VideoFrame]]:
+    def read(self) -> typing.Tuple[bool, typing.Optional[VideoFrame]]:
         """Read the next video frame.
 
         Returns:
@@ -93,7 +93,7 @@ class VideoReaderBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_metadata(self) -> Optional[VideoMetadata]:
+    def get_metadata(self) -> typing.Optional[VideoMetadata]:
         """Get video stream metadata.
 
         Returns:
@@ -162,7 +162,7 @@ class AudioReaderBase(abc.ABC):
     """
 
     @abc.abstractmethod
-    def read(self) -> Optional[np.ndarray]:
+    def read(self) -> typing.Optional[np.ndarray]:
         """Read all audio samples.
 
         Returns:
@@ -172,7 +172,7 @@ class AudioReaderBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_metadata(self) -> Optional[AudioMetadata]:
+    def get_metadata(self) -> typing.Optional[AudioMetadata]:
         """Get audio stream metadata.
 
         Returns:
@@ -208,7 +208,7 @@ class MediaReaderBase(abc.ABC):
     """
 
     @abc.abstractmethod
-    def read_video_frame(self) -> Tuple[bool, Optional[VideoFrame]]:
+    def read_video_frame(self) -> typing.Tuple[bool, typing.Optional[VideoFrame]]:
         """Read the next video frame.
 
         Returns:
@@ -218,7 +218,7 @@ class MediaReaderBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def read_audio(self) -> Optional[np.ndarray]:
+    def read_audio(self) -> typing.Optional[np.ndarray]:
         """Read all audio samples.
 
         Returns:
@@ -227,12 +227,12 @@ class MediaReaderBase(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_video_metadata(self) -> Optional[VideoMetadata]:
+    def get_video_metadata(self) -> typing.Optional[VideoMetadata]:
         """Get video stream metadata."""
         pass
 
     @abc.abstractmethod
-    def get_audio_metadata(self) -> Optional[AudioMetadata]:
+    def get_audio_metadata(self) -> typing.Optional[AudioMetadata]:
         """Get audio stream metadata."""
         pass
 

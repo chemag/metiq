@@ -15,8 +15,8 @@ import video_tag_coordinates as vtc
 import metiq_reader_cv2
 import vft
 import time
-from shapely.geometry import Polygon
-from _version import __version__
+import shapely.geometry
+import _version
 
 COLOR_BLACK = (0, 0, 0)
 COLOR_BACKGROUND = (128, 128, 128)
@@ -479,19 +479,19 @@ def calc_alignment(infile, width, height, pixel_format, debug):
         ]
 
         # assume we are in the plane and no angle (not much we can do if not)
-        triangle = Polygon(tag_center_locations)
+        triangle = shapely.geometry.Polygon(tag_center_locations)
         measured_area = triangle.area * 2
-        expected_triangle = Polygon(tag_expected_center_locations)
+        expected_triangle = shapely.geometry.Polygon(tag_expected_center_locations)
         expected_area = expected_triangle.area
     else:
         # the order is wrong for shapely
         tag_center_locations = [tag_center_locations[i] for i in [0, 1, 3, 2]]
-        rectangle = Polygon(tag_center_locations)
+        rectangle = shapely.geometry.Polygon(tag_center_locations)
         measured_area = rectangle.area
         tag_expected_center_locations = [
             tag_expected_center_locations[i] for i in [0, 1, 3, 2]
         ]
-        expected = Polygon(tag_expected_center_locations)
+        expected = shapely.geometry.Polygon(tag_expected_center_locations)
         expected_area = expected.area
 
     ratio = measured_area / expected_area
@@ -840,7 +840,7 @@ def main(argv):
     # parse options
     options = get_options(argv)
     if options.version:
-        print("version: %s" % __version__)
+        print("version: %s" % _version.__version__)
         sys.exit(0)
     # get infile/outfile
     if options.infile is None or options.infile == "-":

@@ -14,8 +14,7 @@ import media_generate
 import media_parse
 import vft
 import video_common
-
-from _version import __version__
+import _version
 
 
 PARSE = "parse"
@@ -584,7 +583,7 @@ def main(argv):
     # parse options
     options = get_options(argv)
     if options.version:
-        print("version: %s" % __version__)
+        print("version: %s" % _version.__version__)
         sys.exit(0)
 
     # print results

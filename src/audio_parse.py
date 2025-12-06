@@ -9,13 +9,13 @@ import numpy as np
 import pandas as pd
 import scipy.io.wavfile
 import scipy.signal
-from scipy.fft import fft, fftfreq
+import scipy.fft
 import tempfile
 import matplotlib.pyplot as plt
 
 import common
 import audio_common
-from _version import __version__
+import _version
 
 DEFAULT_MIN_SEPARATION_MSEC = -1
 DEFAULT_MAX_VALUES = 10000
@@ -53,8 +53,8 @@ def bpFilterSignal(data, hp, lp, order, samplerate, verbose):
         lp = int(samplerate / 2)
     if verbose:
         fig, (ax1, ax2) = plt.subplots(2)
-        yf = fft(data)
-        xf = fftfreq(n, t)
+        yf = scipy.fft.fft(data)
+        xf = scipy.fft.fftfreq(n, t)
         peak = np.argmax(np.abs(yf))
         peakf = int(np.abs(xf[peak]))
         ax1.plot(xf[: int(n / 2)], 1.0 / n * np.abs(yf[: int(n / 2)]))
@@ -72,8 +72,8 @@ def bpFilterSignal(data, hp, lp, order, samplerate, verbose):
     sos = scipy.signal.butter(order, [hp, lp], "band", fs=samplerate, output="sos")
     data = scipy.signal.sosfilt(sos, data)
     if verbose:
-        yf = fft(data)
-        xf = fftfreq(n, t)
+        yf = scipy.fft.fft(data)
+        xf = scipy.fft.fftfreq(n, t)
         prevPeakf = peakf
         peak = np.argmax(np.abs(yf))
         peakf = int(np.abs(xf[peak]))
@@ -365,7 +365,7 @@ def main(argv):
     # parse options
     options = get_options(argv)
     if options.version:
-        print("version: %s" % __version__)
+        print("version: %s" % _version.__version__)
         sys.exit(0)
     # get infile/outfile
     if options.infile is None or options.infile == "-":
