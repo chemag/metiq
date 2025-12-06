@@ -5,7 +5,6 @@
 
 import argparse
 import cv2
-import math
 import sys
 import numpy as np
 import scipy
@@ -13,20 +12,16 @@ import pandas as pd
 import video_common
 import audio_common
 import video_tag_coordinates as vtc
+import metiq_reader_cv2
 import vft
 import time
 from shapely.geometry import Polygon
 from _version import __version__
-import timeit
-import threading
-import queue
-import time
 
 COLOR_BLACK = (0, 0, 0)
 COLOR_BACKGROUND = (128, 128, 128)
 COLOR_WHITE = (255, 255, 255)
 
-HW_DECODER_ENABLE = True
 TEN_TO_NINE = 1000000000.0
 COMMON_FPS = [7.0, 15.0, 29.97, 30.0, 59.94, 60.0, 119.88, 120.0, 239.76]
 
@@ -39,140 +34,6 @@ default_values = {
     "infile": None,
     "outfile": None,
 }
-
-# OpenCV have memory issues when used with threads causing a crash on deallocation
-# If we keep the name global in the file we can release it just fine without a crash
-video_capture = None
-
-
-# Wrap the VideoCapture
-# Use a threaded decode to parallelize the work
-class VideoCaptureWrapper(cv2.VideoCapture):
-    decode = True
-    frames = None
-    thread = None
-    # Max numbers of decoded frames in the queue
-    frameLimit = threading.Semaphore(5)
-    current_time = 0
-
-    def __init__(self, filename, api=0, flags=0):
-        super(VideoCaptureWrapper, self).__init__(filename, api, flags)
-        self.frames = queue.Queue(maxsize=5)
-        self.thread = threading.Thread(target=self.decode_video)
-        self.thread.start()
-
-    # Override
-    def read(self):
-        if self.decode or self.frames.qsize() > 0:
-            frame, timestamp = self.frames.get()
-            self.current_time = timestamp
-        else:
-            return False, None
-
-        self.frameLimit.release()
-        return True, frame
-
-    # Override
-    def get(self, propId):
-        if propId == cv2.CAP_PROP_POS_MSEC:
-            return self.current_time
-        else:
-            return super(VideoCaptureWrapper, self).get(propId)
-
-    def decode_video(self):
-        while self.decode:
-            ret, frame = super(VideoCaptureWrapper, self).read()
-            current_time = super(VideoCaptureWrapper, self).get(cv2.CAP_PROP_POS_MSEC)
-            if not ret:
-                self.decode = False
-                break
-            self.frameLimit.acquire()
-            self.frames.put((frame, current_time))
-
-    def release(self):
-        self.decode = False
-        if self.frames.qsize() > 0:
-            self.frames.join()
-        self.thread.join()
-
-        super(VideoCaptureWrapper, self).release()
-
-
-# VideoCapture-compatible raw (yuv) reader
-class VideoCaptureYUV:
-    def __init__(self, filename, width, height, pixel_format):
-        self.width = width
-        self.height = height
-        # assume 4:2:0 here
-        self.frame_len = math.ceil(self.width * self.height * 3 / 2)
-        self.shape = (int(self.height * 1.5), self.width)
-        self.pixel_format = pixel_format
-        self.f = open(filename, "rb")  # noqa: P201
-
-    def __del__(self):
-        self.f.close()
-
-    def release(self):
-        self.__del__()
-
-    def isOpened(self):
-        return True
-
-    def readRaw(self):
-        try:
-            raw = self.f.read(self.frame_len)
-            yuv = np.frombuffer(raw, dtype=np.uint8)
-            yuv = yuv.reshape(self.shape)
-        except Exception as ex:
-            print(str(ex))
-            return False, None
-        return True, yuv
-
-    def read(self):
-        ret, yuv = self.readRaw()
-        if not ret:
-            return ret, yuv
-        bgr = cv2.cvtColor(yuv, self.pixel_format_to_color_format(self.pixel_format))
-        return ret, bgr
-
-    @classmethod
-    def pixel_format_to_color_format(cls, pix_fmt):
-        if pix_fmt == "yuv420p":
-            return cv2.COLOR_YUV2BGR_I420
-        elif pix_fmt == "nv12":
-            return cv2.COLOR_YUV2BGR_NV12
-        elif pix_fmt == "nv21":
-            return cv2.COLOR_YUV2BGR_NV21
-        raise AssertionError(f"error: invalid {pix_fmt = }")
-
-
-def get_video_capture(input_file, width, height, pixel_format, threaded=False):
-    video_capture = None
-    if pixel_format is not None:
-        video_capture = VideoCaptureYUV(input_file, width, height, pixel_format)
-    else:
-        # Auto detect API and try to open hw acceleration
-        if HW_DECODER_ENABLE:
-            if threaded:
-                video_capture = VideoCaptureWrapper(
-                    input_file,
-                    0,
-                    (cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_ANY),
-                )
-            else:
-                video_capture = cv2.VideoCapture(
-                    input_file,
-                    0,
-                    (cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_ANY),
-                )
-        else:
-            if threaded:
-                video_capture = VideoCaptureWrapper(input_file)
-            else:
-                video_capture = cv2.VideoCapture(input_file)
-        # throw error
-
-    return video_capture
 
 
 def round_to_nearest_half(value):
@@ -272,26 +133,28 @@ def video_parse(
         ) = find_first_valid_tag(
             infile, width, height, pixel_format, sharpen, contrast, brightness, debug
         )
-    video_capture = get_video_capture(infile, width, height, pixel_format, threaded)
-    if not video_capture.isOpened():
+    video_reader = metiq_reader_cv2.VideoReaderCV2(
+        infile,
+        width=width,
+        height=height,
+        pixel_format=pixel_format,
+        threaded=threaded,
+        debug=debug,
+    )
+    metadata = video_reader.get_metadata()
+    if metadata is None:
         print(f"error: {infile = } is not open")
         sys.exit(-1)
     # 1. parse the video image-by-image
-    in_fps = video_capture.get(cv2.CAP_PROP_FPS)
-    in_width = video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)
-    in_height = video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
-
-    if in_width < width:
+    if metadata.width < width:
         width = 0
-    if in_height < height:
+    if metadata.height < height:
         height = 0
 
     frame_num = -1
     columns = ("frame_num", "timestamp", "frame_num_expected", "status", "value_read")
     video_results = pd.DataFrame(columns=columns)
-
     previous_value = -1
-    total_nbr_of_frames = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
 
     start = time.monotonic_ns()
     accumulated_decode_time = 0
@@ -301,11 +164,12 @@ def video_parse(
     while True:
         # get image
         decstart = time.monotonic_ns()
-        status, img = video_capture.read()
+        success, video_frame = video_reader.read()
         ids = None
-        if not status:
+        if not success:
             break
 
+        img = video_frame.data
         # Not interested in color anyways...
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         if contrast != 1 or brightness != 0:
@@ -316,15 +180,13 @@ def video_parse(
         frame_num += 1
         accumulated_decode_time += time.monotonic_ns() - decstart
         # this (wrongly) assumes frames are perfectly separated
-        timestamp_alt = frame_num / in_fps
-        # cv2.CAP_PROP_POS_MSEC returns the right timestamp
-        timestamp = video_capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+        timestamp_alt = frame_num / metadata.fps
         # the frame_num we expect to see for this timestamp
-        frame_num_expected = timestamp * ref_fps
+        frame_num_expected = video_frame.pts_time * ref_fps
 
         if debug > 2:
             print(
-                f"video_parse: parsing {frame_num = } {timestamp = } {ref_fps = } {in_fps = }"
+                f"video_parse: parsing {frame_num = } timestamp = {video_frame.pts_time} {ref_fps = } fps = {metadata.fps}"
             )
         # parse image
         value_read = None
@@ -359,7 +221,7 @@ def video_parse(
         current_time = time.monotonic_ns()
         time_per_iteration = (current_time - start) / (frame_num + 1)
         time_left_sec = (
-            time_per_iteration * (total_nbr_of_frames - frame_num) / TEN_TO_NINE
+            time_per_iteration * (metadata.num_frames - frame_num) / TEN_TO_NINE
         )
         estimation = f" estimated time left: {time_left_sec:6.1f} sec"
         speed_text = f", processing {1/(time_per_iteration/TEN_TO_NINE):.2f} fps"
@@ -371,7 +233,7 @@ def video_parse(
             speed_text = f"{speed_text}, dec. time:{decode_time_per_iteration/1000000:=5.2f} ms, calc, time: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms"
 
         print(
-            f"-- {round(100 * frame_num/total_nbr_of_frames, 2):5.2f} % frame_num: {frame_num} {estimation}{speed_text} {error_ratio}{' ' * 20}",
+            f"-- {round(100 * frame_num/metadata.num_frames, 2):5.2f} % frame_num: {frame_num} {estimation}{speed_text} {error_ratio}{' ' * 20}",
             end="\r",
         )
         if status != vft.VFTReading.ok:
@@ -453,7 +315,7 @@ def video_parse(
                 cv2.imwrite(f"debug/{infile}_{frame_num}.png", img)
         video_results.loc[len(video_results.index)] = (
             frame_num,
-            timestamp,
+            video_frame.pts_time,
             frame_num_expected,
             status.value,
             value_read,
@@ -461,7 +323,7 @@ def video_parse(
 
     # 2. clean up
     try:
-        video_capture.release()
+        video_reader.release()
     except Exception as exc:
         print(f"error: {exc = }")
         pass
@@ -492,7 +354,7 @@ def video_parse(
     current_time = time.monotonic_ns()
     total_time = current_time - start
     calc_time = total_time - accumulated_decode_time
-    error_ratio = f"- errors: {100*failed_parses/(total_nbr_of_frames):5.2f}% "
+    error_ratio = f"- errors: {100*failed_parses/(metadata.num_frames):5.2f}% "
     if debug > 0:
         decode_time_per_iteration = accumulated_decode_time / (frame_num + 1)
         print(f"{' ' * 120}")
@@ -500,13 +362,13 @@ def video_parse(
             f"Total time: {total_time/1000000000:.2f} sec, total decoding time: {accumulated_decode_time/1000000000:.2f} sec"
         )
         print(
-            f"Processing  {total_nbr_of_frames/total_time*1000000000:.2f} fps, per frame: {decode_time_per_iteration/1000000:=5.2f} ms,"
+            f"Processing  {metadata.num_frames/total_time*1000000000:.2f} fps, per frame: {decode_time_per_iteration/1000000:=5.2f} ms,"
             f"calc: {(time_per_iteration - decode_time_per_iteration)/1000000:5.2f} ms {error_ratio}"
         )
     else:
         print(f"{' ' * 120}")
         print(
-            f"Total time: {total_time/1000000000:.2f} sec, processing {total_nbr_of_frames/total_time*1000000000:.2f} fps {' '*30} - {error_ratio}"
+            f"Total time: {total_time/1000000000:.2f} sec, processing {metadata.num_frames/total_time*1000000000:.2f} fps {' '*30} - {error_ratio}"
         )
     # fix the column types
     video_results = video_results.astype({"frame_num": int, "status": int})
@@ -583,24 +445,30 @@ def dump_video_results(video_results, outfile, debug):
 
 def calc_alignment(infile, width, height, pixel_format, debug):
     # With 'lock--layout' we only need one sample, for now let us asume this is the case always...
-    video_capture = get_video_capture(infile, width, height, pixel_format)
-    width = int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    if not video_capture.isOpened():
+    video_reader = metiq_reader_cv2.VideoReaderCV2(
+        infile,
+        width=width,
+        height=height,
+        pixel_format=pixel_format,
+        debug=debug,
+    )
+    metadata = video_reader.get_metadata()
+    if metadata is None:
         print(f"error: {infile = } is not open")
         sys.exit(-1)
 
     tag_center_locations = None
     while tag_center_locations is None:
-        status, img = video_capture.read()
-        if not status:
+        success, video_frame = video_reader.read()
+        if not success:
             print(f"error: {infile = } could not read frame")
             sys.exit(-1)
 
+        img = video_frame.data
         # parse image
         vft_id, tag_center_locations, borders, ids = vft.detect_tags(img, debug=0)
     # transform
-    vft_layout = vft.VFTLayout(width, height, vft_id)
+    vft_layout = vft.VFTLayout(metadata.width, metadata.height, vft_id)
     tag_expected_center_locations = vft_layout.get_tag_expected_center_locations()
 
     measured_area = 0
@@ -693,8 +561,15 @@ def find_first_valid_tag(
         print(f"processing resolution: {width}x{height}")
         print(f"pixel_format: {pixel_format}")
         print(f"{sharpen = }, {contrast = } , {brightness = }")
-    video_capture = get_video_capture(infile, width, height, pixel_format)
-    if not video_capture.isOpened():
+    video_reader = metiq_reader_cv2.VideoReaderCV2(
+        infile,
+        width=width,
+        height=height,
+        pixel_format=pixel_format,
+        debug=debug,
+    )
+    metadata = video_reader.get_metadata()
+    if metadata is None:
         print(f"error: {infile = } is not open")
         sys.exit(-1)
 
@@ -705,12 +580,13 @@ def find_first_valid_tag(
     cached_ids = []
     cached_corners = []
     while tag_center_locations is None:
-        status, img = video_capture.read()
-        dim = (width, height)
-        img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-        if not status:
+        success, video_frame = video_reader.read()
+        if not success:
             print(f"error: {infile = } could not read frame")
             sys.exit(-1)
+        img = video_frame.data
+        dim = (width, height)
+        img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
         # Not interested in color anyways...
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         if contrast != 1 or brightness != 0:
@@ -724,11 +600,10 @@ def find_first_valid_tag(
         )
 
         # bail if we are reading to far ahead (three times the beep?)
-        current_time = video_capture.get(cv2.CAP_PROP_POS_MSEC)
-        # compare with beep time
-        if current_time > audio_common.DEFAULT_BEEP_PERIOD_SEC * 3000:
+        # compare with beep time (pts_time is in seconds, compare with ms)
+        if video_frame.pts_time * 1000.0 > audio_common.DEFAULT_BEEP_PERIOD_SEC * 3000:
             print(
-                f"error: {infile = } could not find a tag in the first {current_time} ms"
+                f"error: {infile = } could not find a tag in the first {video_frame.pts_time * 1000.0} ms"
             )
             break
     if vft_id != None:
@@ -740,25 +615,23 @@ def find_first_valid_tag(
                 tag_expected_center_locations, vft_layout, ids
             )
     try:
-        video_capture.release()
+        video_reader.release()
     except Exception as exc:
         print(f"error: {exc = }")
         pass
-    video_capture = None
 
     if tag_center_locations is None:
         raise ValueError(f"error: {infile = } could not find a tag")
 
     if debug > 0:
         print(
-            f"Found tags: {len(tag_center_locations) = }, in the first {current_time:.2f} ms\n--\n"
+            f"Found tags: {len(tag_center_locations) = }, in the first {video_frame.pts_time * 1000.0:.2f} ms\n--\n"
         )
     return vft_id, tag_center_locations, tag_expected_center_locations
 
 
 def config_decoder(**options):
-    global HW_DECODER_ENABLE
-    HW_DECODER_ENABLE = options.get("HW_DECODER_ENABLE", False)
+    metiq_reader_cv2.HW_DECODER_ENABLE = options.get("HW_DECODER_ENABLE", False)
 
 
 # estimates the framerate (fps) of a video
@@ -964,7 +837,6 @@ def get_options(argv):
 
 
 def main(argv):
-    global HW_DECODER_ENABLE
     # parse options
     options = get_options(argv)
     if options.version:
@@ -980,7 +852,7 @@ def main(argv):
         print(options)
 
     if options.no_hw_decode:
-        HW_DECODER_ENABLE = False
+        config_decoder(HW_DECODER_ENABLE=False)
     # do something
     if options.calc_alignment:
         calc_alignment(
