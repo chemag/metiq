@@ -532,6 +532,7 @@ class VideoReaderCV2(VideoReaderBase):
         width: int = 0,
         height: int = 0,
         pixel_format: typing.Optional[str] = None,
+        pix_fmt: typing.Optional[str] = None,
         threaded: bool = False,
         debug: int = 0,
     ):
@@ -543,6 +544,8 @@ class VideoReaderCV2(VideoReaderBase):
             height: Expected height (only used for raw YUV files). 0 = auto-detect.
             pixel_format: Pixel format for raw YUV files (e.g., 'yuv420p', 'nv12').
                           If None, uses cv2.VideoCapture directly.
+            pix_fmt: Output pixel format ('gray' or 'bgr24'). If 'gray', converts
+                     BGR output to grayscale. Default is 'bgr24'.
             threaded: If True, use threaded decoding for better performance.
             debug: Debug level (0=quiet, higher=more verbose).
         """
@@ -550,6 +553,7 @@ class VideoReaderCV2(VideoReaderBase):
         self._target_width = width
         self._target_height = height
         self._pixel_format = pixel_format
+        self._output_pix_fmt = pix_fmt if pix_fmt else "bgr24"
         self._threaded = threaded
         self.debug = debug
 
@@ -651,12 +655,14 @@ class VideoReaderCV2(VideoReaderBase):
         # Get timestamp from cv2
         timestamp = self._video_capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
 
-        # Convert BGR to grayscale if needed, or keep as-is
-        # The data is stored as the raw numpy array from cv2
+        # Convert to requested output format
+        if self._output_pix_fmt == "gray":
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
         frame = VideoFrame(
             frame_num=self._frame_num,
             pts_time=timestamp,
-            pix_fmt="bgr24",  # cv2.VideoCapture returns BGR format
+            pix_fmt=self._output_pix_fmt,
             data=img,
         )
 
@@ -677,7 +683,7 @@ class VideoReaderCV2(VideoReaderBase):
             width=self._width,
             height=self._height,
             fps=self._fps,
-            pix_fmt="bgr24",  # cv2.VideoCapture returns BGR format
+            pix_fmt=self._output_pix_fmt,
             num_frames=self._num_frames,
             duration_sec=self._duration,
         )
@@ -795,6 +801,9 @@ class VideoReaderFFmpeg(VideoReaderBase):
         "uyvy422": (2, 1),
     }
 
+    # Default output pixel format - gray for efficiency since video_parse converts to grayscale anyway
+    DEFAULT_OUTPUT_PIX_FMT = "gray"
+
     def __init__(
         self,
         input_file: str,
@@ -811,7 +820,7 @@ class VideoReaderFFmpeg(VideoReaderBase):
 
         Args:
             input_file: Path to the input media file.
-            pix_fmt: Output pixel format. If None, uses source format.
+            pix_fmt: Output pixel format. If None, uses gray for efficiency.
             count_frames: If True, count frames during probe (slower but accurate).
             debug: Debug level (0=quiet, higher=more verbose).
             width: Ignored (for compatibility with VideoReaderCV2).
@@ -820,7 +829,8 @@ class VideoReaderFFmpeg(VideoReaderBase):
             threaded: Ignored (for compatibility with VideoReaderCV2).
         """
         self.input_file = input_file
-        self._target_pix_fmt = pix_fmt if pix_fmt else pixel_format
+        # Default to bgr24 for compatibility with cv2 reader
+        self._target_pix_fmt = pix_fmt if pix_fmt else (pixel_format if pixel_format else self.DEFAULT_OUTPUT_PIX_FMT)
         self.count_frames = count_frames
         self.debug = debug
 
@@ -1093,8 +1103,25 @@ class VideoReaderFFmpeg(VideoReaderBase):
                 self._finished = True
                 return False, None
 
-            # Convert to numpy array (keep as 1D byte array)
+            # Convert to numpy array
             frame_data = np.frombuffer(data, dtype=np.uint8)
+
+            # Determine output pixel format
+            out_pix_fmt = (
+                self._target_pix_fmt if self._target_pix_fmt else self._pix_fmt
+            )
+
+            # Reshape frame data based on pixel format for cv2 compatibility
+            if out_pix_fmt in ("bgr24", "rgb24"):
+                # 3 channels, reshape to (height, width, 3)
+                frame_data = frame_data.reshape((self._height, self._width, 3))
+            elif out_pix_fmt in ("bgra", "rgba", "argb", "abgr"):
+                # 4 channels, reshape to (height, width, 4)
+                frame_data = frame_data.reshape((self._height, self._width, 4))
+            elif out_pix_fmt == "gray":
+                # 1 channel, reshape to (height, width)
+                frame_data = frame_data.reshape((self._height, self._width))
+            # else: keep as 1D array for other formats (YUV planar, etc.)
 
         except queue.Empty:
             if self.debug > 0:
@@ -1108,11 +1135,6 @@ class VideoReaderFFmpeg(VideoReaderBase):
             if metadata is None:
                 self._finished = True
                 return False, None
-
-            # Determine output pixel format
-            out_pix_fmt = (
-                self._target_pix_fmt if self._target_pix_fmt else self._pix_fmt
-            )
 
             frame = VideoFrame(
                 frame_num=metadata["frame_num"],
@@ -1195,11 +1217,23 @@ class VideoReaderFFmpeg(VideoReaderBase):
 
         if self._process is not None:
             try:
+                # Close pipes first to unblock reader threads
+                if self._process.stdout:
+                    try:
+                        self._process.stdout.close()
+                    except Exception:
+                        pass
+                if self._process.stderr:
+                    try:
+                        self._process.stderr.close()
+                    except Exception:
+                        pass
                 self._process.terminate()
                 self._process.wait(timeout=2.0)
             except Exception:
                 try:
                     self._process.kill()
+                    self._process.wait(timeout=1.0)
                 except Exception:
                     pass
             self._process = None
