@@ -145,6 +145,7 @@ def video_parse(
     video_reader = metiq_reader.create_video_reader(
         infile,
         reader_class=video_reader_class,
+        pix_fmt="gray",
         width=width,
         height=height,
         pixel_format=pixel_format,
@@ -179,9 +180,7 @@ def video_parse(
         if not success:
             break
 
-        # convert image to grayscale
         img = video_frame.data
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
         if contrast != 1 or brightness != 0:
             img = adjust_image(img, 1.3, -10)
@@ -461,6 +460,7 @@ def calc_alignment(
     video_reader = metiq_reader.create_video_reader(
         infile,
         reader_class=video_reader_class,
+        pix_fmt="gray",
         width=width,
         height=height,
         pixel_format=pixel_format,
@@ -586,6 +586,7 @@ def find_first_valid_tag(
     video_reader = metiq_reader.create_video_reader(
         infile,
         reader_class=video_reader_class,
+        pix_fmt="gray",
         width=width,
         height=height,
         pixel_format=pixel_format,
@@ -610,8 +611,6 @@ def find_first_valid_tag(
         img = video_frame.data
         dim = (width, height)
         img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-        # Not interested in color anyways...
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         if contrast != 1 or brightness != 0:
             img = adjust_image(img, contrast, brightness)
         # sharpen image
