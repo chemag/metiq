@@ -7,7 +7,7 @@ metiq is a tool to measure timing distortions caused by media paths. Right now i
 
 metiq is a tool to measure timing distortions caused by media paths, in particular a/v sync and video smoothness degradation. It does not care about the media quality (audio or video distortion) itself. For that, [VMAF](https://github.com/Netflix/vmaf) is a good option for video, and [visqol](https://github.com/google/visqol) is a good option for audio.
 
-## 1.1. A/V Sync
+# 1.1. A/V Sync
 [A/V sync](https://en.wikipedia.org/wiki/Audio-to-video_synchronization) is the property of a media file to have its audio and video streams synchronized. It is also known as "lipsync", as lack of synchronization between human lips (video) and voice (audio) is the most noticeable symptom of bad a/v sync. It is commonly measured as the amount of time the audio departs from perfect synchronization with the video. More concretely, avsync is defined as the difference (offset) between the timestamp where audio should be playing to be in perfect synchronization with video, minus the timestamp where the audio is actually playing. This means that the avsync offset value is (a) zero if a/v sync is perfect, (b) positive if the audio is earlier than it should be (meaning in sync with video), and (c) negative if the audio is later than it should be.
 
 ![Figure 1](doc/avsync.01.png)
@@ -25,7 +25,7 @@ Some papers/standards defining A/V sync limitations include:
 Note that A/V sync is asymmetric, with audio earlier (positive values) being problematic at lower values than video earlier (negative values).
 
 
-## 1.2. Video Smoothness
+# 1.2. Video Smoothness
 
 Video smoothness is the property of video frames to be rendered in the exact order that they were created. Let's assume a video is composed of multiple frames, each numbered consecutively. The actual video frames at origin are therefore `{f0, f1, f2, f3, f4, f5, f6, ...}`. There are some well-known sources of video smoothness issues, namely framerate conversion and adaptation.
 
@@ -64,12 +64,12 @@ Figure 2 shows an example of a video-frame producer-consumer adaptation working 
 Figure 3 shows an example of a video-frame producer-consumer adaptation working incorrectly. Now we can see that the producer (in the bottom of the image) produces frames with more jitter, which causes it to lose the `VSYNC` for frame `i`. Frame `i` is produced, but only after the consumer has decided to repeat frame `i-1`. As frame `i+1` does arrive before the `VSYNC`, frame `i` ends up lost. The final stream received by the consumer is `{f_{i-2}, f_{i-1}, f_{i-1}, f_{i+1}, f_{i+2}}`.
 
 
-## 1.3. End-to-End Latency
+# 1.3. End-to-End Latency
 
 Finally, some media use cases care about the end-to-end latency. This is measured as end-to-end latency.
 
 
-## 1.4. Use Case Examples
+# 1.4. Use Case Examples
 
 * (1) The media rendering pipeline (including video display and audio speaker) for a device. When you play a media file in your device, does it produce audio/video with correct synchronization? Is the video rendering pipeline rendering janky video?
 
@@ -89,14 +89,14 @@ Figure 4 shows the normal example of a metiq-based system. We start with a refer
 Note that, while the normal metiq experiment requires starting with a video injection and ending with a video capture, the user may want to understand a simpler system. For example, let's assume the DUT (device under testing) only has a rendering part (e.g. the user's HDMI and soundbar system). In that case, the idea is to use a calibrated system on the other side of the experiment (e.g. the capture side). By using a well-known camera/mic, the user can compare the A/V sync and video smoothness of the whole system (the DUT and her calibrated camera) with another system (e.g. the user's laptop and her calibrated system).
 
 
-## 2.1. Reference Generation
+# 2.1. Reference Generation
 
 The reference file consists of an audio and a video stream where (a) each video frame is marked with consecutive numbers, and (b) some parts of the audio stream ("marks") are mapped uniequivocally to specific video frames (e.g. every 100 frames, i.e., at frames 0, 100, 200, 300, etc.). The idea is that, if video or audio are delayed differently, metiq would see the audio marks mapped to unexpected video frames (e.g. at frame 95 instead of frame 100). Metiq can measure the distance to the expected video frames, and therefore calculate the A/V sync value (in our case, 95 - 100 = -5 frame times, or +167 ms at 30 fps). Also, if video is not smooth (e.g. some frames are repeated while other frames are skipped), metiq will see it by comparing the reference and distorted video frame numbers.
 
 The reference media file is synthesized so that metiq maximizes the likelihood that it can both identify the audio marks and read the original numbers in the video frames. In the audio side, this is relatively straightforward: We use an audio stream consisting of fixed-size, single-frequency, sin tones at periodic times (the audio marks are beeps). The default case is a 40 ms-long, 440 Hz tone repeated every 3 seconds. Recognizing the well-known audio marks is relatively straightforward by using signal correlation.
 
 
-## 2.2. VFT Codes: Video Fine-Grained, Time-Mix-Resistant, 2D Barcodes
+# 2.2. VFT Codes: Video Fine-Grained, Time-Mix-Resistant, 2D Barcodes
 
 The video file case is slightly more complex. We want to mark each frame with a counter (consecutive frame number), and allow automatic recognition of frame numbers at the original file. A simple approach will be to use a generic barcode (e.g. a QR code). The problem of this approach is that any process that causes interpolation-based framerate conversion will mix frames, and make the QR codes unreadable.
 
@@ -130,7 +130,7 @@ Figure 7 shows an example of an odd frame (frame 1) of a 30 fps metiq file inter
 
 # 3. Operation
 
-## 3.1. Reference Video Generation
+# 3.1. Reference Video Generation
 
 The first step is to generate a media file. The following command generates a media file, with audio and video stream:
 ```
@@ -158,7 +158,7 @@ The generation command supports the following audio parameters (note that the le
 
 
 
-## 3.2. Experiment Running
+# 3.2. Experiment Running
 
 Use the video generated in the previous step to test a media path. Some examples include:
 
@@ -169,7 +169,7 @@ Use the video generated in the previous step to test a media path. Some examples
 Any of these processes should produce a capture file, called the "distorted video."
 
 
-## 3.3. Distorted Video Analysis
+# 3.3. Distorted Video Analysis
 
 Run the `parse` subcommand on the distorted file.
 ```
@@ -258,7 +258,7 @@ Figure 10 shows frame 8, the frame after frame 7.
 
 # 4. Results
 
-## 4.1. Let's Get a Reliable Display/Camera: Play video on a MacBook Pro (MBP), Capture on a Pixel 7 Phone
+# 4.1. Let's Get a Reliable Display/Camera: Play video on a MacBook Pro (MBP), Capture on a Pixel 7 Phone
 
 ![Figure 11](doc/mbp.0003.png)
 
@@ -294,7 +294,7 @@ Discussion:
 What this is telling us is that (a) the MBP is a very good display device in terms of video smoothness and a/v sync, and (b) the pixel7 is a very good camera device in terms of video smoothness and a/v sync.
 
 
-## 4.2. Compare Linux and MBP Rendering: Play video on a Linux host, Capture on a Pixel 7 Phone
+# 4.2. Compare Linux and MBP Rendering: Play video on a Linux host, Capture on a Pixel 7 Phone
 
 ```
 $ ./metiq.py parse -i results/linux.mp4 -o results/linux.mp4.csv --luma-threshold 20
@@ -340,7 +340,7 @@ $ csvlook results/linux.mp4.csv
 
 
 
-## 4.3. What About Mobile Phone Displays: Play video on a Pixel 5 Phone, Capture on a Pixel 7 Phone
+# 4.3. What About Mobile Phone Displays: Play video on a Pixel 5 Phone, Capture on a Pixel 7 Phone
 
 ![Figure 12](doc/pixel5.0003.png)
 
@@ -393,7 +393,7 @@ Note that the mode of the difference between actual the expected video frame num
 This is telling us is that the pixel5 as a display device is mediocre for both A/V sync and video smoothness measurements.
 
 
-## 4.4. Pixel Phones Are The Best Android Devices, Right? Play video on a Pixel 5 Phone, Capture on an Android Device
+# 4.4. Pixel Phones Are The Best Android Devices, Right? Play video on a Pixel 5 Phone, Capture on an Android Device
 
 ```
 $ ./metiq.py parse -i results/android.mp4 -o results/android.mp4.csv --luma-threshold 20
@@ -412,7 +412,7 @@ So comparing this Android device with a Pixel 5, it seems to be much better at r
 
 
 
-## 4.5. My Bluetooth Speaker Introduces Delay: Play audio on a Phone vs. Bluetooth Speaker
+# 4.5. My Bluetooth Speaker Introduces Delay: Play audio on a Phone vs. Bluetooth Speaker
 
 In this example, we captured video from an android device (Pixel 6a) 2x times. The first time, we used the internal speaker. The second time, we used an external Bluetooth speaker ([Anker Soundcore Bluetooth Speaker](amazon.com/gp/product/B016XTADG2/)).
 
@@ -454,3 +454,113 @@ video_delta_info = {'mode': 86.0, 'stddev': 0.4418732130047532, 'ok_ratio': 0.42
 ```
 
 
+# Appendix 1: Media Reader API
+
+metiq uses an abstraction layer for reading audio and video from media files. This allows plugging in different reader implementations depending on requirements.
+
+
+# A1.1. Architecture
+
+The media reading API is defined in `metiq_reader_generic.py` and consists of:
+
+Data Classes
+* `VideoMetadata`: Contains video stream metadata (width, height, fps, num_frames, duration_sec, pixel_format).
+* `AudioMetadata`: Contains audio stream metadata (samplerate, channels, num_samples, duration_sec).
+* `VideoFrame`: Contains a video frame (data as numpy array, frame_num, pts_time). Video frames are represented as a single buffer according to the pixel format.
+* `AudioFrame`: Contains audio samples (data as numpy array, sample_num, pts_time).
+
+Abstract Base Classes:
+* `VideoReaderBase`: Abstract interface for video readers with methods `read()`, `get_metadata()`, and `release()`.
+* `AudioReaderBase`: Abstract interface for audio readers with methods `read()` and `get_metadata()`.
+* `MediaReaderBase`: Combined interface for reading both audio and video from a single file.
+
+
+# A1.2. Video Reader Implementations
+
+# A1.2.1. OpenCV Reader (cv2)
+
+Implemented in `metiq_reader_cv2.py` as `VideoReaderCV2`.
+
+Uses OpenCV's `cv2.VideoCapture` for video decoding.
+
+Advantages
+* Well-tested and widely used.
+* Good performance on most systems.
+* Supports hardware decoding on some platforms.
+
+Usage:
+```
+$ ./metiq.py parse -i distorted.mp4 --video-reader cv2
+```
+
+# A1.2.2. FFmpeg Reader (ffmpeg)
+
+Implemented in `metiq_reader_ffmpeg.py` as `VideoReaderFFmpeg`.
+
+Uses FFmpeg as a subprocess to decode video frames. Reads raw video data from FFmpeg's stdout.
+
+Advantages:
+* Supports a wider range of codecs and containers.
+* More control over decoding parameters.
+* Consistent behavior across platforms.
+
+Usage:
+```
+$ ./metiq.py parse -i distorted.mp4 --video-reader ffmpeg
+```
+
+# A1.3. Audio Reader Implementations
+
+# A1.3.1. SciPy Reader (scipy)
+
+Implemented in `metiq_reader_scipy.py` as `AudioReaderScipy`.
+
+Uses FFmpeg to convert the input to WAV format, then `scipy.io.wavfile` to read the samples.
+
+Advantages:
+* Simple.
+* Good integration with numpy/scipy for signal processing.
+
+Usage:
+```
+$ ./metiq.py parse -i distorted.mp4 --audio-reader scipy
+```
+
+# A1.3.2. FFmpeg Reader (ffmpeg)
+
+Implemented in `metiq_reader_ffmpeg.py` as `AudioReaderFFmpeg`.
+
+Uses FFmpeg as a subprocess to decode audio samples directly.
+
+Advantages:
+* Avoids intermediate WAV file creation.
+* More efficient for large files.
+* Supports a wider range of audio codecs.
+
+Usage:
+```
+$ ./metiq.py parse -i distorted.mp4 --audio-reader ffmpeg
+```
+
+# A1.4. CLI Options
+
+The `parse` subcommand supports the following reader selection options:
+
+* `--video-reader-list`: List available video readers and exit.
+* `--video-reader {cv2,ffmpeg}`: Select the video reader implementation (default: cv2).
+* `--audio-reader-list`: List available audio readers and exit.
+* `--audio-reader {scipy,ffmpeg}`: Select the audio reader implementation (default: scipy).
+
+Example listing available readers:
+```
+$ ./metiq.py parse --video-reader-list
+Available video readers: cv2, ffmpeg (default: cv2)
+
+$ ./metiq.py parse --audio-reader-list
+Available audio readers: scipy, ffmpeg (default: scipy)
+```
+
+Example using non-default readers:
+```
+$ ./metiq.py parse -i distorted.mp4 --video-reader ffmpeg --audio-reader ffmpeg
+```
