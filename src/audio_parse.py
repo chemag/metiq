@@ -12,7 +12,7 @@ import scipy.fft
 import matplotlib.pyplot as plt
 
 import audio_common
-import metiq_reader_scipy
+import metiq_reader
 import _version
 
 DEFAULT_MIN_SEPARATION_MSEC = -1
@@ -171,10 +171,12 @@ def audio_parse(infile, **kwargs):
     min_match_threshold = kwargs.get("min_match_threshold")
     audio_sample = kwargs.get("audio_sample", "")
     bandpass_filter = kwargs.get("bandpass_filter", False)
+    audio_reader_class = kwargs.get("audio_reader_class", None)
 
-    # Use AudioReaderScipy to read the audio
-    audio_reader = metiq_reader_scipy.AudioReaderScipy(
+    # Use audio reader to read the audio
+    audio_reader = metiq_reader.create_audio_reader(
         infile,
+        reader_class=audio_reader_class,
         samplerate=samplerate,
         channels=1,
         debug=debug,
@@ -188,9 +190,10 @@ def audio_parse(infile, **kwargs):
     needle_target = None
     if audio_sample and len(audio_sample) > 0:
         print(f"read audio sample: {audio_sample}")
-        # Use AudioReaderScipy for the sample too
-        sample_reader = metiq_reader_scipy.AudioReaderScipy(
+        # Use audio reader for the sample too
+        sample_reader = metiq_reader.create_audio_reader(
             audio_sample,
+            reader_class=audio_reader_class,
             samplerate=samplerate,
             channels=1,
             debug=debug,
@@ -233,10 +236,11 @@ def audio_parse(infile, **kwargs):
     return audio_results
 
 
-def get_audio_duration(infile, debug):
-    # Use AudioReaderScipy to get audio duration
-    audio_reader = metiq_reader_scipy.AudioReaderScipy(
+def get_audio_duration(infile, debug, audio_reader_class=None):
+    # Use audio reader to get audio duration
+    audio_reader = metiq_reader.create_audio_reader(
         infile,
+        reader_class=audio_reader_class,
         channels=1,
         debug=debug,
     )

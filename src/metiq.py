@@ -12,11 +12,13 @@ import common
 import media_analyze
 import media_generate
 import media_parse
+import metiq_reader
 import vft
 import video_common
 import _version
 
 
+# sub-commands
 PARSE = "parse"
 GENERATE = "generate"
 ANALYZE = "analyze"
@@ -67,6 +69,8 @@ default_values = {
     "force_fps": 30,
     "contrast": 1,
     "brightness": 0,
+    "video_reader": metiq_reader.DEFAULT_VIDEO_READER,
+    "audio_reader": metiq_reader.DEFAULT_AUDIO_READER,
 }
 
 
@@ -516,6 +520,46 @@ input_args = {
             "help": "Brightness value. Keep this value between -255 and 255 for 8bit, probaly much less i.e. +/20. It is a simple addition to the pixel values.",
         },
     },
+    "video_reader_list": {
+        "func": PARSE,
+        "short": "",
+        "long": "--video-reader-list",
+        "args": {
+            "action": "store_true",
+            "help": "List available video readers and exit.",
+        },
+    },
+    "video_reader": {
+        "func": PARSE,
+        "short": "",
+        "long": "--video-reader",
+        "args": {
+            "type": str,
+            "choices": list(metiq_reader.VIDEO_READERS.keys()),
+            "help": f"Video reader to use. Available: {', '.join(metiq_reader.VIDEO_READERS.keys())}. Default: {metiq_reader.DEFAULT_VIDEO_READER}",
+            "default": default_values["video_reader"],
+        },
+    },
+    "audio_reader_list": {
+        "func": PARSE,
+        "short": "",
+        "long": "--audio-reader-list",
+        "args": {
+            "action": "store_true",
+            "help": "List available audio readers and exit.",
+        },
+    },
+    "audio_reader": {
+        "func": PARSE,
+        "short": "",
+        "long": "--audio-reader",
+        "args": {
+            "type": str,
+            "choices": list(metiq_reader.AUDIO_READERS.keys()),
+            "help": f"Audio reader to use. Available: {', '.join(metiq_reader.AUDIO_READERS.keys())}. Default: {metiq_reader.DEFAULT_AUDIO_READER}",
+            "default": default_values["audio_reader"],
+        },
+    },
 }
 
 
@@ -625,6 +669,30 @@ def main(argv):
             )
 
     elif options.func == PARSE:
+        # Handle --video-reader-list
+        if options.video_reader_list:
+            print("Available video readers:")
+            for name, cls in metiq_reader.VIDEO_READERS.items():
+                default_marker = (
+                    " (default)" if name == metiq_reader.DEFAULT_VIDEO_READER else ""
+                )
+                print(f"  {name}: {cls.__module__}.{cls.__name__}{default_marker}")
+            sys.exit(0)
+
+        # Handle --audio-reader-list
+        if options.audio_reader_list:
+            print("Available audio readers:")
+            for name, cls in metiq_reader.AUDIO_READERS.items():
+                default_marker = (
+                    " (default)" if name == metiq_reader.DEFAULT_AUDIO_READER else ""
+                )
+                print(f"  {name}: {cls.__module__}.{cls.__name__}{default_marker}")
+            sys.exit(0)
+
+        # Get the reader classes
+        video_reader_class = metiq_reader.VIDEO_READERS[options.video_reader]
+        audio_reader_class = metiq_reader.AUDIO_READERS[options.audio_reader]
+
         media_parse.media_parse(
             width=options.width,
             height=options.height,
@@ -648,6 +716,8 @@ def main(argv):
             sharpen=options.sharpen,
             contrast=options.contrast,
             brightness=options.brightness,
+            video_reader_class=video_reader_class,
+            audio_reader_class=audio_reader_class,
             debug=options.debug,
         )
 

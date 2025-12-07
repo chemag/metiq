@@ -42,6 +42,7 @@ def media_parse_audio(
     bandpass_filter = kwargs.get(
         "bandpass_filter", audio_parse.default_values["bandpass_filter"]
     )
+    audio_reader_class = kwargs.get("audio_reader_class", None)
 
     try:
         audio_results = audio_parse.audio_parse(
@@ -56,6 +57,7 @@ def media_parse_audio(
             min_match_threshold=min_match_threshold,
             audio_sample=audio_sample,
             bandpass_filter=bandpass_filter,
+            audio_reader_class=audio_reader_class,
             debug=debug,
         )
         if audio_results is None or len(audio_results) == 0:
@@ -98,6 +100,7 @@ def media_parse_video(
     sharpen = kwargs.get("sharpen", False)
     contrast = kwargs.get("contrast", 1)
     brightness = kwargs.get("brightness", 0)
+    video_reader_class = kwargs.get("video_reader_class", None)
 
     try:
         # recalculate the video results
@@ -114,6 +117,7 @@ def media_parse_video(
             sharpen=sharpen,
             contrast=contrast,
             brightness=brightness,
+            video_reader_class=video_reader_class,
             debug=debug,
         )
         if debug > 0:

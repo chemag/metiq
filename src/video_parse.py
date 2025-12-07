@@ -12,7 +12,7 @@ import pandas as pd
 import video_common
 import audio_common
 import video_tag_coordinates as vtc
-import metiq_reader_cv2
+import metiq_reader
 import vft
 import time
 import shapely.geometry
@@ -109,6 +109,7 @@ def video_parse(
     sharpen=False,
     contrast=1,
     brightness=0,
+    video_reader_class=None,
     debug=0,
 ):
     # reset and latch onto a fresh layout config
@@ -131,10 +132,19 @@ def video_parse(
             tag_center_locations,
             tag_expected_center_locations,
         ) = find_first_valid_tag(
-            infile, width, height, pixel_format, sharpen, contrast, brightness, debug
+            infile,
+            width,
+            height,
+            pixel_format,
+            sharpen,
+            contrast,
+            brightness,
+            video_reader_class,
+            debug,
         )
-    video_reader = metiq_reader_cv2.VideoReaderCV2(
+    video_reader = metiq_reader.create_video_reader(
         infile,
+        reader_class=video_reader_class,
         width=width,
         height=height,
         pixel_format=pixel_format,
@@ -169,9 +179,10 @@ def video_parse(
         if not success:
             break
 
+        # convert image to grayscale
         img = video_frame.data
-        # Not interested in color anyways...
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
         if contrast != 1 or brightness != 0:
             img = adjust_image(img, 1.3, -10)
         # sharpen image
@@ -443,10 +454,13 @@ def dump_video_results(video_results, outfile, debug):
     video_results.to_csv(outfile, index=False)
 
 
-def calc_alignment(infile, width, height, pixel_format, debug):
+def calc_alignment(
+    infile, width, height, pixel_format, video_reader_class=None, debug=0
+):
     # With 'lock--layout' we only need one sample, for now let us asume this is the case always...
-    video_reader = metiq_reader_cv2.VideoReaderCV2(
+    video_reader = metiq_reader.create_video_reader(
         infile,
+        reader_class=video_reader_class,
         width=width,
         height=height,
         pixel_format=pixel_format,
@@ -553,7 +567,15 @@ def sharpen_multi(img, method):
 
 
 def find_first_valid_tag(
-    infile, width, height, pixel_format, sharpen, contrast, brightness, debug
+    infile,
+    width,
+    height,
+    pixel_format,
+    sharpen,
+    contrast,
+    brightness,
+    video_reader_class=None,
+    debug=0,
 ):
     if debug > 0:
         print(f"\n--\nFind first valid tag")
@@ -561,8 +583,9 @@ def find_first_valid_tag(
         print(f"processing resolution: {width}x{height}")
         print(f"pixel_format: {pixel_format}")
         print(f"{sharpen = }, {contrast = } , {brightness = }")
-    video_reader = metiq_reader_cv2.VideoReaderCV2(
+    video_reader = metiq_reader.create_video_reader(
         infile,
+        reader_class=video_reader_class,
         width=width,
         height=height,
         pixel_format=pixel_format,
@@ -631,7 +654,7 @@ def find_first_valid_tag(
 
 
 def config_decoder(**options):
-    metiq_reader_cv2.HW_DECODER_ENABLE = options.get("HW_DECODER_ENABLE", False)
+    metiq_reader.HW_DECODER_ENABLE = options.get("HW_DECODER_ENABLE", False)
 
 
 # estimates the framerate (fps) of a video
