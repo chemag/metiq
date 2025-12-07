@@ -7,14 +7,12 @@ import argparse
 import sys
 import numpy as np
 import pandas as pd
-import scipy.io.wavfile
 import scipy.signal
 import scipy.fft
-import tempfile
 import matplotlib.pyplot as plt
 
-import common
 import audio_common
+import metiq_reader_scipy
 import _version
 
 DEFAULT_MIN_SEPARATION_MSEC = -1
@@ -164,74 +162,40 @@ def get_correlation_indices(haystack, needle, **kwargs):
 def audio_parse(infile, **kwargs):
     # get optional input parameters
     debug = kwargs.get("debug", audio_common.DEFAULT_DEBUG)
-    # convert audio file to wav (mono)
-    wav_filename = tempfile.NamedTemporaryFile().name + ".wav"
-    # Note that by default this downmixes both channels.
-    command = f"ffmpeg -y -i {infile} -vn -ac 1 {wav_filename}"
-    ret, stdout, stderr = common.run(command, debug=debug)
-    if ret != 0:
-        print(f"warn: no audio stream in {infile}")
-        return None
-    # parse audio file
-
-    audio_results = audio_parse_wav(wav_filename, **kwargs)
-    # sort the index by timestamp
-    audio_results = audio_results.sort_values(by=["audio_sample"])
-    audio_results = audio_results.reset_index(drop=True)
-    return audio_results
-
-
-def get_audio_duration(infile, debug):
-    # convert audio file to wav (mono)
-    wav_filename = tempfile.NamedTemporaryFile().name + ".wav"
-    # Note that by default this downmixes both channels.
-    command = f"ffmpeg -y -i {infile} -vn -ac 1 {wav_filename}"
-    ret, stdout, stderr = common.run(command, debug=debug)
-    if ret != 0:
-        print(f"warn: no audio stream in {infile}")
-        return None
-    # open the input
-    haystack_samplerate, inaud = scipy.io.wavfile.read(wav_filename)
-    audio_duration_samples = len(inaud)
-    audio_duration_seconds = audio_duration_samples / haystack_samplerate
-    return audio_duration_samples, audio_duration_seconds
-
-
-def audio_parse_wav(infile, **kwargs):
-    # get optional input parameters
-    debug = kwargs.get("debug", audio_common.DEFAULT_DEBUG)
+    samplerate = kwargs.get("samplerate", audio_common.DEFAULT_SAMPLERATE)
     beep_period_sec = kwargs.get(
         "beep_period_sec", audio_common.DEFAULT_BEEP_PERIOD_SEC
     )
-    samplerate = kwargs.get("samplerate", audio_common.DEFAULT_SAMPLERATE)
     min_separation_msec = kwargs.get("min_separation_msec", DEFAULT_MIN_SEPARATION_MSEC)
     min_separation_samples = int(int(min_separation_msec) * int(samplerate) / 1000)
     min_match_threshold = kwargs.get("min_match_threshold")
     audio_sample = kwargs.get("audio_sample", "")
     bandpass_filter = kwargs.get("bandpass_filter", False)
-    # open the input
-    haystack_samplerate, inaud = scipy.io.wavfile.read(infile)
 
-    # force the input to the experiment samplerate
-    if haystack_samplerate != samplerate:
-        # need to convert the input's samplerate
-        if debug > 0:
-            print(
-                f"converting {infile} audio from {haystack_samplerate} to {samplerate}"
-            )
-        # There is a bug (https://github.com/scipy/scipy/issues/15620)
-        # resulting in all zeroes unless inout is cast to float
-        inaud = scipy.signal.resample_poly(
-            inaud.astype(np.float32),
-            int(samplerate / 100),
-            int(haystack_samplerate / 100),
-            padtype="mean",
-        )
+    # Use AudioReaderScipy to read the audio
+    audio_reader = metiq_reader_scipy.AudioReaderScipy(
+        infile,
+        samplerate=samplerate,
+        channels=1,
+        debug=debug,
+    )
+    inaud = audio_reader.read()
+    if inaud is None:
+        print(f"warn: no audio stream in {infile}")
+        return None
+
     # generate a single needle (without the silence)
     needle_target = None
     if audio_sample and len(audio_sample) > 0:
         print(f"read audio sample: {audio_sample}")
-        needle_target = scipy.io.wavfile.read(audio_sample)[1]
+        # Use AudioReaderScipy for the sample too
+        sample_reader = metiq_reader_scipy.AudioReaderScipy(
+            audio_sample,
+            samplerate=samplerate,
+            channels=1,
+            debug=debug,
+        )
+        needle_target = sample_reader.read()
     else:
         beep_duration_samples = kwargs.get(
             "beep_duration_samples", audio_common.DEFAULT_BEEP_DURATION_SAMPLES
@@ -262,7 +226,25 @@ def audio_parse_wav(infile, **kwargs):
 
     if debug > 0:
         print(f"audio_results: {audio_results}")
+
+    # sort the index by timestamp
+    audio_results = audio_results.sort_values(by=["audio_sample"])
+    audio_results = audio_results.reset_index(drop=True)
     return audio_results
+
+
+def get_audio_duration(infile, debug):
+    # Use AudioReaderScipy to get audio duration
+    audio_reader = metiq_reader_scipy.AudioReaderScipy(
+        infile,
+        channels=1,
+        debug=debug,
+    )
+    metadata = audio_reader.get_metadata()
+    if metadata is None:
+        print(f"warn: no audio stream in {infile}")
+        return None
+    return metadata.num_samples, metadata.duration_sec
 
 
 def get_options(argv):
