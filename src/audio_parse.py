@@ -143,11 +143,11 @@ def get_correlation_indices(haystack, needle, **kwargs):
     corrcoeff = [
         np.corrcoef(haystack[x : x + len(needle)], needle)[1, 0] * 100 for x in peaks
     ]
-    # filter by threshold
+    # filter by threshold and exclude peaks in the zero-padded region
     return [
         [peak - needlesize, cc]
         for peak, cc in zip(peaks, corrcoeff)
-        if cc > min_match_threshold
+        if cc > min_match_threshold and peak >= needlesize
     ]
 
 
