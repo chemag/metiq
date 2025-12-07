@@ -1794,14 +1794,14 @@ VIDEO_READERS = {
     "cv2": VideoReaderCV2,
     "ffmpeg": VideoReaderFFmpeg,
 }
-DEFAULT_VIDEO_READER = "cv2"
+DEFAULT_VIDEO_READER = "ffmpeg"
 
 # Available audio readers
 AUDIO_READERS = {
     "scipy": AudioReaderScipy,
     "ffmpeg": AudioReaderFFmpeg,
 }
-DEFAULT_AUDIO_READER = "scipy"
+DEFAULT_AUDIO_READER = "ffmpeg"
 
 
 def create_video_reader(
