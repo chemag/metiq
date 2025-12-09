@@ -41,6 +41,7 @@ class VideoReaderCV2(metiq_reader_generic.VideoReaderBase):
         width: int = 0,
         height: int = 0,
         pixel_format: typing.Optional[str] = None,
+        pix_fmt: typing.Optional[str] = None,
         threaded: bool = False,
         debug: int = 0,
     ):
@@ -52,6 +53,8 @@ class VideoReaderCV2(metiq_reader_generic.VideoReaderBase):
             height: Expected height (only used for raw YUV files). 0 = auto-detect.
             pixel_format: Pixel format for raw YUV files (e.g., 'yuv420p', 'nv12').
                           If None, uses cv2.VideoCapture directly.
+            pix_fmt: Output pixel format ('gray' or 'bgr24'). If 'gray', converts
+                     BGR output to grayscale. Default is 'bgr24'.
             threaded: If True, use threaded decoding for better performance.
             debug: Debug level (0=quiet, higher=more verbose).
         """
@@ -59,6 +62,7 @@ class VideoReaderCV2(metiq_reader_generic.VideoReaderBase):
         self._target_width = width
         self._target_height = height
         self._pixel_format = pixel_format
+        self._output_pix_fmt = pix_fmt if pix_fmt else "bgr24"
         self._threaded = threaded
         self.debug = debug
 
@@ -162,12 +166,14 @@ class VideoReaderCV2(metiq_reader_generic.VideoReaderBase):
         # Get timestamp from cv2
         timestamp = self._video_capture.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
 
-        # Convert BGR to grayscale if needed, or keep as-is
-        # The data is stored as the raw numpy array from cv2
+        # Convert to requested output format
+        if self._output_pix_fmt == "gray":
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
         frame = metiq_reader_generic.VideoFrame(
             frame_num=self._frame_num,
             pts_time=timestamp,
-            pix_fmt="bgr24",  # cv2.VideoCapture returns BGR format
+            pix_fmt=self._output_pix_fmt,
             data=img,
         )
 
@@ -188,7 +194,7 @@ class VideoReaderCV2(metiq_reader_generic.VideoReaderBase):
             width=self._width,
             height=self._height,
             fps=self._fps,
-            pix_fmt="bgr24",  # cv2.VideoCapture returns BGR format
+            pix_fmt=self._output_pix_fmt,
             num_frames=self._num_frames,
             duration_sec=self._duration,
         )
@@ -226,8 +232,8 @@ class VideoReaderCV2(metiq_reader_generic.VideoReaderBase):
 
     @property
     def pix_fmt(self) -> str:
-        """Pixel format (always 'bgr24' for cv2.VideoCapture)."""
-        return "bgr24"
+        """Pixel format."""
+        return self._output_pix_fmt
 
     @property
     def num_frames(self) -> int:

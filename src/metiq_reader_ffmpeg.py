@@ -78,23 +78,36 @@ class VideoReaderFFmpeg(metiq_reader_generic.VideoReaderBase):
         "uyvy422": (2, 1),
     }
 
+    # Default output pixel format - gray for efficiency since video_parse converts to grayscale anyway
+    DEFAULT_OUTPUT_PIX_FMT = "gray"
+
     def __init__(
         self,
         input_file: str,
         pix_fmt: typing.Optional[str] = None,
         count_frames: bool = True,
         debug: int = 0,
+        # Additional parameters for compatibility with VideoReaderCV2
+        width: int = 0,
+        height: int = 0,
+        pixel_format: typing.Optional[str] = None,
+        threaded: bool = False,
     ):
         """Initialize the video reader.
 
         Args:
             input_file: Path to the input media file.
-            pix_fmt: Output pixel format. If None, uses source format.
+            pix_fmt: Output pixel format. If None, uses gray for efficiency.
             count_frames: If True, count frames during probe (slower but accurate).
             debug: Debug level (0=quiet, higher=more verbose).
+            width: Ignored (for compatibility with VideoReaderCV2).
+            height: Ignored (for compatibility with VideoReaderCV2).
+            pixel_format: Ignored (for compatibility with VideoReaderCV2).
+            threaded: Ignored (for compatibility with VideoReaderCV2).
         """
         self.input_file = input_file
-        self._target_pix_fmt = pix_fmt
+        # Default to gray for efficiency
+        self._target_pix_fmt = pix_fmt if pix_fmt else self.DEFAULT_OUTPUT_PIX_FMT
         self.count_frames = count_frames
         self.debug = debug
 
@@ -369,8 +382,25 @@ class VideoReaderFFmpeg(metiq_reader_generic.VideoReaderBase):
                 self._finished = True
                 return False, None
 
-            # Convert to numpy array (keep as 1D byte array)
+            # Convert to numpy array
             frame_data = np.frombuffer(data, dtype=np.uint8)
+
+            # Determine output pixel format
+            out_pix_fmt = (
+                self._target_pix_fmt if self._target_pix_fmt else self._pix_fmt
+            )
+
+            # Reshape frame data based on pixel format for cv2 compatibility
+            if out_pix_fmt in ("bgr24", "rgb24"):
+                # 3 channels, reshape to (height, width, 3)
+                frame_data = frame_data.reshape((self._height, self._width, 3))
+            elif out_pix_fmt in ("bgra", "rgba", "argb", "abgr"):
+                # 4 channels, reshape to (height, width, 4)
+                frame_data = frame_data.reshape((self._height, self._width, 4))
+            elif out_pix_fmt == "gray":
+                # 1 channel, reshape to (height, width)
+                frame_data = frame_data.reshape((self._height, self._width))
+            # else: keep as 1D array for other formats (YUV planar, etc.)
 
         except queue.Empty:
             if self.debug > 0:
@@ -384,11 +414,6 @@ class VideoReaderFFmpeg(metiq_reader_generic.VideoReaderBase):
             if metadata is None:
                 self._finished = True
                 return False, None
-
-            # Determine output pixel format
-            out_pix_fmt = (
-                self._target_pix_fmt if self._target_pix_fmt else self._pix_fmt
-            )
 
             frame = metiq_reader_generic.VideoFrame(
                 frame_num=metadata["frame_num"],
@@ -471,11 +496,23 @@ class VideoReaderFFmpeg(metiq_reader_generic.VideoReaderBase):
 
         if self._process is not None:
             try:
+                # Close pipes first to unblock reader threads
+                if self._process.stdout:
+                    try:
+                        self._process.stdout.close()
+                    except Exception:
+                        pass
+                if self._process.stderr:
+                    try:
+                        self._process.stderr.close()
+                    except Exception:
+                        pass
                 self._process.terminate()
                 self._process.wait(timeout=2.0)
             except Exception:
                 try:
                     self._process.kill()
+                    self._process.wait(timeout=1.0)
                 except Exception:
                     pass
             self._process = None
