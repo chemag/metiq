@@ -573,11 +573,9 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
 
         self._probed = True
 
-        # Note: ffprobe CSV output order is NOT the same as the order specified in
-        # -show_entries. ffprobe outputs fields in its own internal order regardless
-        # of how they are listed in the query. For audio streams, the actual output
-        # order is: sample_rate,channels,start_time,duration (alphabetical after the
-        # first two). The parsing code below must match this actual output order.
+        # Use default output format with explicit key=value pairs instead of CSV,
+        # because ffprobe CSV output order is NOT the same as the order specified
+        # in -show_entries (it uses its own internal order).
         cmd = [
             "ffprobe",
             "-v",
@@ -587,7 +585,7 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
             "-show_entries",
             "stream=sample_rate,channels,duration,start_time",
             "-of",
-            "csv=p=0",
+            "default=noprint_wrappers=1",
             self.input_file,
         ]
 
@@ -611,27 +609,29 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
                     print(f"AudioReader: no audio stream in {self.input_file}")
                 return False
 
-            # Parse output: sample_rate,channels,start_time,duration
-            # (see note above about ffprobe output order)
-            parts = output.split(",")
-            if len(parts) < 2:
+            # Parse output: key=value lines
+            values = {}
+            for line in output.split("\n"):
+                if "=" in line:
+                    key, val = line.split("=", 1)
+                    values[key] = val
+
+            if "sample_rate" not in values or "channels" not in values:
                 print(f"AudioReader: unexpected ffprobe output: {output}")
                 return False
 
-            self._samplerate = int(parts[0])
-            self._channels = int(parts[1])
+            self._samplerate = int(values["sample_rate"])
+            self._channels = int(values["channels"])
 
-            # Parse start_time (3rd field)
-            if len(parts) > 2 and parts[2]:
+            if "start_time" in values and values["start_time"]:
                 try:
-                    self._start_time = float(parts[2])
+                    self._start_time = float(values["start_time"])
                 except ValueError:
                     pass
 
-            # Parse duration (4th field)
-            if len(parts) > 3 and parts[3]:
+            if "duration" in values and values["duration"]:
                 try:
-                    self._duration = float(parts[3])
+                    self._duration = float(values["duration"])
                 except ValueError:
                     pass
 
