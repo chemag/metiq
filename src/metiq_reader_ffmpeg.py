@@ -561,6 +561,7 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
         self._samplerate: typing.Optional[int] = None
         self._channels: typing.Optional[int] = None
         self._duration: float = -1.0
+        self._start_time: float = 0.0  # Audio stream start time offset
         self._samples: typing.Optional[np.ndarray] = None
         self._probed = False
         self._loaded = False
@@ -572,6 +573,11 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
 
         self._probed = True
 
+        # Note: ffprobe CSV output order is NOT the same as the order specified in
+        # -show_entries. ffprobe outputs fields in its own internal order regardless
+        # of how they are listed in the query. For audio streams, the actual output
+        # order is: sample_rate,channels,start_time,duration (alphabetical after the
+        # first two). The parsing code below must match this actual output order.
         cmd = [
             "ffprobe",
             "-v",
@@ -579,7 +585,7 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
             "-select_streams",
             "a:0",
             "-show_entries",
-            "stream=sample_rate,channels,duration",
+            "stream=sample_rate,channels,duration,start_time",
             "-of",
             "csv=p=0",
             self.input_file,
@@ -605,7 +611,8 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
                     print(f"AudioReader: no audio stream in {self.input_file}")
                 return False
 
-            # Parse output: sample_rate,channels,duration
+            # Parse output: sample_rate,channels,start_time,duration
+            # (see note above about ffprobe output order)
             parts = output.split(",")
             if len(parts) < 2:
                 print(f"AudioReader: unexpected ffprobe output: {output}")
@@ -614,16 +621,24 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
             self._samplerate = int(parts[0])
             self._channels = int(parts[1])
 
+            # Parse start_time (3rd field)
             if len(parts) > 2 and parts[2]:
                 try:
-                    self._duration = float(parts[2])
+                    self._start_time = float(parts[2])
+                except ValueError:
+                    pass
+
+            # Parse duration (4th field)
+            if len(parts) > 3 and parts[3]:
+                try:
+                    self._duration = float(parts[3])
                 except ValueError:
                     pass
 
             if self.debug > 0:
                 print(
                     f"AudioReader: {self._samplerate} Hz, {self._channels} channels, "
-                    f"{self._duration:.2f}s"
+                    f"{self._duration:.2f}s, start_time={self._start_time:.3f}s"
                 )
 
             return True
@@ -651,6 +666,13 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
         if self._target_channels is not None:
             return self._target_channels
         return self._channels if self._channels is not None else 0
+
+    @property
+    def start_time(self) -> float:
+        """Audio stream start time offset in seconds."""
+        if not self._probed:
+            self._probe_audio()
+        return self._start_time
 
     def read(self) -> typing.Optional[np.ndarray]:
         """Read all audio samples.
@@ -687,10 +709,25 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
             str(out_channels),
             "-ar",
             str(out_samplerate),
-            "-f",
-            "s16le",
-            "-",
         ]
+
+        # Add audio filter to preserve container timing if there's a start_time offset
+        if self._start_time > 0:
+            # Calculate delay in samples at INPUT sample rate, not output rate.
+            # ffmpeg audio filters (-af) process at the input sample rate, and the
+            # -ar option only affects the final output encoding stage. So adelay
+            # must use the input 48kHz rate even if we're outputting at 16kHz.
+            delay_samples = int(self._start_time * self._samplerate)
+            # adelay: prepend silence for start_time offset
+            af_filter = f"adelay={delay_samples}S:all=1"
+            cmd.extend(["-af", af_filter])
+            if self.debug > 0:
+                print(
+                    f"AudioReader: adding {self._start_time:.3f}s delay "
+                    f"({delay_samples} samples @ {self._samplerate}Hz input rate)"
+                )
+
+        cmd.extend(["-f", "s16le", "-"])
 
         if self.debug > 0:
             print(f"AudioReader: running {' '.join(cmd)}")
