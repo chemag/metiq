@@ -100,8 +100,12 @@ def create_video_reader(
     Raises:
         ValueError: If reader_type is not recognized.
     """
+    debug = kwargs.get("debug", 0)
+
     # If a class is provided directly, use it
     if reader_class is not None:
+        if debug >= 1:
+            print(f"create_video_reader: using {reader_class.__name__}")
         return reader_class(input_file, **kwargs)
 
     if reader_type is None:
@@ -112,6 +116,9 @@ def create_video_reader(
             f"Unknown video reader type: {reader_type}. "
             f"Available: {list(VIDEO_READERS.keys())}"
         )
+
+    if debug >= 1:
+        print(f"create_video_reader: using {VIDEO_READERS[reader_type].__name__}")
 
     return VIDEO_READERS[reader_type](input_file, **kwargs)
 
@@ -136,8 +143,12 @@ def create_audio_reader(
     Raises:
         ValueError: If reader_type is not recognized.
     """
+    debug = kwargs.get("debug", 0)
+
     # If a class is provided directly, use it
     if reader_class is not None:
+        if debug >= 1:
+            print(f"create_audio_reader: using {reader_class.__name__}")
         return reader_class(input_file, **kwargs)
 
     if reader_type is None:
@@ -148,6 +159,9 @@ def create_audio_reader(
             f"Unknown audio reader type: {reader_type}. "
             f"Available: {list(AUDIO_READERS.keys())}"
         )
+
+    if debug >= 1:
+        print(f"create_audio_reader: using {AUDIO_READERS[reader_type].__name__}")
 
     return AUDIO_READERS[reader_type](input_file, **kwargs)
 
