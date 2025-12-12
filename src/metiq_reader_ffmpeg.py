@@ -124,6 +124,7 @@ class VideoReaderFFmpeg(metiq_reader_generic.VideoReaderBase):
         self._fps: typing.Optional[float] = None
         self._num_frames: int = -1
         self._duration: float = -1.0
+        self._probed = False
         self._started = False
         self._finished = False
 
@@ -213,6 +214,9 @@ class VideoReaderFFmpeg(metiq_reader_generic.VideoReaderBase):
 
     def _probe_video(self) -> bool:
         """Probe the video file to get dimensions, fps, pixel format, and duration."""
+        if self._probed:
+            return self._width is not None
+        self._probed = True
         cmd = [
             "ffprobe",
             "-v",
