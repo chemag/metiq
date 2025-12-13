@@ -474,6 +474,27 @@ input_args = {
             "help": "Cleanup video parsing by removing 'obvious' errors.",
         },
     },
+    "video_smoothed": {
+        "func": ANALYZE,
+        "short": "",
+        "long": "--video-smoothed",
+        "args": {
+            "action": "store_true",
+            "dest": "video_smoothed",
+            "default": False,
+            "help": "Enable video frame smoothing to correct VFT reading errors in avsync calculation.",
+        },
+    },
+    "no_video_smoothed": {
+        "func": ANALYZE,
+        "short": "",
+        "long": "--no-video-smoothed",
+        "args": {
+            "action": "store_false",
+            "dest": "video_smoothed",
+            "help": "Disable video frame smoothing (default).",
+        },
+    },
     "min_match_threshold": {
         "func": f"{PARSE}, {ANALYZE}",
         "short": "",
@@ -738,6 +759,7 @@ def main(argv):
             z_filter=options.z_filter,
             windowed_stats_sec=options.windowed_stats_sec,
             cleanup_video=options.cleanup_video,
+            video_smoothed=options.video_smoothed,
             debug=options.debug,
         )
 

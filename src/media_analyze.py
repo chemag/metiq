@@ -15,6 +15,102 @@ import time
 import sys
 
 
+def calculate_value_read_smoothed(video_results, ref_fps=30):
+    """
+    Calculate smoothed value_read, only correcting frames with reading errors.
+
+    This function detects reading errors by checking local consistency:
+    - If a frame's value_read is a duplicate of its neighbor, it's likely an error
+    - If a frame's value_read creates a gap (prev+2 == next but curr != prev+1), it's an error
+
+    Only frames with detected errors are corrected using timestamp-based calculation.
+    Frames with consistent value_read sequences are left unchanged.
+
+    The algorithm runs multiple passes because fixing one error may reveal another
+    (e.g., a duplicate followed by a shifted value).
+    """
+    # Work with a copy to avoid modifying during iteration
+    video_results = video_results.copy()
+
+    # Start with original values
+    video_results["value_read_smoothed"] = video_results["value_read"].copy()
+
+    # Get valid (non-null) value_read entries for fitting
+    valid_mask = video_results["value_read"].notna()
+    valid_data = video_results[valid_mask]
+
+    if len(valid_data) < 3:
+        # Not enough data to detect errors
+        return video_results
+
+    # Calculate the expected value based on timestamp
+    # value_read = ref_fps * timestamp + intercept
+    timestamps = valid_data["timestamp"].values
+    values = valid_data["value_read"].values
+    intercept = np.mean(values - ref_fps * timestamps)
+
+    # Calculate expected values for all frames
+    expected_values = np.round(ref_fps * video_results["timestamp"] + intercept)
+
+    # Run multiple passes to catch cascading errors (e.g., duplicate followed by shift)
+    n = len(video_results)
+    max_passes = 5
+
+    for pass_num in range(max_passes):
+        corrections_made = 0
+        # Use smoothed values for neighbor checks (important for cascading errors)
+        smoothed = video_results["value_read_smoothed"].values.copy()
+
+        for i in range(1, n - 1):
+            if pd.isna(smoothed[i]):
+                continue
+
+            prev_val = smoothed[i - 1] if not pd.isna(smoothed[i - 1]) else None
+            next_val = smoothed[i + 1] if not pd.isna(smoothed[i + 1]) else None
+            curr_val = smoothed[i]
+
+            if prev_val is None or next_val is None:
+                continue
+
+            expected_val = int(expected_values[i])
+
+            # Check for reading errors:
+            # 1. Duplicate: current equals previous (should be prev+1)
+            is_duplicate = curr_val == prev_val
+
+            # 2. Shifted: current doesn't match expected AND there's a gap after
+            #    (indicates curr was shifted due to an earlier duplicate)
+            is_shifted = (curr_val != expected_val) and (next_val > curr_val + 1)
+
+            # 3. Gap: prev and next differ by 2 but current doesn't fit
+            is_gap = (next_val - prev_val == 2) and (curr_val != prev_val + 1)
+
+            if is_duplicate or is_shifted or is_gap:
+                # This frame has a reading error - use the expected value
+                if expected_val != curr_val:
+                    video_results.at[video_results.index[i], "value_read_smoothed"] = (
+                        expected_val
+                    )
+                    corrections_made += 1
+
+        if corrections_made == 0:
+            break  # No more corrections needed
+
+    # Convert to nullable integer type
+    video_results["value_read_smoothed"] = video_results["value_read_smoothed"].astype(
+        "Int64"
+    )
+
+    # Reorder columns to place value_read_smoothed right after value_read
+    cols = list(video_results.columns)
+    value_read_idx = cols.index("value_read")
+    cols.remove("value_read_smoothed")
+    cols.insert(value_read_idx + 1, "value_read_smoothed")
+    video_results = video_results[cols]
+
+    return video_results
+
+
 def calculate_frames_moving_average(video_results, windowed_stats_sec):
     # frame, ts, video_result_frame_num_read_int
     video_results = pd.DataFrame(video_results.dropna(subset=["value_read"]))
@@ -252,6 +348,13 @@ def match_video_to_audio_timestamp(
     # 3) find the frame matching the beep number
     # 4) if the match in (1) was not exact adjust for it.
 
+    # Determine which value_read column to use for matching
+    # Prefer value_read_smoothed if available, as it corrects for occasional
+    # VFT code reading errors
+    value_read_col = "value_read"
+    if "value_read_smoothed" in video_results.columns:
+        value_read_col = "value_read_smoothed"
+
     # Limit errors (audio offset and errors)
     if match_distance_frames < 0:
         # somewhat arbitrary +/- 1 frame i.e. 33ms at 30fps
@@ -264,7 +367,7 @@ def match_video_to_audio_timestamp(
     closematch = video_results.loc[video_results["distance"] < beep_period_frames]
 
     # remove non valid values
-    closematch = closematch.loc[closematch["value_read"].notna()]
+    closematch = closematch.loc[closematch[value_read_col].notna()]
     if len(closematch) == 0:
         print(f"Warning. No match for {audio_timestamp} within a beep period is found")
         return None
@@ -275,7 +378,7 @@ def match_video_to_audio_timestamp(
     best_match = closematch.iloc[0]
 
     # 2) Check the value parsed and compare to the expected beep frame
-    matched_value_read = best_match["value_read"]
+    matched_value_read = best_match[value_read_col]
     # estimate the frame for the next beep based on the frequency
     next_beep_frame = (
         int(matched_value_read / beep_period_frames) + 1
@@ -295,13 +398,13 @@ def match_video_to_audio_timestamp(
     # Find the beep
     if closest:
         video_results["distance_frames"] = np.abs(
-            video_results["value_read"] - next_beep_frame
+            video_results[value_read_col] - next_beep_frame
         )
         closematch = video_results.loc[
             video_results["distance_frames"] < match_distance_frames
         ]
     else:
-        video_results["distance_frames"] = video_results["value_read"] - next_beep_frame
+        video_results["distance_frames"] = video_results[value_read_col] - next_beep_frame
         video_results.sort_values("distance_frames", inplace=True)
         closematch = video_results.loc[
             (video_results["distance_frames"] >= 0)
@@ -309,7 +412,7 @@ def match_video_to_audio_timestamp(
         ]
 
     # remove non valid values
-    closematch = closematch.loc[closematch["value_read"].notna()]
+    closematch = closematch.loc[closematch[value_read_col].notna()]
     if len(closematch) == 0:
         print(f"Warning. No match for {audio_timestamp} is found")
         return None
@@ -319,10 +422,19 @@ def match_video_to_audio_timestamp(
     closematch.bfill(inplace=True)
     best_match = closematch.iloc[0]
 
-    # get offset if not perfect match
-    offset = best_match["value_read"] - next_beep_frame
+    # When using smoothed values, the offset should be 0 for correct matches
+    # since the smoothed value is based on timestamp and should match the
+    # expected beep frame exactly
+    offset = best_match[value_read_col] - next_beep_frame
     latency = best_match["timestamp"] - audio_timestamp - offset * frame_time
     video_timestamp = best_match["timestamp"]
+
+    # Get the smoothed value if available, otherwise use original
+    value_read_smoothed = (
+        best_match[value_read_col]
+        if value_read_col == "value_read_smoothed"
+        else best_match["value_read"]
+    )
 
     # Find the closest frame to the expected beep
 
@@ -334,7 +446,8 @@ def match_video_to_audio_timestamp(
             best_match["frame_num"],
             video_timestamp,
             audio_timestamp,
-            best_match["value_read"],
+            best_match["value_read"],  # Keep original value_read in output for reference
+            value_read_smoothed,  # Smoothed value used for matching
             next_beep_frame,
             latency,
         ]
@@ -451,6 +564,7 @@ def calculate_video_relation(
             "video_timestamp",
             "audio_timestamp",
             "frame_num_read",
+            "frame_num_read_smoothed",
             "original_frame",
             "video_latency_sec",
         ],
@@ -472,10 +586,10 @@ def calculate_video_relation(
         )
 
         if vmatch is not None and (
-            vmatch[4] >= 0 or closest_reference
-        ):  # avsync can be negative
+            vmatch[5] >= 0 or closest_reference
+        ):  # avsync can be negative (vmatch[5] is original_frame)
             video_latency_results.loc[len(video_latency_results.index)] = vmatch
-            previous_matches.append(vmatch[3])
+            previous_matches.append(vmatch[4])  # Use smoothed value for tracking
         elif vmatch is None:
             print(f"ERROR: no match found for video latency calculation")
         else:
@@ -702,6 +816,7 @@ def avsync_function(**kwargs):
     debug = kwargs.get("debug")
     z_filter = kwargs.get("z_filter")
     outfile = kwargs.get("outfile")
+    video_smoothed = kwargs.get("video_smoothed", False)
 
     # av sync is the time from the signal until the video is shown
     # for tests that include a transmission the signal of interest is
@@ -710,6 +825,10 @@ def avsync_function(**kwargs):
     if len(audio_results) == 0:
         print("No audio results, skipping av sync calculation")
         return
+
+    # Optionally add smoothed value_read column to correct occasional VFT reading errors
+    if video_smoothed:
+        video_results = calculate_value_read_smoothed(video_results, ref_fps=ref_fps)
 
     if not outfile:
         infile = kwargs.get("input_video", None)
@@ -931,6 +1050,7 @@ def media_analyze(
     z_filter,
     windowed_stats_sec,
     cleanup_video=False,
+    video_smoothed=True,
     min_match_threshold=None,
     debug=0,
 ):
@@ -984,6 +1104,7 @@ def media_analyze(
         z_filter=z_filter,
         windowed_stats_sec=windowed_stats_sec,
         input_video=input_video,
+        video_smoothed=video_smoothed,
     )
 
 
