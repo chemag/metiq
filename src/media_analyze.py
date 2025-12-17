@@ -96,11 +96,6 @@ def calculate_value_read_smoothed(video_results, ref_fps=30):
         if corrections_made == 0:
             break  # No more corrections needed
 
-    # Convert to nullable integer type
-    video_results["value_read_smoothed"] = video_results["value_read_smoothed"].astype(
-        "Int64"
-    )
-
     # Reorder columns to place value_read_smoothed right after value_read
     cols = list(video_results.columns)
     value_read_idx = cols.index("value_read")
