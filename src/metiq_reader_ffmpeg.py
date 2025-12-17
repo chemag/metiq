@@ -17,6 +17,7 @@ import threading
 import typing
 
 import metiq_reader_generic
+import metiq_reader_mp4box
 
 
 class VideoReaderFFmpeg(metiq_reader_generic.VideoReaderBase):
@@ -633,6 +634,10 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
                 except ValueError:
                     pass
 
+            # Try to get more accurate start_time from MP4 container (edts/elst boxes)
+            # This overrides ffprobe start_time if available
+            self._probe_container_timing()
+
             if "duration" in values and values["duration"]:
                 try:
                     self._duration = float(values["duration"])
@@ -650,6 +655,35 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
         except Exception as e:
             print(f"AudioReader: probe failed: {e}")
             return False
+
+    def _probe_container_timing(self) -> None:
+        """Probe MP4 container for timing information from edts/elst boxes.
+
+        This provides more accurate start_time information than ffprobe,
+        which reports the computed presentation start time. The container
+        analysis gives us the actual edit list entries.
+        """
+        try:
+            analyzer = metiq_reader_mp4box.MP4ContainerAnalyzer(
+                self.input_file, debug=max(0, self.debug - 1)
+            )
+            if analyzer.analyze():
+                audio_info = analyzer.get_audio_timing_info()
+                if audio_info is not None:
+                    old_start_time = self._start_time
+                    # Update start_time from container analysis
+                    self._start_time = audio_info.get_start_time_seconds()
+
+                    if self.debug > 1:
+                        print(
+                            f"AudioReader: container analysis: "
+                            f"start_time={self._start_time:.6f}s"
+                        )
+        except Exception as e:
+            # Container analysis is optional - do not fail if it does not work
+            if self.debug > 1:
+                print(f"AudioReader: container analysis failed: {e}")
+            pass
 
     @property
     def samplerate(self) -> int:
