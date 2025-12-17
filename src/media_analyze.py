@@ -399,7 +399,9 @@ def match_video_to_audio_timestamp(
             video_results["distance_frames"] < match_distance_frames
         ]
     else:
-        video_results["distance_frames"] = video_results[value_read_col] - next_beep_frame
+        video_results["distance_frames"] = (
+            video_results[value_read_col] - next_beep_frame
+        )
         video_results.sort_values("distance_frames", inplace=True)
         closematch = video_results.loc[
             (video_results["distance_frames"] >= 0)
@@ -441,7 +443,9 @@ def match_video_to_audio_timestamp(
             best_match["frame_num"],
             video_timestamp,
             audio_timestamp,
-            best_match["value_read"],  # Keep original value_read in output for reference
+            best_match[
+                "value_read"
+            ],  # Keep original value_read in output for reference
             value_read_smoothed,  # Smoothed value used for matching
             next_beep_frame,
             latency,
