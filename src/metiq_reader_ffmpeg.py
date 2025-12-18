@@ -767,11 +767,17 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
         # Build audio filter chain to preserve container timing
         # Samples are already in INPUT sample rate (track timescale)
         # Audio filters process before resampling (-ar happens after -af)
+        #
+        # IMPORTANT: Filter parameters (atrim, adelay) use INPUT sample rate,
+        # but when resampling occurs (e.g., 48kHz -> 16kHz), the effect in the
+        # output is scaled proportionally. For example:
+        #   - Skip 2112 samples @ 48kHz input
+        #   - After resample to 16kHz: 2112 * (16000/48000) = 704 samples skipped in output
         af_filters = []
 
         # Add skip filter if there's a skip_time offset (trim beginning)
         if self._skip_samples > 0:
-            # Use samples directly (already in track timescale)
+            # atrim parameter is in INPUT samples (track timescale)
             af_filters.append(f"atrim=start_sample={self._skip_samples}")
             if self.debug > 0:
                 skip_time_sec = self._skip_samples / self._samplerate if self._samplerate else 0
@@ -782,7 +788,7 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
 
         # Add delay filter if there's a start_time offset (prepend silence)
         if self._start_samples > 0:
-            # Use samples directly (already in track timescale)
+            # adelay parameter is in INPUT samples (track timescale)
             af_filters.append(f"adelay={self._start_samples}S:all=1")
             if self.debug > 0:
                 start_time_sec = self._start_samples / self._samplerate if self._samplerate else 0
