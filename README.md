@@ -142,7 +142,7 @@ The generation command supports the following video parameters:
 * `--width WIDTH`: set the width of the video stream.
 * `--height HEIGHT`: set the height of the video. Both width and height can be set at the same time using `--video-size VIDEO_SIZE`, where the parameter follows the "`<width>x<height>`" syntax.
 * `--fps FPS`: set the framerate of the metiq video.
-* `--num-frames NUM_FRAMES`: set the exact length of the metiq file (in video frame units).
+* `--num-frames NUM_FRAMES`: set the exact length of the metiq file (in video frame units). For example, a 5 minute video at 30 fps would require "`--num-frames 9000`" (5 minutes * 60 seconds/minute * 30 frames/second).
 * `--pixel-format PIXEL_FORMAT`: set the pixel format of the video stream.
 * `--vft-id VFT_ID`: set the VFT type. We support different VFT subtypes, depending on the density of blocks the user wants to use. Right now we support 9x8, 9x6, 7x5 (default), and 5x4.
 * `--vft-tag-border-size BORDER_SIZE`: the border size of the VFT fiducials. This is required for identifying the fiducials.
