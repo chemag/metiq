@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-__version__ = "0.4"
+__version__ = "0.5"
 
 if __name__ == "__main__":
     # at least the CLI program name: (CLI) execution
