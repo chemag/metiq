@@ -566,7 +566,7 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
         self._samplerate: typing.Optional[int] = None
         self._channels: typing.Optional[int] = None
         self._duration: float = -1.0
-        self._start_time: float = 0.0  # Audio stream start time offset
+        self._start_samples: int = 0  # Audio stream start time in samples
         self._samples: typing.Optional[np.ndarray] = None
         self._probed = False
         self._loaded = False
@@ -628,9 +628,11 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
             self._samplerate = int(values["sample_rate"])
             self._channels = int(values["channels"])
 
+            # Get start_time from ffprobe and convert to samples
             if "start_time" in values and values["start_time"]:
                 try:
-                    self._start_time = float(values["start_time"])
+                    start_time_sec = float(values["start_time"])
+                    self._start_samples = int(start_time_sec * self._samplerate)
                 except ValueError:
                     pass
 
@@ -645,9 +647,10 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
                     pass
 
             if self.debug > 0:
+                start_time_sec = self._start_samples / self._samplerate if self._samplerate else 0
                 print(
                     f"AudioReader: {self._samplerate} Hz, {self._channels} channels, "
-                    f"{self._duration:.2f}s, start_time={self._start_time:.3f}s"
+                    f"{self._duration:.2f}s, start_samples={self._start_samples} ({start_time_sec:.3f}s)"
                 )
 
             return True
@@ -659,9 +662,9 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
     def _probe_container_timing(self) -> None:
         """Probe MP4 container for timing information from edts/elst boxes.
 
-        This provides more accurate start_time information than ffprobe,
+        This provides more accurate start_time/skip_time information than ffprobe,
         which reports the computed presentation start time. The container
-        analysis gives us the actual edit list entries.
+        analysis gives us the actual edit list entries in track samples.
         """
         try:
             analyzer = metiq_reader_mp4box.MP4ContainerAnalyzer(
@@ -670,14 +673,15 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
             if analyzer.analyze():
                 audio_info = analyzer.get_audio_timing_info()
                 if audio_info is not None:
-                    old_start_time = self._start_time
-                    # Update start_time from container analysis
-                    self._start_time = audio_info.get_start_time_seconds()
+                    # Update start_samples from container analysis
+                    # Use track samples (already converted from movie timescale)
+                    self._start_samples = audio_info.get_start_time_track_samples()
 
                     if self.debug > 1:
+                        start_time_sec = self._start_samples / self._samplerate if self._samplerate else 0
                         print(
                             f"AudioReader: container analysis: "
-                            f"start_time={self._start_time:.6f}s"
+                            f"start_samples={self._start_samples} ({start_time_sec:.6f}s)"
                         )
         except Exception as e:
             # Container analysis is optional - do not fail if it does not work
@@ -710,7 +714,7 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
         """Audio stream start time offset in seconds."""
         if not self._probed:
             self._probe_audio()
-        return self._start_time
+        return self._start_samples / self._samplerate if self._samplerate else 0.0
 
     def read(self) -> typing.Optional[np.ndarray]:
         """Read all audio samples.
@@ -749,21 +753,26 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
             str(out_samplerate),
         ]
 
-        # Add audio filter to preserve container timing if there's a start_time offset
-        if self._start_time > 0:
-            # Calculate delay in samples at INPUT sample rate, not output rate.
-            # ffmpeg audio filters (-af) process at the input sample rate, and the
-            # -ar option only affects the final output encoding stage. So adelay
-            # must use the input 48kHz rate even if we're outputting at 16kHz.
-            delay_samples = int(self._start_time * self._samplerate)
-            # adelay: prepend silence for start_time offset
-            af_filter = f"adelay={delay_samples}S:all=1"
-            cmd.extend(["-af", af_filter])
+        # Build audio filter chain to preserve container timing
+        # Samples are already in INPUT sample rate (track timescale)
+        # Audio filters process before resampling (-ar happens after -af)
+        af_filters = []
+
+        # Add delay filter if there's a start_time offset (prepend silence)
+        if self._start_samples > 0:
+            # Use samples directly (already in track timescale)
+            af_filters.append(f"adelay={self._start_samples}S:all=1")
             if self.debug > 0:
+                start_time_sec = self._start_samples / self._samplerate if self._samplerate else 0
                 print(
-                    f"AudioReader: adding {self._start_time:.3f}s delay "
-                    f"({delay_samples} samples @ {self._samplerate}Hz input rate)"
+                    f"AudioReader: adding {start_time_sec:.3f}s delay "
+                    f"({self._start_samples} samples @ {self._samplerate}Hz input rate)"
                 )
+
+        # Apply filter chain if any filters were added
+        if af_filters:
+            af_filter_chain = ",".join(af_filters)
+            cmd.extend(["-af", af_filter_chain])
 
         cmd.extend(["-f", "s16le", "-"])
 
