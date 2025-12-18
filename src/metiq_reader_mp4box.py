@@ -126,6 +126,19 @@ class TrackTimingInfo:
         # Convert: movie_units / movie_timescale * track_timescale
         return int(movie_samples * self.timescale / self.movie_timescale)
 
+    def get_skip_time_track_samples(self) -> int:
+        """Get skip time offset in track timescale samples.
+
+        Returns:
+            Number of track samples to skip at the beginning (0 if none).
+            Converts from movie timescale to track timescale.
+        """
+        if self.movie_timescale == 0:
+            return 0
+        movie_samples = self.get_skip_time_samples()
+        # Convert: movie_units / movie_timescale * track_timescale
+        return int(movie_samples * self.timescale / self.movie_timescale)
+
     def get_start_time_seconds(self) -> float:
         """Get start time offset in seconds.
 

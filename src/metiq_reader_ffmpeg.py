@@ -567,6 +567,7 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
         self._channels: typing.Optional[int] = None
         self._duration: float = -1.0
         self._start_samples: int = 0  # Audio stream start time in samples
+        self._skip_samples: int = 0  # Audio stream skip time in samples
         self._samples: typing.Optional[np.ndarray] = None
         self._probed = False
         self._loaded = False
@@ -636,7 +637,7 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
                 except ValueError:
                     pass
 
-            # Try to get more accurate start_time from MP4 container (edts/elst boxes)
+            # Try to get more accurate start_time/skip_time from MP4 container (edts/elst boxes)
             # This overrides ffprobe start_time if available
             self._probe_container_timing()
 
@@ -673,15 +674,18 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
             if analyzer.analyze():
                 audio_info = analyzer.get_audio_timing_info()
                 if audio_info is not None:
-                    # Update start_samples from container analysis
+                    # Update start_samples and skip_samples from container analysis
                     # Use track samples (already converted from movie timescale)
                     self._start_samples = audio_info.get_start_time_track_samples()
+                    self._skip_samples = audio_info.get_skip_time_track_samples()
 
                     if self.debug > 1:
                         start_time_sec = self._start_samples / self._samplerate if self._samplerate else 0
+                        skip_time_sec = self._skip_samples / self._samplerate if self._samplerate else 0
                         print(
                             f"AudioReader: container analysis: "
-                            f"start_samples={self._start_samples} ({start_time_sec:.6f}s)"
+                            f"start_samples={self._start_samples} ({start_time_sec:.6f}s), "
+                            f"skip_samples={self._skip_samples} ({skip_time_sec:.6f}s)"
                         )
         except Exception as e:
             # Container analysis is optional - do not fail if it does not work
@@ -715,6 +719,13 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
         if not self._probed:
             self._probe_audio()
         return self._start_samples / self._samplerate if self._samplerate else 0.0
+
+    @property
+    def skip_time(self) -> float:
+        """Audio stream skip time in seconds."""
+        if not self._probed:
+            self._probe_audio()
+        return self._skip_samples / self._samplerate if self._samplerate else 0.0
 
     def read(self) -> typing.Optional[np.ndarray]:
         """Read all audio samples.
@@ -757,6 +768,17 @@ class AudioReaderFFmpeg(metiq_reader_generic.AudioReaderBase):
         # Samples are already in INPUT sample rate (track timescale)
         # Audio filters process before resampling (-ar happens after -af)
         af_filters = []
+
+        # Add skip filter if there's a skip_time offset (trim beginning)
+        if self._skip_samples > 0:
+            # Use samples directly (already in track timescale)
+            af_filters.append(f"atrim=start_sample={self._skip_samples}")
+            if self.debug > 0:
+                skip_time_sec = self._skip_samples / self._samplerate if self._samplerate else 0
+                print(
+                    f"AudioReader: trimming {skip_time_sec:.3f}s from start "
+                    f"({self._skip_samples} samples @ {self._samplerate}Hz input rate)"
+                )
 
         # Add delay filter if there's a start_time offset (prepend silence)
         if self._start_samples > 0:
