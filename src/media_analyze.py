@@ -86,10 +86,17 @@ def calculate_value_read_smoothed(video_results, ref_fps=30):
             is_gap = (next_val - prev_val == 2) and (curr_val != prev_val + 1)
 
             if is_duplicate or is_shifted or is_gap:
-                # This frame has a reading error - use the expected value
-                if expected_val != curr_val:
+                # This frame has a reading error - calculate the corrected value
+                # For duplicates, use prev+1 to ensure monotonic increase
+                # For other errors, use timestamp-based expected value
+                if is_duplicate:
+                    corrected_val = prev_val + 1
+                else:
+                    corrected_val = expected_val
+
+                if corrected_val != curr_val:
                     video_results.at[video_results.index[i], "value_read_smoothed"] = (
-                        expected_val
+                        corrected_val
                     )
                     corrections_made += 1
 
@@ -419,12 +426,11 @@ def match_video_to_audio_timestamp(
     closematch.bfill(inplace=True)
     best_match = closematch.iloc[0]
 
-    # When using smoothed values, the offset should be 0 for correct matches
-    # since the smoothed value is based on timestamp and should match the
-    # expected beep frame exactly
-    offset = best_match[value_read_col] - next_beep_frame
-    latency = best_match["timestamp"] - audio_timestamp - offset * frame_time
+    # When using smoothed values, calculate simple time difference
+    # avsync_sec = video_timestamp - audio_timestamp
+    # Positive values mean audio is earlier than video
     video_timestamp = best_match["timestamp"]
+    latency = video_timestamp - audio_timestamp
 
     # Get the smoothed value if available, otherwise use original
     value_read_smoothed = (
@@ -447,7 +453,6 @@ def match_video_to_audio_timestamp(
                 "value_read"
             ],  # Keep original value_read in output for reference
             value_read_smoothed,  # Smoothed value used for matching
-            next_beep_frame,
             latency,
         ]
         return vlat
@@ -562,9 +567,8 @@ def calculate_video_relation(
             "frame_num",
             "video_timestamp",
             "audio_timestamp",
-            "frame_num_read",
-            "frame_num_read_smoothed",
-            "original_frame",
+            "video_value_read",
+            "video_value_read_smoothed",
             "video_latency_sec",
         ],
     )
@@ -584,17 +588,11 @@ def calculate_video_relation(
             closest=closest_reference,
         )
 
-        if vmatch is not None and (
-            vmatch[5] >= 0 or closest_reference
-        ):  # avsync can be negative (vmatch[5] is original_frame)
+        if vmatch is not None:
             video_latency_results.loc[len(video_latency_results.index)] = vmatch
             previous_matches.append(vmatch[4])  # Use smoothed value for tracking
-        elif vmatch is None:
-            print(f"ERROR: no match found for video latency calculation")
         else:
-            print(
-                f"ERROR: negative video latency - period length needs to be increased, {vmatch}"
-            )
+            print(f"ERROR: no match found for video latency calculation")
 
     return video_latency_results
 
@@ -825,9 +823,8 @@ def avsync_function(**kwargs):
         print("No audio results, skipping av sync calculation")
         return
 
-    # Optionally add smoothed value_read column to correct occasional VFT reading errors
-    if video_smoothed:
-        video_results = calculate_value_read_smoothed(video_results, ref_fps=ref_fps)
+    # Always apply smoothing for avsync to correct VFT reading errors
+    video_results = calculate_value_read_smoothed(video_results, ref_fps=ref_fps)
 
     if not outfile:
         infile = kwargs.get("input_video", None)
