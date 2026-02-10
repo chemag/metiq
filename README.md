@@ -1,6 +1,6 @@
 # metiq
 
-metiq is a tool to measure timing distortions caused by media paths. Right now it measures (a) a/v sync and (b) video smoothness, and can be adapted to measure end-to-end latency.
+metiq is a tool to measure timing distortions caused by media paths. It measures a/v sync, video smoothness, audio latency, and video latency.
 
 
 # 1. Introduction
@@ -93,7 +93,7 @@ Note that, while the normal metiq experiment requires starting with a video inje
 
 The reference file consists of an audio and a video stream where (a) each video frame is marked with consecutive numbers, and (b) some parts of the audio stream ("marks") are mapped uniequivocally to specific video frames (e.g. every 100 frames, i.e., at frames 0, 100, 200, 300, etc.). The idea is that, if video or audio are delayed differently, metiq would see the audio marks mapped to unexpected video frames (e.g. at frame 95 instead of frame 100). Metiq can measure the distance to the expected video frames, and therefore calculate the A/V sync value (in our case, 95 - 100 = -5 frame times, or +167 ms at 30 fps). Also, if video is not smooth (e.g. some frames are repeated while other frames are skipped), metiq will see it by comparing the reference and distorted video frame numbers.
 
-The reference media file is synthesized so that metiq maximizes the likelihood that it can both identify the audio marks and read the original numbers in the video frames. In the audio side, this is relatively straightforward: We use an audio stream consisting of fixed-size, single-frequency, sin tones at periodic times (the audio marks are beeps). The default case is a 40 ms-long, 440 Hz tone repeated every 3 seconds. Recognizing the well-known audio marks is relatively straightforward by using signal correlation.
+The reference media file is synthesized so that metiq maximizes the likelihood that it can both identify the audio marks and read the original numbers in the video frames. In the audio side, this is relatively straightforward: We use an audio stream consisting of fixed-size chirp signals (linear frequency sweeps) at periodic times (the audio marks are beeps). The default case is a 200 ms-long chirp starting at 300 Hz repeated every 3 seconds. Recognizing the well-known audio marks is relatively straightforward by using signal correlation.
 
 
 # 2.2. VFT Codes: Video Fine-Grained, Time-Mix-Resistant, 2D Barcodes
@@ -151,10 +151,12 @@ The generation command supports the following audio parameters (note that the le
 
 * `--pre-samples pre_samples`: number of samples
 * `--samplerate samplerate`: audio samplerate, in Hz.
-* `--beep-freq beep_freq`: audio beep frequency, in Hz.
+* `--beep-freq beep_freq`: audio beep base frequency, in Hz. The chirp sweeps from this frequency upward.
 * `--beep-duration-samples beep_duration_samples`: beep duration, in samples.
 * `--beep-period-sec beep_period_sec`: beep period, in seconds.
-* `--scale scale`: audio volume (scale value in the [0, 1] range used to set the peak value of the sin).
+* `--scale scale`: audio volume (scale value in the [0, 1] range used to set the peak value of the signal).
+* `--audio-sample AUDIO_SAMPLE`: path to a custom audio sample WAV file to use instead of the generated chirp signal.
+* `--noise_video`: generate a noise video with VFT tags but without audio. Useful for testing video-only paths.
 
 
 
@@ -169,16 +171,57 @@ Use the video generated in the previous step to test a media path. Some examples
 Any of these processes should produce a capture file, called the "distorted video."
 
 
-# 3.3. Distorted Video Analysis
+# 3.3. Distorted Video Analysis: Parsing
 
-Run the `parse` subcommand on the distorted file.
+The first step in analyzing a distorted file is to parse it. Parsing extracts the raw audio and video timing data into CSV files. Run the `parse` subcommand on the distorted file:
 ```
-$ ./metiq.py parse -i distorted.mp4 -o /tmp/distorted.csv
+$ ./metiq.py parse -i distorted.mp4 -o /tmp/distorted
 ```
 
-The parse command supports the following video parameter:
+This produces two CSV files: `/tmp/distorted.video.csv` (video frame readings) and `/tmp/distorted.audio.csv` (audio signal detections). These are then used by the `analyze` subcommand (Section 3.4).
 
-* `--luma-threshold LUMA_THRESHOLD`: set the luma threshold used to identify bits. This is a value between 0 and 255. The default is 100. A lower value will produce less cases of not being able to recognize the number in the VFT code, at the cost of increasing the errors on recognizing the frame numbers. A higher value would do the opposite. We recommend setting the value to 20 where there was a camera involved, and 100 when it is just video processing.
+The parse command supports parameters grouped by function:
+
+### Video Image Enhancement
+
+These options improve VFT barcode readability in degraded captures (e.g. blurry, washed-out, or poorly exposed video):
+
+* `--luma-threshold LUMA_THRESHOLD`: set the luma threshold used to identify bits. This is a value between 0 and 255. The default is 20. A lower value will produce less cases of not being able to recognize the number in the VFT code, at the cost of increasing the errors on recognizing the frame numbers. A higher value would do the opposite.
+* `--video-parse-mode {average,median}`: method used to compute the luma value of each VFT bit block. `median` (default) is more robust against noise and partial occlusion. `average` uses the mean luma and may be more sensitive to outlier pixels.
+* `--sharpen`: sharpen video frames before parsing. Helps with blurry captures.
+* `--contrast CONTRAST`: contrast multiplier applied to pixel values. Keep this value positive and less than 2. For pixels above 127, a contrast of 2 would clip. Default is 1 (no change).
+* `--brightness BRIGHTNESS`: brightness offset added to pixel values. Keep between -255 and 255, probably much less (e.g. +/-20). Default is 0 (no change).
+
+### Audio Signal Processing
+
+These options improve chirp detection in noisy environments or when dealing with audio reflections:
+
+* `--bandpass-filter`: apply a Butterworth bandpass filter to the audio before correlation. Removes noise outside the chirp frequency band. Try this before lowering the correlation threshold.
+* `--min-match-threshold THRESHOLD`: minimum correlation coefficient for an audio signal to be considered detected. Default is 20. Raise to reject weak or false matches, lower to accept weaker signals.
+* `--min-separation-msec MSEC`: minimum time separation between audio matches, in milliseconds. Filters out echoes or reflections that would register as duplicate detections. Default is -1 (automatic).
+* `--audio-sample AUDIO_SAMPLE`: path to a custom audio sample WAV file to use as the correlation reference instead of the generated chirp.
+
+### Tag Detection Strategy
+
+These options control how ArUco fiducial markers are located in each frame:
+
+* `--lock-layout`: accumulate tag positions from early frames (up to 9 seconds into the video), then freeze and reuse those positions for the remainder of the video. This significantly increases parsing throughput by skipping per-frame ArUco detection, but only works when the camera and display are in a fixed position relative to each other.
+* `--tag-manual`: open a GUI to manually click tag positions. Use as a fallback when automatic ArUco detection fails.
+
+### Decoder and Performance Options
+
+* `--video-reader {cv2,ffmpeg}`: select the video reader implementation. Default is `ffmpeg`. See Appendix 1 for details.
+* `--audio-reader {scipy,ffmpeg}`: select the audio reader implementation. Default is `ffmpeg`. See Appendix 1 for details.
+* `--no-hw-decode`: disable hardware-accelerated video decoding. Use when hardware decoding causes artifacts or crashes.
+* `--threaded`: use a parallel decode + parse pipeline for faster processing.
+* `--force-fps FPS`: override the FPS value used for timestamp calculations. Default is 30.
+
+### Output Options
+
+* `-o`, `--output OUTPUT`: base name for output CSV files. The parser appends `.video.csv` and `.audio.csv`.
+* `--output-audio AUDIO_CSV`: explicitly set the output path for the audio parsed CSV file.
+* `--output-video VIDEO_CSV`: explicitly set the output path for the video parsed CSV file.
+* `--video-size VIDEO_SIZE`: shorthand for `--width` and `--height` using `<width>x<height>` syntax.
 
 
 Let's try first with the file interpolated to 60 fps.
@@ -256,9 +299,147 @@ Figure 10 shows frame 8, the frame after frame 7.
 
 
 
-# 4. Results
+# 3.4. Distorted Video Analysis: Analyze
 
-# 4.1. Let's Get a Reliable Display/Camera: Play video on a MacBook Pro (MBP), Capture on a Pixel 7 Phone
+Once parsing is complete, the `analyze` subcommand computes metrics from the parsed CSV files:
+```
+$ ./metiq.py analyze -a av_sync --input-audio /tmp/distorted.audio.csv --input-video /tmp/distorted.video.csv -o /tmp/distorted
+```
+
+The `--analysis-type` (`-a`) parameter selects which analysis to run:
+
+| Type | Description | Output suffix |
+|------|-------------|---------------|
+| `audio_latency` | Measure audio latency (time between source and echo chirps) | `.audio.latency.csv` |
+| `video_latency` | Measure video latency (delay between chirp and corresponding video frame) | `.video.latency.csv` |
+| `av_sync` | Measure A/V synchronization offset | `.avsync.csv` |
+| `quality_stats` | Compute VFT parsing error rates and audio correlation statistics | `.measurement.quality.csv` |
+| `windowed_stats` | Compute frames shown/dropped per time window | `.windowed.stats.csv` |
+| `frame_duration` | Compute distribution of how many consecutive capture frames show the same source frame | `.frame.duration.csv` |
+| `video_playout` | Analyze delta between consecutive frame reads | `.video.playout.csv` |
+| `all` | Run all of the above | (multiple files) |
+
+Additional analyze parameters:
+
+* `--input-audio AUDIO_CSV`: path to the parsed audio CSV file (from the parse step).
+* `--input-video VIDEO_CSV`: path to the parsed video CSV file (from the parse step).
+* `-f`, `--audio-offset OFFSET`: audio offset in seconds, used to correct for known setup bias (see Section 3.7 Calibration). Default is 0.
+* `--z-filter Z`: z-score filter threshold for outlier removal. Default is 3.
+* `--windowed-stats-sec SEC`: window size in seconds for the `windowed_stats` analysis. Default is 1.
+* `--filter-all-echoes`: filter all echoes from the audio signal. Only relevant for `av_sync` and `audio_latency` analysis.
+* `--cleanup_video`: clean up video parsing by removing obvious errors before analysis.
+* `--force-fps FPS`: override the FPS value. Default is 30.
+* `--min-match-threshold THRESHOLD`: minimum audio correlation threshold. Default is 20.
+* `--output-stats STATS_JSON`: output a JSON file with detailed analysis statistics, including quality metrics and threshold checks (e.g. ITU-R BT.1359-1 compliance for avsync).
+* `--video-smoothed`: enable video frame smoothing for VFT reading error correction in avsync analysis.
+* `--no-video-smoothed`: disable video frame smoothing (default).
+
+
+# 3.5. Batch Processing
+
+`metiq_multi.py` runs parse and analyze on multiple distorted files in parallel and aggregates the results:
+```
+$ ./metiq_multi.py -o results/all file1.mp4 file2.mp4 file3.mp4
+```
+
+This parses each file, runs all analysis types, and produces aggregated output files with combined statistics (mean, std, min, max, p50, p90) across all input files.
+
+Key parameters:
+
+* `--max-parallel N`: maximum number of parallel processes. Default is 1.
+* `-pa`, `--parse-audio`: force re-parsing of audio even if cached CSV files exist.
+* `-pv`, `--parse-video`: force re-parsing of video even if cached CSV files exist.
+* `-ao`, `--audio-offset OFFSET`: audio offset in seconds (see Section 3.7 Calibration).
+* `--filter-all-echoes`: filter all echoes from audio.
+* `--stats`: print aggregated statistics to the console.
+* `--surpress-video-cleanup`: do not clean up parsed video values (cleanup is on by default).
+* `-z`, `--z-filter Z`: z-score filter threshold. Default is 3.
+
+`metiq_multi.py` also accepts the same audio and video enhancement options as the parse subcommand: `--bandpass-filter`, `--sharpen`, `--contrast`, `--brightness`, `--min-match-threshold`, and `--tag-manual`.
+
+Note that `metiq_multi.py` uses `--lock-layout` by default, since batch processing typically involves a fixed camera/display setup. Tag positions are cached in a `.tag_freeze` file and reused across files.
+
+Aggregated output files include:
+* `{output}.audio_latency.csv` and `{output}.audio_latency.stats.csv`
+* `{output}.video_latency.csv` and `{output}.video_latency.stats.csv`
+* `{output}.avsync.csv`
+* `{output}.latencies.csv` and `{output}.latencies.stats.csv`
+* `{output}.windowed.stats.data.csv` and `{output}.windowed.aggr.stats.csv`
+* `{output}.measurement.quality.csv`
+* `{output}.frame_duration.csv`
+
+
+# 3.6. Plotting
+
+`media_plot.py` visualizes analysis results:
+```
+$ ./media_plot.py -i results/all.avsync.csv -s
+```
+
+The plot type is auto-detected from the file extension, or can be set explicitly with `--type`:
+
+| Type | File extension | Description |
+|------|---------------|-------------|
+| `latencies` | `.latencies.csv` | Combined audio/video latency and A/V sync |
+| `windowed-frame-stats` | `.windowed.stats.csv` | Frame stats (frames shown/dropped per window) |
+| `frame-duration-hist` | `.frame.duration.csv` | Frame duration histogram |
+| `avsync` | `.avsync.csv` | A/V sync over time |
+| `video-latency` | `.video.latency.csv` | Video latency over time |
+| `audio-latency` | `.audio.latency.csv` | Audio latency with correlation data |
+| `measurement-quality` | `.measurement.quality.csv` | Parsing error percentages |
+
+Parameters:
+
+* `-i`, `--input FILE(S)`: one or more input CSV files to plot.
+* `-o`, `--output FILE`: save the plot to a file (e.g. PNG, PDF).
+* `-s`, `--show`: show the plot interactively.
+* `-t`, `--type TYPE`: plot type (auto-detected from file extension if omitted).
+* `-r`, `--rolling N`: apply a rolling window of size N for smoothing.
+* `--aggregate`: aggregate data across multiple input files using boxplots.
+* `--title TITLE`: title for the plot.
+* `--width W`: plot width in inches. Default is 12.
+* `--height H`: plot height in inches. Default is 12.
+
+
+# 3.7. Calibration
+
+The accuracy of metiq measurements depends on the playout device (display + speaker) and capture device (camera + mic) not being the DUT. These devices introduce their own systematic A/V sync offset, which must be measured and compensated for.
+
+### Calibration Procedure
+
+1. **Direct capture**: play the metiq reference file on your playout device and capture it directly with your camera, without any DUT in the path. This measures the combined offset introduced by your playout and capture devices.
+
+2. **Measure the setup offset**: parse and analyze the capture:
+   ```
+   $ ./metiq.py parse -i calibration.mp4 -o /tmp/calibration
+   $ ./metiq.py analyze -a av_sync --input-audio /tmp/calibration.audio.csv --input-video /tmp/calibration.video.csv -o /tmp/calibration
+   ```
+   The resulting A/V sync value is your setup's systematic bias.
+
+3. **Repeat**: take several calibration samples to verify the offset is consistent. Inconsistent values indicate a problem with the setup (e.g. variable latency in the playout or capture device).
+
+4. **Apply the correction**: use the measured offset with `--audio-offset` when analyzing actual DUT measurements. The sign is inverted: if calibration shows +20 ms A/V sync (audio leading by 20 ms), pass `--audio-offset -0.020` to shift the audio timestamps back by 20 ms. If calibration shows -30 ms (audio lagging by 30 ms), pass `--audio-offset 0.030`.
+   ```
+   $ ./metiq.py analyze -a av_sync --audio-offset -0.020 --input-audio /tmp/dut.audio.csv --input-video /tmp/dut.video.csv -o /tmp/dut
+   ```
+   Or with batch processing:
+   ```
+   $ ./metiq_multi.py --audio-offset -0.020 -o results/all dut1.mp4 dut2.mp4
+   ```
+
+
+# 4. Dependencies
+
+metiq requires:
+
+* Python 3
+* [ffmpeg](https://ffmpeg.org/) (external binary, used for audio extraction and video muxing)
+* Python packages: `numpy`, `scipy`, `opencv-python`, `pandas`, `matplotlib`, `graycode`, `shapely`
+
+
+# 5. Results
+
+# 5.1. Let's Get a Reliable Display/Camera: Play video on a MacBook Pro (MBP), Capture on a Pixel 7 Phone
 
 ![Figure 11](doc/mbp.0003.png)
 
@@ -294,7 +475,7 @@ Discussion:
 What this is telling us is that (a) the MBP is a very good display device in terms of video smoothness and a/v sync, and (b) the pixel7 is a very good camera device in terms of video smoothness and a/v sync.
 
 
-# 4.2. Compare Linux and MBP Rendering: Play video on a Linux host, Capture on a Pixel 7 Phone
+# 5.2. Compare Linux and MBP Rendering: Play video on a Linux host, Capture on a Pixel 7 Phone
 
 ```
 $ ./metiq.py parse -i results/linux.mp4 -o results/linux.mp4.csv --luma-threshold 20
@@ -340,7 +521,7 @@ $ csvlook results/linux.mp4.csv
 
 
 
-# 4.3. What About Mobile Phone Displays: Play video on a Pixel 5 Phone, Capture on a Pixel 7 Phone
+# 5.3. What About Mobile Phone Displays: Play video on a Pixel 5 Phone, Capture on a Pixel 7 Phone
 
 ![Figure 12](doc/pixel5.0003.png)
 
@@ -393,7 +574,7 @@ Note that the mode of the difference between actual the expected video frame num
 This is telling us is that the pixel5 as a display device is mediocre for both A/V sync and video smoothness measurements.
 
 
-# 4.4. Pixel Phones Are The Best Android Devices, Right? Play video on a Pixel 5 Phone, Capture on an Android Device
+# 5.4. Pixel Phones Are The Best Android Devices, Right? Play video on a Pixel 5 Phone, Capture on an Android Device
 
 ```
 $ ./metiq.py parse -i results/android.mp4 -o results/android.mp4.csv --luma-threshold 20
@@ -412,7 +593,7 @@ So comparing this Android device with a Pixel 5, it seems to be much better at r
 
 
 
-# 4.5. My Bluetooth Speaker Introduces Delay: Play audio on a Phone vs. Bluetooth Speaker
+# 5.5. My Bluetooth Speaker Introduces Delay: Play audio on a Phone vs. Bluetooth Speaker
 
 In this example, we captured video from an android device (Pixel 6a) 2x times. The first time, we used the internal speaker. The second time, we used an external Bluetooth speaker ([Anker Soundcore Bluetooth Speaker](amazon.com/gp/product/B016XTADG2/)).
 
@@ -547,20 +728,20 @@ $ ./metiq.py parse -i distorted.mp4 --audio-reader ffmpeg
 The `parse` subcommand supports the following reader selection options:
 
 * `--video-reader-list`: List available video readers and exit.
-* `--video-reader {cv2,ffmpeg}`: Select the video reader implementation (default: cv2).
+* `--video-reader {cv2,ffmpeg}`: Select the video reader implementation (default: ffmpeg).
 * `--audio-reader-list`: List available audio readers and exit.
-* `--audio-reader {scipy,ffmpeg}`: Select the audio reader implementation (default: scipy).
+* `--audio-reader {scipy,ffmpeg}`: Select the audio reader implementation (default: ffmpeg).
 
 Example listing available readers:
 ```
 $ ./metiq.py parse --video-reader-list
-Available video readers: cv2, ffmpeg (default: cv2)
+Available video readers: cv2, ffmpeg (default: ffmpeg)
 
 $ ./metiq.py parse --audio-reader-list
-Available audio readers: scipy, ffmpeg (default: scipy)
+Available audio readers: scipy, ffmpeg (default: ffmpeg)
 ```
 
 Example using non-default readers:
 ```
-$ ./metiq.py parse -i distorted.mp4 --video-reader ffmpeg --audio-reader ffmpeg
+$ ./metiq.py parse -i distorted.mp4 --video-reader cv2 --audio-reader scipy
 ```
