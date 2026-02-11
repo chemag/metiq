@@ -355,7 +355,7 @@ Key parameters:
 * `--surpress-video-cleanup`: do not clean up parsed video values (cleanup is on by default).
 * `-z`, `--z-filter Z`: z-score filter threshold. Default is 3.
 
-`metiq_multi.py` also accepts the same audio and video enhancement options as the parse subcommand: `--bandpass-filter`, `--sharpen`, `--contrast`, `--brightness`, `--min-match-threshold`, and `--tag-manual`.
+`metiq_multi.py` also accepts the same audio and video enhancement options as the parse subcommand: `--bandpass-filter`, `--sharpen`, `--contrast`, `--brightness`, `--min-match-threshold`, `--tag-manual`, `--video-reader`, and `--audio-reader`.
 
 Note that `metiq_multi.py` uses `--lock-layout` by default, since batch processing typically involves a fixed camera/display setup. Tag positions are cached in a `.tag_freeze` file and reused across files.
 
