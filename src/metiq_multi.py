@@ -10,6 +10,7 @@ using common arguments.
 import os
 import sys
 import argparse
+import json
 import time
 import numpy as np
 import pandas as pd
@@ -24,11 +25,107 @@ import metiq_reader
 VIDEO_ENDING = ".video.csv"
 
 
+def combined_calculations_json(source_files, outfile):
+    """Build aggregated JSON from per-file .results.json files."""
+    import subprocess
+
+    files_data = []
+    all_avsync_values = []
+    all_audio_latency_values = []
+    all_video_latency_values = []
+    all_quality_error_pcts = []
+
+    for file in source_files:
+        if file.endswith(VIDEO_ENDING):
+            file = file[: -len(VIDEO_ENDING)]
+
+        results_path = file + ".results.json"
+        if not os.path.isfile(results_path):
+            print(f"Warning: {results_path} not found, skipping")
+            continue
+
+        with open(results_path) as f:
+            file_data = json.load(f)
+        files_data.append(file_data)
+
+        # Collect values for aggregated stats
+        avsync = file_data.get("avsync", {})
+        if "data" in avsync:
+            for row in avsync["data"]:
+                if "avsync_sec" in row and row["avsync_sec"] is not None:
+                    all_avsync_values.append(row["avsync_sec"])
+
+        audio = file_data.get("audio", {})
+        if "latency" in audio and "data" in audio["latency"]:
+            for row in audio["latency"]["data"]:
+                if "audio_latency_sec" in row and row["audio_latency_sec"] is not None:
+                    all_audio_latency_values.append(row["audio_latency_sec"])
+
+        video = file_data.get("video", {})
+        if "latency" in video and "data" in video["latency"]:
+            for row in video["latency"]["data"]:
+                if "video_latency_sec" in row and row["video_latency_sec"] is not None:
+                    all_video_latency_values.append(row["video_latency_sec"])
+
+        if "quality" in video and "data" in video["quality"]:
+            for row in video["quality"]["data"]:
+                if "video_frames_metiq_errors_percentage" in row:
+                    all_quality_error_pcts.append(row["video_frames_metiq_errors_percentage"])
+
+    if not files_data:
+        return
+
+    # Build aggregated stats
+    aggregated = {}
+    if all_avsync_values:
+        aggregated["avsync_sec"] = compute_stats(all_avsync_values)
+    if all_audio_latency_values:
+        aggregated["audio_latency_sec"] = compute_stats(all_audio_latency_values)
+    if all_video_latency_values:
+        aggregated["video_latency_sec"] = compute_stats(all_video_latency_values)
+    if all_quality_error_pcts:
+        aggregated["quality"] = {
+            "mean_error_pct": float(np.mean(all_quality_error_pcts)),
+            "std": float(np.std(all_quality_error_pcts)),
+            "min": float(np.min(all_quality_error_pcts)),
+            "max": float(np.max(all_quality_error_pcts)),
+        }
+
+    # Build metiq info
+    metiq_info = {}
+    try:
+        git_version = subprocess.check_output(
+            ["/usr/bin/git", "describe", "HEAD"],
+            cwd=os.path.dirname(__file__),
+            text=True,
+        ).strip()
+        metiq_info["version"] = git_version
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        metiq_info["version"] = "unknown"
+    metiq_info["command"] = " ".join(sys.argv)
+
+    result = {
+        "metiq": metiq_info,
+        "num_files": len(files_data),
+        "files": files_data,
+        "aggregated": aggregated,
+    }
+
+    results_path = f"{outfile}.results.json"
+    with open(results_path, "w") as f:
+        json.dump(result, f, indent=2)
+
+
 def combined_calculations(options):
     # video latency and avsync latency share original frame
     # video latency and audio latency share timestamp
     source_files = options.infile_list
     outfile = options.output
+    output_format = getattr(options, "output_format", "csv")
+
+    if output_format == "json":
+        combined_calculations_json(source_files, outfile)
+        return
 
     all_audio_latency = pd.DataFrame()
     all_video_latency = pd.DataFrame()
@@ -514,10 +611,12 @@ def get_options(argv):
         help="Find tags manually",
     )
     parser.add_argument(
-        "--output-stats",
-        dest="output_stats",
-        action="store_true",
-        help="Output per-file JSON statistics files",
+        "--output-format",
+        dest="output_format",
+        type=str,
+        choices=["csv", "json"],
+        default="csv",
+        help="Output format: csv (default) or json",
     )
     parser.add_argument(
         "--video-reader",
@@ -539,6 +638,108 @@ def get_options(argv):
     return options
 
 
+def compute_stats(values):
+    """Compute summary statistics for a numeric array."""
+    return {
+        "average": float(np.mean(values)),
+        "stddev": float(np.std(values)),
+        "min": float(np.min(values)),
+        "max": float(np.max(values)),
+        "p50": float(np.percentile(values, 50)),
+        "p90": float(np.percentile(values, 90)),
+        "size": len(values),
+    }
+
+
+def read_csv_as_dicts(path):
+    """Read a CSV file and return list of row dicts, or None if missing/empty."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        df = pd.read_csv(path)
+        if df.empty:
+            return None
+        return df.to_dict(orient="records")
+    except (pd.errors.EmptyDataError, Exception):
+        return None
+
+
+def build_per_file_json(file, stats_json_path):
+    """Merge stats JSON with per-file analysis CSVs into a single .results.json."""
+    # Read the stats JSON as base
+    if os.path.isfile(stats_json_path):
+        with open(stats_json_path) as f:
+            result = json.load(f)
+    else:
+        result = {}
+
+    # Ensure top-level sections exist
+    result.setdefault("avsync", {})
+    result.setdefault("audio", {})
+    result.setdefault("video", {})
+
+    # Merge avsync data
+    avsync_data = read_csv_as_dicts(file + ".avsync.csv")
+    if avsync_data is not None:
+        result["avsync"]["data"] = avsync_data
+
+    # Merge audio latency data with stats
+    audio_lat_data = read_csv_as_dicts(file + ".audio.latency.csv")
+    if audio_lat_data is not None:
+        latency_values = [r["audio_latency_sec"] for r in audio_lat_data if "audio_latency_sec" in r]
+        result["audio"]["latency"] = {"data": audio_lat_data}
+        if latency_values:
+            result["audio"]["latency"]["stats"] = compute_stats(latency_values)
+
+    # Merge video latency data with stats
+    video_lat_data = read_csv_as_dicts(file + ".video.latency.csv")
+    if video_lat_data is not None:
+        latency_values = [r["video_latency_sec"] for r in video_lat_data if "video_latency_sec" in r]
+        result["video"]["latency"] = {"data": video_lat_data}
+        if latency_values:
+            result["video"]["latency"]["stats"] = compute_stats(latency_values)
+
+    # Merge measurement quality data
+    quality_data = read_csv_as_dicts(file + ".measurement.quality.csv")
+    if quality_data is not None:
+        result["video"]["quality"] = {"data": quality_data}
+
+    # Merge windowed stats data
+    windowed_data = read_csv_as_dicts(file + ".windowed.stats.csv")
+    if windowed_data is not None:
+        result["video"]["windowed_stats"] = {"data": windowed_data}
+
+    # Merge frame duration data
+    frame_dur_data = read_csv_as_dicts(file + ".frame.duration.csv")
+    if frame_dur_data is not None:
+        result["video"]["frame_duration"] = {"data": frame_dur_data}
+
+    # Merge video playout data
+    playout_data = read_csv_as_dicts(file + ".video.playout.csv")
+    if playout_data is not None:
+        result["video"]["playout"] = {"data": playout_data}
+
+    # Write the combined results JSON
+    results_path = file + ".results.json"
+    with open(results_path, "w") as f:
+        json.dump(result, f, indent=2)
+
+    # Delete intermediate files
+    intermediate_files = [
+        stats_json_path,
+        file + ".avsync.csv",
+        file + ".audio.latency.csv",
+        file + ".video.latency.csv",
+        file + ".measurement.quality.csv",
+        file + ".windowed.stats.csv",
+        file + ".frame.duration.csv",
+        file + ".video.playout.csv",
+    ]
+    for path in intermediate_files:
+        if os.path.isfile(path):
+            os.remove(path)
+
+
 def run_file(kwargs):
     file = kwargs.get("file", None)
     parse_audio = kwargs.get("parse_audio", False)
@@ -548,7 +749,7 @@ def run_file(kwargs):
     cleanup_video = kwargs.get("cleanup_video", False)
     z_filter = kwargs.get("z_filter", 3.0)
     debug = kwargs.get("debug", 0)
-    output_stats = kwargs.get("output_stats", False)
+    output_format = kwargs.get("output_format", "csv")
     video_reader = kwargs.get("video_reader", metiq_reader.DEFAULT_VIDEO_READER)
     audio_reader = kwargs.get("audio_reader", metiq_reader.DEFAULT_AUDIO_READER)
     video_reader_class = metiq_reader.VIDEO_READERS[video_reader]
@@ -650,6 +851,7 @@ def run_file(kwargs):
         return None
 
     # Analyze the video and audio files
+    stats_json_path = file + ".stats.json" if output_format == "json" else None
     try:
         media_analyze.media_analyze(
             analysis_type,
@@ -661,7 +863,7 @@ def run_file(kwargs):
             videocsv,
             audiocsv,
             None,  # options.output,
-            file + ".stats.json" if output_stats else None,
+            stats_json_path,
             force_fps,
             audio_offset,
             z_filter=z_filter,
@@ -674,6 +876,9 @@ def run_file(kwargs):
     except Exception as e:
         print(f"Error: {e}")
         return None
+
+    if output_format == "json":
+        build_per_file_json(file, stats_json_path)
 
 
 def main(argv):
@@ -700,7 +905,7 @@ def main(argv):
                 "contrast": options.contrast,
                 "brightness": options.brightness,
                 "tag_manual": options.tag_manual,
-                "output_stats": options.output_stats,
+                "output_format": options.output_format,
                 "video_reader": options.video_reader,
                 "audio_reader": options.audio_reader,
                 "debug": options.debug,
