@@ -19,6 +19,7 @@ import media_parse
 import media_analyze
 import multiprocessing as mp
 import video_tag_coordinates
+import metiq_reader
 
 VIDEO_ENDING = ".video.csv"
 
@@ -518,6 +519,22 @@ def get_options(argv):
         action="store_true",
         help="Output per-file JSON statistics files",
     )
+    parser.add_argument(
+        "--video-reader",
+        dest="video_reader",
+        type=str,
+        choices=list(metiq_reader.VIDEO_READERS.keys()),
+        default=metiq_reader.DEFAULT_VIDEO_READER,
+        help=f"Video reader to use. Available: {', '.join(metiq_reader.VIDEO_READERS.keys())}. Default: {metiq_reader.DEFAULT_VIDEO_READER}",
+    )
+    parser.add_argument(
+        "--audio-reader",
+        dest="audio_reader",
+        type=str,
+        choices=list(metiq_reader.AUDIO_READERS.keys()),
+        default=metiq_reader.DEFAULT_AUDIO_READER,
+        help=f"Audio reader to use. Available: {', '.join(metiq_reader.AUDIO_READERS.keys())}. Default: {metiq_reader.DEFAULT_AUDIO_READER}",
+    )
     options = parser.parse_args()
     return options
 
@@ -532,6 +549,10 @@ def run_file(kwargs):
     z_filter = kwargs.get("z_filter", 3.0)
     debug = kwargs.get("debug", 0)
     output_stats = kwargs.get("output_stats", False)
+    video_reader = kwargs.get("video_reader", metiq_reader.DEFAULT_VIDEO_READER)
+    audio_reader = kwargs.get("audio_reader", metiq_reader.DEFAULT_AUDIO_READER)
+    video_reader_class = metiq_reader.VIDEO_READERS[video_reader]
+    audio_reader_class = metiq_reader.AUDIO_READERS[audio_reader]
     min_match_threshold = kwargs.get(
         "min_match_threshold", metiq.default_values["min_match_threshold"]
     )
@@ -558,6 +579,8 @@ def run_file(kwargs):
         "lock_layout": True,
         "threaded": False,
         "tag_manual": kwargs.get("tag_manual"),
+        "video_reader_class": video_reader_class,
+        "audio_reader_class": audio_reader_class,
     }
 
     min_separation_msec = metiq.default_values["min_separation_msec"]
@@ -678,6 +701,8 @@ def main(argv):
                 "brightness": options.brightness,
                 "tag_manual": options.tag_manual,
                 "output_stats": options.output_stats,
+                "video_reader": options.video_reader,
+                "audio_reader": options.audio_reader,
                 "debug": options.debug,
             }
         )
