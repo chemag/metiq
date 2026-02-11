@@ -488,11 +488,15 @@ def match_video_to_audio_timestamp(
     closematch.bfill(inplace=True)
     best_match = closematch.iloc[0]
 
-    # When using smoothed values, calculate simple time difference
-    # avsync_sec = video_timestamp - audio_timestamp
-    # Positive values mean audio is earlier than video
     video_timestamp = best_match["timestamp"]
-    latency = video_timestamp - audio_timestamp
+    if value_read_col == "value_read_smoothed":
+        # Smoothed values correct reading errors, so simple time difference works
+        latency = video_timestamp - audio_timestamp
+    else:
+        # Without smoothing, compensate for the matched frame not being the exact
+        # beep frame by subtracting the frame offset in time
+        offset = best_match["value_read"] - next_beep_frame
+        latency = video_timestamp - audio_timestamp - offset * frame_time
 
     # Get the smoothed value if available, otherwise use original
     value_read_smoothed = (
@@ -1783,8 +1787,9 @@ def avsync_function(**kwargs):
         print("No audio results, skipping av sync calculation")
         return
 
-    # Always apply smoothing for avsync to correct VFT reading errors
-    video_results = calculate_value_read_smoothed(video_results, ref_fps=ref_fps)
+    # Apply smoothing for avsync to correct VFT reading errors
+    if video_smoothed:
+        video_results = calculate_value_read_smoothed(video_results, ref_fps=ref_fps)
 
     if not outfile:
         infile = kwargs.get("input_video", None)
@@ -2019,7 +2024,7 @@ def media_analyze(
     z_filter,
     windowed_stats_sec,
     cleanup_video=False,
-    video_smoothed=True,
+    video_smoothed=False,
     min_match_threshold=None,
     debug=0,
 ):
