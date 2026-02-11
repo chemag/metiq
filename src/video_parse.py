@@ -198,7 +198,7 @@ def video_parse(
         img = video_frame.data
 
         # adjust image (contrast, brightness, sharpening)
-        if contrast != 1 or brightness != 0:
+        if (contrast is not None and contrast != 1) or (brightness is not None and brightness != 0):
             img = adjust_image(img, 1.3, -10)
         if sharpen:
             imn = sharpen_multi(img, "sharpen")
@@ -666,7 +666,7 @@ def find_first_valid_tag(
         img = video_frame.data
         dim = (width, height)
         img = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-        if contrast != 1 or brightness != 0:
+        if (contrast is not None and contrast != 1) or (brightness is not None and brightness != 0):
             img = adjust_image(img, contrast, brightness)
         # sharpen image
         if sharpen:
