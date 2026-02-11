@@ -113,7 +113,7 @@ def combined_calculations(options):
                 if len(av_sync_sec_row) == 0:
                     continue
 
-                av_sync_sec = av_sync_sec_row["av_sync_sec"].values[0]
+                av_sync_sec = av_sync_sec_row["avsync_sec"].values[0]
                 combined.append(
                     [frame, audio_latency_sec, video_latency_sec, av_sync_sec]
                 )
@@ -258,7 +258,7 @@ def combined_calculations(options):
 
             # Calc stats and make an aggregated summary
             simple = (
-                all_av_sync[["file", "av_sync_sec"]]
+                all_av_sync[["file", "avsync_sec"]]
                 .groupby("file")
                 .agg(
                     [
@@ -276,12 +276,12 @@ def combined_calculations(options):
             simple.to_csv(path)
 
             if options.stats:
-                mean = all_av_sync["av_sync_sec"].mean()
-                std = all_av_sync["av_sync_sec"].std()
-                min = all_av_sync["av_sync_sec"].min()
-                max = all_av_sync["av_sync_sec"].max()
-                p50 = all_av_sync["av_sync_sec"].quantile(0.5)
-                p90 = all_av_sync["av_sync_sec"].quantile(0.9)
+                mean = all_av_sync["avsync_sec"].mean()
+                std = all_av_sync["avsync_sec"].std()
+                min = all_av_sync["avsync_sec"].min()
+                max = all_av_sync["avsync_sec"].max()
+                p50 = all_av_sync["avsync_sec"].quantile(0.5)
+                p90 = all_av_sync["avsync_sec"].quantile(0.9)
 
                 # Print error stats
                 descr = "\nAudio/Video sync: "
@@ -512,6 +512,12 @@ def get_options(argv):
         action="store_true",
         help="Find tags manually",
     )
+    parser.add_argument(
+        "--output-stats",
+        dest="output_stats",
+        action="store_true",
+        help="Output per-file JSON statistics files",
+    )
     options = parser.parse_args()
     return options
 
@@ -525,6 +531,7 @@ def run_file(kwargs):
     cleanup_video = kwargs.get("cleanup_video", False)
     z_filter = kwargs.get("z_filter", 3.0)
     debug = kwargs.get("debug", 0)
+    output_stats = kwargs.get("output_stats", False)
     min_match_threshold = kwargs.get(
         "min_match_threshold", metiq.default_values["min_match_threshold"]
     )
@@ -631,7 +638,7 @@ def run_file(kwargs):
             videocsv,
             audiocsv,
             None,  # options.output,
-            None,  # output_stats
+            file + ".stats.json" if output_stats else None,
             force_fps,
             audio_offset,
             z_filter=z_filter,
@@ -670,6 +677,7 @@ def main(argv):
                 "contrast": options.contrast,
                 "brightness": options.brightness,
                 "tag_manual": options.tag_manual,
+                "output_stats": options.output_stats,
                 "debug": options.debug,
             }
         )
