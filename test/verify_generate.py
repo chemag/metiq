@@ -150,6 +150,7 @@ def generate_test_file(**settings):
             img = video_generate.image_generate(
                 image_info,
                 actual_frame_num,
+                None,
                 text1,
                 text2,
                 beep_color,
