@@ -631,6 +631,7 @@ def run_file(kwargs):
             videocsv,
             audiocsv,
             None,  # options.output,
+            None,  # output_stats
             force_fps,
             audio_offset,
             z_filter=z_filter,
