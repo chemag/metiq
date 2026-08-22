@@ -1,8 +1,7 @@
 numpy
 scipy
 graycode
-opencv-python
-opencv-contrib-python
+opencv-contrib-python-headless
 pandas
 Shapely
 matplotlib

@@ -130,11 +130,43 @@ Figure 7 shows an example of an odd frame (frame 1) of a 30 fps metiq file inter
 
 # 3. Operation
 
-# 3.1. Reference Video Generation
+# 3.1. Python Environment Setup
+
+As a prerequisite, create a project-local virtual environment and install the
+Python packages listed in `requirements.txt`:
+
+```bash
+$ make venv
+```
+
+Activate the virtual environment before running Metiq:
+
+```bash
+$ source .venv/bin/activate
+```
+
+Verify that the installed packages are consistent and that Metiq and its
+dependencies can be imported:
+
+```bash
+$ make venv-verify
+No broken requirements found.
+OK: metiq and its dependencies import successfully
+```
+
+The `.venv` directory is local to this checkout. Recreate it rather than
+copying or sharing it between hosts. When finished, leave the virtual
+environment with:
+
+```bash
+$ deactivate
+```
+
+# 3.2. Reference Video Generation
 
 The first step is to generate a media file. The following command generates a media file, with audio and video stream:
 ```
-$ ./metiq.py generate -o /tmp/metiq.mp4
+$ ./src/metiq.py generate -o /tmp/metiq.mp4
 ```
 
 The generation command supports the following video parameters:
@@ -160,7 +192,7 @@ The generation command supports the following audio parameters (note that the le
 
 
 
-# 3.2. Experiment Running
+# 3.3. Experiment Running
 
 Use the video generated in the previous step to test a media path. Some examples include:
 
@@ -171,14 +203,14 @@ Use the video generated in the previous step to test a media path. Some examples
 Any of these processes should produce a capture file, called the "distorted video."
 
 
-# 3.3. Distorted Video Analysis: Parsing
+# 3.4. Distorted Video Analysis: Parsing
 
 The first step in analyzing a distorted file is to parse it. Parsing extracts the raw audio and video timing data into CSV files. Run the `parse` subcommand on the distorted file:
 ```
-$ ./metiq.py parse -i distorted.mp4 -o /tmp/distorted
+$ ./src/metiq.py parse -i distorted.mp4 -o /tmp/distorted
 ```
 
-This produces two CSV files: `/tmp/distorted.video.csv` (video frame readings) and `/tmp/distorted.audio.csv` (audio signal detections). These are then used by the `analyze` subcommand (Section 3.4).
+This produces two CSV files: `/tmp/distorted.video.csv` (video frame readings) and `/tmp/distorted.audio.csv` (audio signal detections). These are then used by the `analyze` subcommand (Section 3.5).
 
 The parse command supports parameters grouped by function:
 
@@ -226,7 +258,7 @@ These options control how ArUco fiducial markers are located in each frame:
 
 Let's try first with the file interpolated to 60 fps.
 ```
-$ ./metiq.py parse -i /tmp/metiq.60fps.mp4 -o /tmp/distorted.csv
+$ ./src/metiq.py parse -i /tmp/metiq.60fps.mp4 -o /tmp/distorted.csv
 ...
 avsync_sec average: 0.017499999999999998 stddev: 0.006400954789890507 size: 20
 video_delta_info = {'mode': -0.5, 'stddev': 0.08755989545631634, 'ok_ratio': 0.9480122324159022, 'sok_ratio': 0.9780372532666111, 'nok_ratio': 0.0, 'unknown_ratio': 0.021962746733388935}
@@ -299,11 +331,11 @@ Figure 10 shows frame 8, the frame after frame 7.
 
 
 
-# 3.4. Distorted Video Analysis: Analyze
+# 3.5. Distorted Video Analysis: Analyze
 
 Once parsing is complete, the `analyze` subcommand computes metrics from the parsed CSV files:
 ```
-$ ./metiq.py analyze -a av_sync --input-audio /tmp/distorted.audio.csv --input-video /tmp/distorted.video.csv -o /tmp/distorted
+$ ./src/metiq.py analyze -a av_sync --input-audio /tmp/distorted.audio.csv --input-video /tmp/distorted.video.csv -o /tmp/distorted
 ```
 
 The `--analysis-type` (`-a`) parameter selects which analysis to run:
@@ -323,7 +355,7 @@ Additional analyze parameters:
 
 * `--input-audio AUDIO_CSV`: path to the parsed audio CSV file (from the parse step).
 * `--input-video VIDEO_CSV`: path to the parsed video CSV file (from the parse step).
-* `-f`, `--audio-offset OFFSET`: audio offset in seconds, used to correct for known setup bias (see Section 3.7 Calibration). Default is 0.
+* `-f`, `--audio-offset OFFSET`: audio offset in seconds, used to correct for known setup bias (see Section 3.8 Calibration). Default is 0.
 * `--z-filter Z`: z-score filter threshold for outlier removal. Default is 3.
 * `--windowed-stats-sec SEC`: window size in seconds for the `windowed_stats` analysis. Default is 1.
 * `--filter-all-echoes`: filter all echoes from the audio signal. Only relevant for `av_sync` and `audio_latency` analysis.
@@ -335,7 +367,7 @@ Additional analyze parameters:
 * `--no-video-smoothed`: disable video frame smoothing (default).
 
 
-# 3.5. Batch Processing
+# 3.6. Batch Processing
 
 `metiq_multi.py` runs parse and analyze on multiple distorted files in parallel and aggregates the results:
 ```
@@ -349,7 +381,7 @@ Key parameters:
 * `--max-parallel N`: maximum number of parallel processes. Default is 1.
 * `-pa`, `--parse-audio`: force re-parsing of audio even if cached CSV files exist.
 * `-pv`, `--parse-video`: force re-parsing of video even if cached CSV files exist.
-* `-ao`, `--audio-offset OFFSET`: audio offset in seconds (see Section 3.7 Calibration).
+* `-ao`, `--audio-offset OFFSET`: audio offset in seconds (see Section 3.8 Calibration).
 * `--filter-all-echoes`: filter all echoes from audio.
 * `--stats`: print aggregated statistics to the console.
 * `--surpress-video-cleanup`: do not clean up parsed video values (cleanup is on by default).
@@ -369,7 +401,7 @@ Aggregated output files include:
 * `{output}.frame_duration.csv`
 
 
-# 3.6. Plotting
+# 3.7. Plotting
 
 `media_plot.py` visualizes analysis results:
 ```
@@ -401,7 +433,7 @@ Parameters:
 * `--height H`: plot height in inches. Default is 12.
 
 
-# 3.7. Calibration
+# 3.8. Calibration
 
 The accuracy of metiq measurements depends on the playout device (display + speaker) and capture device (camera + mic) not being the DUT. These devices introduce their own systematic A/V sync offset, which must be measured and compensated for.
 
@@ -411,8 +443,8 @@ The accuracy of metiq measurements depends on the playout device (display + spea
 
 2. **Measure the setup offset**: parse and analyze the capture:
    ```
-   $ ./metiq.py parse -i calibration.mp4 -o /tmp/calibration
-   $ ./metiq.py analyze -a av_sync --input-audio /tmp/calibration.audio.csv --input-video /tmp/calibration.video.csv -o /tmp/calibration
+   $ ./src/metiq.py parse -i calibration.mp4 -o /tmp/calibration
+   $ ./src/metiq.py analyze -a av_sync --input-audio /tmp/calibration.audio.csv --input-video /tmp/calibration.video.csv -o /tmp/calibration
    ```
    The resulting A/V sync value is your setup's systematic bias.
 
@@ -420,11 +452,11 @@ The accuracy of metiq measurements depends on the playout device (display + spea
 
 4. **Apply the correction**: use the measured offset with `--audio-offset` when analyzing actual DUT measurements. The sign is inverted: if calibration shows +20 ms A/V sync (audio leading by 20 ms), pass `--audio-offset -0.020` to shift the audio timestamps back by 20 ms. If calibration shows -30 ms (audio lagging by 30 ms), pass `--audio-offset 0.030`.
    ```
-   $ ./metiq.py analyze -a av_sync --audio-offset -0.020 --input-audio /tmp/dut.audio.csv --input-video /tmp/dut.video.csv -o /tmp/dut
+   $ ./src/metiq.py analyze -a av_sync --audio-offset -0.020 --input-audio /tmp/dut.audio.csv --input-video /tmp/dut.video.csv -o /tmp/dut
    ```
    Or with batch processing:
    ```
-   $ ./metiq_multi.py --audio-offset -0.020 -o results/all dut1.mp4 dut2.mp4
+   $ ./src/metiq_multi.py --audio-offset -0.020 -o results/all dut1.mp4 dut2.mp4
    ```
 
 
@@ -434,7 +466,7 @@ metiq requires:
 
 * Python 3
 * [ffmpeg](https://ffmpeg.org/) (external binary, used for audio extraction and video muxing)
-* Python packages: `numpy`, `scipy`, `opencv-python`, `pandas`, `matplotlib`, `graycode`, `shapely`
+* Python packages: `numpy`, `scipy`, `opencv-contrib-python-headless`, `pandas`, `matplotlib`, `graycode`, `shapely`
 
 
 # 5. Results
@@ -478,15 +510,15 @@ What this is telling us is that (a) the MBP is a very good display device in ter
 # 5.2. Compare Linux and MBP Rendering: Play video on a Linux host, Capture on a Pixel 7 Phone
 
 ```
-$ ./metiq.py parse -i results/linux.mp4 -o results/linux.mp4.csv --luma-threshold 20
+$ ./src/metiq.py parse -i results/linux.mp4 -o results/linux.mp4.csv --luma-threshold 20
 avsync_sec average: 0.04519844689732911 stddev: 0.013888224088450946 size: 10
 video_delta_info = {'mode': 49.0, 'stddev': 0.5202005449271158, 'ok_ratio': 0.38596491228070173, 'sok_ratio': 0.8255933952528379, 'nok_ratio': 0.17027863777089783, 'unknown_ratio': 0.0041279669762641896}
 
-$ ./metiq.py parse -i ~/Downloads/linux2.mp4 -o results/linux2.mp4.csv --luma-threshold 20
+$ ./src/metiq.py parse -i ~/Downloads/linux2.mp4 -o results/linux2.mp4.csv --luma-threshold 20
 avsync_sec average: 0.03786762455101281 stddev: 0.0025083974753323285 size: 9
 video_delta_info = {'mode': 38.0, 'stddev': 0.23975474855459034, 'ok_ratio': 0.7480314960629921, 'sok_ratio': 0.984251968503937, 'nok_ratio': 0.015748031496062992, 'unknown_ratio': 0.0}
 
-$ ./metiq.py parse -i ~/Downloads/linux3.mp4 -o results/linux3.mp4.csv --luma-threshold 20
+$ ./src/metiq.py parse -i ~/Downloads/linux3.mp4 -o results/linux3.mp4.csv --luma-threshold 20
 avsync_sec average: 0.04051982628667408 stddev: 0.010996596907040137 size: 10
 video_delta_info = {'mode': 35.5, 'stddev': 0.3557484186346338, 'ok_ratio': 0.45211122554067973, 'sok_ratio': 0.9948506694129763, 'nok_ratio': 0.0010298661174047373, 'unknown_ratio': 0.004119464469618949}
 ```
@@ -528,7 +560,7 @@ $ csvlook results/linux.mp4.csv
 Figure 12 shows frame 4 in the distorted file.
 
 ```
-$ ./metiq.py parse -i results/pixel5.mp4 -o results/pixel5.mp4.csv --luma-threshold 20
+$ ./src/metiq.py parse -i results/pixel5.mp4 -o results/pixel5.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.13457056037083256 stddev: 0.018462374917257118 size: 5
 video_delta_info = {'mode': 79.0, 'stddev': 0.4658808345619546, 'ok_ratio': 0.48303393213572854, 'sok_ratio': 0.6067864271457086, 'nok_ratio': 0.3932135728542914, 'unknown_ratio': 0.0}
@@ -577,7 +609,7 @@ This is telling us is that the pixel5 as a display device is mediocre for both A
 # 5.4. Pixel Phones Are The Best Android Devices, Right? Play video on a Pixel 5 Phone, Capture on an Android Device
 
 ```
-$ ./metiq.py parse -i results/android.mp4 -o results/android.mp4.csv --luma-threshold 20
+$ ./src/metiq.py parse -i results/android.mp4 -o results/android.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.15188550357518552 stddev: 0.03219655447949604 size: 5
 video_delta_info = {'mode': 62.0, 'stddev': 0.04719280024970085, 'ok_ratio': 0.8514285714285714, 'sok_ratio': 0.8514285714285714, 'nok_ratio': 0.0019047619047619048, 'unknown_ratio': 0.14666666666666667}
@@ -601,7 +633,7 @@ In this example, we captured video from an android device (Pixel 6a) 2x times. T
 First the results without the speaker:
 
 ```
-$ ./metiq.py parse -i results/pixel6a.mp4 -o results/pixel6a.mp4.csv --luma-threshold 20
+$ ./src/metiq.py parse -i results/pixel6a.mp4 -o results/pixel6a.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.12069886031895435 stddev: 0.007473285230650919 size: 8
 video_delta_info = {'mode': 174.0, 'stddev': 0.4110203573318829, 'ok_ratio': 0.6048387096774194, 'sok_ratio': 0.7849462365591398, 'nok_ratio': 0.2110215053763441, 'unknown_ratio': 0.004032258064516129}
@@ -610,7 +642,7 @@ video_delta_info = {'mode': 174.0, 'stddev': 0.4110203573318829, 'ok_ratio': 0.6
 
 Second the results with the speaker:
 ```
-$ ./metiq.py parse -i results/pixel6a.bt.mp4 -o results/pixel6a.bt.mp4.csv --luma-threshold 20
+$ ./src/metiq.py parse -i results/pixel6a.bt.mp4 -o results/pixel6a.bt.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.24893367284771728 stddev: 0.014296892894416305 size: 9
 video_delta_info = {'mode': 142.0, 'stddev': 0.32879964224067765, 'ok_ratio': 0.7104959630911188, 'sok_ratio': 0.9480968858131488, 'nok_ratio': 0.05190311418685121, 'unknown_ratio': 0.0}
@@ -621,14 +653,14 @@ Comparing the first lines in both experiments, we can see that the A/V sync is n
 
 
 ```
-$ ./metiq.py parse -i results/pixel6a.bt.1m.mp4 -o results/pixel6a.bt.1m.mp4.csv --luma-threshold 20
+$ ./src/metiq.py parse -i results/pixel6a.bt.1m.mp4 -o results/pixel6a.bt.1m.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.27831445225523677 stddev: 0.014861238666310513 size: 9
 video_delta_info = {'mode': 259.0, 'stddev': 0.4177680874837188, 'ok_ratio': 0.4431554524361949, 'sok_ratio': 0.9280742459396751, 'nok_ratio': 0.06844547563805105, 'unknown_ratio': 0.0034802784222737818}
 ```
 
 ```
-$ ./metiq.py parse -i results/pixel6a.bt.wall.mp4 -o results/pixel6a.bt.wall.mp4.csv --luma-threshold 20
+$ ./src/metiq.py parse -i results/pixel6a.bt.wall.mp4 -o results/pixel6a.bt.wall.mp4.csv --luma-threshold 20
 ...
 avsync_sec average: -0.2714650419747814 stddev: 0.013496314738270662 size: 12
 video_delta_info = {'mode': 86.0, 'stddev': 0.4418732130047532, 'ok_ratio': 0.4298642533936652, 'sok_ratio': 0.8235294117647058, 'nok_ratio': 0.16832579185520363, 'unknown_ratio': 0.008144796380090498}
@@ -671,7 +703,7 @@ Advantages
 
 Usage:
 ```
-$ ./metiq.py parse -i distorted.mp4 --video-reader cv2
+$ ./src/metiq.py parse -i distorted.mp4 --video-reader cv2
 ```
 
 # A1.2.2. FFmpeg Reader (ffmpeg)
@@ -687,7 +719,7 @@ Advantages:
 
 Usage:
 ```
-$ ./metiq.py parse -i distorted.mp4 --video-reader ffmpeg
+$ ./src/metiq.py parse -i distorted.mp4 --video-reader ffmpeg
 ```
 
 # A1.3. Audio Reader Implementations
@@ -704,7 +736,7 @@ Advantages:
 
 Usage:
 ```
-$ ./metiq.py parse -i distorted.mp4 --audio-reader scipy
+$ ./src/metiq.py parse -i distorted.mp4 --audio-reader scipy
 ```
 
 # A1.3.2. FFmpeg Reader (ffmpeg)
@@ -720,7 +752,7 @@ Advantages:
 
 Usage:
 ```
-$ ./metiq.py parse -i distorted.mp4 --audio-reader ffmpeg
+$ ./src/metiq.py parse -i distorted.mp4 --audio-reader ffmpeg
 ```
 
 # A1.4. CLI Options
@@ -734,14 +766,14 @@ The `parse` subcommand supports the following reader selection options:
 
 Example listing available readers:
 ```
-$ ./metiq.py parse --video-reader-list
+$ ./src/metiq.py parse --video-reader-list
 Available video readers: cv2, ffmpeg (default: ffmpeg)
 
-$ ./metiq.py parse --audio-reader-list
+$ ./src/metiq.py parse --audio-reader-list
 Available audio readers: scipy, ffmpeg (default: ffmpeg)
 ```
 
 Example using non-default readers:
 ```
-$ ./metiq.py parse -i distorted.mp4 --video-reader cv2 --audio-reader scipy
+$ ./src/metiq.py parse -i distorted.mp4 --video-reader cv2 --audio-reader scipy
 ```
