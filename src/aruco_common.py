@@ -14,6 +14,13 @@ COLOR_WHITE = (255, 255, 255)
 CV_VERSION = [int(n) for n in cv2.__version__.split(".")]
 
 
+def normalize_aruco_ids(ids):
+    """Return marker IDs with a stable shape across OpenCV versions."""
+    if ids is None:
+        return None
+    return np.asarray(ids, dtype=np.int32).reshape(-1)
+
+
 def generate_aruco_tag(tag_size, aruco_id, border_size=0, aruco_dict_id=ARUCO_DICT_ID):
     # create the aruco tag
     tag_height = tag_size - 2 * border_size
@@ -80,4 +87,4 @@ def detect_aruco_tags(
         detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
         corners, ids, _rejectedImgPoints = detector.detectMarkers(gray)
 
-    return corners, ids
+    return corners, normalize_aruco_ids(ids)

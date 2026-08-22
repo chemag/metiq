@@ -559,7 +559,7 @@ def detect_tags(img, cached_ids=None, cached_corners=None, debug=0):
         corners, ids = aruco_common.detect_aruco_tags(img)
     else:
         corners = cached_corners
-        ids = np.asarray(cached_ids)
+        ids = np.asarray(cached_ids, dtype=np.int32).reshape(-1)
 
     if debug > 2:
         print(f"{corners=} {ids=}")
@@ -571,7 +571,7 @@ def detect_tags(img, cached_ids=None, cached_corners=None, debug=0):
 
     if cached_ids != None and corners != None:
         for i, corner in enumerate(corners):
-            id_ = ids[i]
+            id_ = int(ids[i])
             if id_ not in cached_ids and id_ < 10:
                 cached_ids.append(id_)
                 cached_corners.append(corner)
@@ -579,11 +579,16 @@ def detect_tags(img, cached_ids=None, cached_corners=None, debug=0):
         if debug > 1:
             img2 = img.copy()
             if len(ids) > 0:
-                img2 = cv2.aruco.drawDetectedMarkers(img2, corners, ids, (255, 255, 0))
+                img2 = cv2.aruco.drawDetectedMarkers(
+                    img2, corners, ids.reshape(-1, 1), (255, 255, 0)
+                )
 
             # draw already detected
             img2 = cv2.aruco.drawDetectedMarkers(
-                img2, cached_corners, np.asarray(cached_ids), (255, 0, 255)
+                img2,
+                cached_corners,
+                np.asarray(cached_ids, dtype=np.int32).reshape(-1, 1),
+                (255, 0, 255),
             )
             cv2.imshow("found", img2)
             cv2.waitKey(1)
@@ -594,7 +599,7 @@ def detect_tags(img, cached_ids=None, cached_corners=None, debug=0):
         return None, None, None, None
     else:
         # check tag list last number VFT_LAYOUT last number 2-5
-        ids = [id[0] for id in ids if id in [0, 1, 2, 3, 4, 5, 6, 7]]
+        ids = [int(id_) for id_ in ids if id_ in [0, 1, 2, 3, 4, 5, 6, 7]]
 
     # 2. make sure they are a valid set
     vft_id = get_vft_id(list(ids))
