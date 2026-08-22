@@ -75,6 +75,8 @@ def _pipe_frames_to_ffmpeg(width, height, fps, outfile, frame_generator):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    stdout = b""
+    stderr = b""
     try:
         for img in frame_generator:
             # Handle both numpy arrays and raw bytes
@@ -84,6 +86,9 @@ def _pipe_frames_to_ffmpeg(width, height, fps, outfile, frame_generator):
                 proc.stdin.write(img)
 
         proc.stdin.close()
+        # Python 3.12's communicate() tries to flush stdin even after the caller
+        # closes it, so detach the pipe and wait for ffmpeg explicitly.
+        proc.stdin = None
         stdout, stderr = proc.communicate()
 
         if proc.returncode != 0:
